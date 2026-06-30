@@ -1,0 +1,16 @@
+{
+  "name": "@learn-and-build/types",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "echo \"no tests for types\" && exit 0",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@learn-and-build/config": "workspace:*",
+    "typescript": "^5.6.3"
+  }
+}

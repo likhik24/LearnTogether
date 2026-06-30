@@ -1,0 +1,2 @@
+This service has been customized beyond the generated skeleton.
+scripts/gen-services.mjs will skip it to avoid clobbering changes.
