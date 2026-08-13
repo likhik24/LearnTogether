@@ -7,6 +7,7 @@ import { HealthController } from './health/health.controller';
 import { TeacherProfile } from './teachers/entities/teacher-profile.entity';
 import { TeacherDocument } from './teachers/entities/teacher-document.entity';
 import { TeachersModule } from './teachers/teachers.module';
+import { AuthDiscoveryModule } from './auth-discovery/auth-discovery.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { TeachersModule } from './teachers/teachers.module';
       }),
     }),
     TeachersModule,
+    AuthDiscoveryModule,
   ],
   controllers: [HealthController],
   providers: [JwtStrategy],

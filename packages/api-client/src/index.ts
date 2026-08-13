@@ -1,6 +1,7 @@
 import type {
   AuthTokenResponse,
   HealthResponse,
+  OidcProviderInfo,
   PublicUser,
   Role,
 } from '@learn-and-build/types';
@@ -64,8 +65,25 @@ export class ApiClient {
     });
   }
 
+  register(input: {
+    email: string;
+    password: string;
+    displayName: string;
+    role?: Role;
+  }): Promise<AuthTokenResponse> {
+    return this.request<AuthTokenResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
   me(): Promise<PublicUser> {
     return this.request<PublicUser>('/auth/me');
+  }
+
+  /** Lists configured OIDC providers (Google, AWS) for sign-in buttons. */
+  oidcProviders(): Promise<OidcProviderInfo[]> {
+    return this.request<OidcProviderInfo[]>('/auth/oidc/providers');
   }
 
   listUsers(): Promise<PublicUser[]> {
@@ -83,6 +101,7 @@ export class ApiClient {
 export type {
   AuthTokenResponse,
   HealthResponse,
+  OidcProviderInfo,
   PublicUser,
 } from '@learn-and-build/types';
 export { Role } from '@learn-and-build/types';

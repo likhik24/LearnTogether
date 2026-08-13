@@ -7,6 +7,9 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from '@learn-and-build/nest-auth';
 import { AdminSeeder } from './admin-seeder.service';
+import { OidcController } from './oidc/oidc.controller';
+import { OidcService } from './oidc/oidc.service';
+import { OidcConfigService } from './oidc/oidc-config.service';
 
 @Module({
   imports: [
@@ -22,8 +25,14 @@ import { AdminSeeder } from './admin-seeder.service';
       }),
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, AdminSeeder],
+  controllers: [AuthController, OidcController],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    AdminSeeder,
+    OidcService,
+    OidcConfigService,
+  ],
   exports: [AuthService],
 })
 export class AuthModule {}

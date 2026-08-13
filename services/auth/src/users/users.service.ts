@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Role } from '@learn-and-build/types';
+import { AuthProvider, Role } from '@learn-and-build/types';
 import { User } from './user.entity';
 
 @Injectable()
@@ -13,6 +13,13 @@ export class UsersService {
 
   findByEmail(email: string): Promise<User | null> {
     return this.users.findOne({ where: { email: email.toLowerCase() } });
+  }
+
+  findByProvider(
+    provider: AuthProvider,
+    providerSubject: string,
+  ): Promise<User | null> {
+    return this.users.findOne({ where: { provider, providerSubject } });
   }
 
   findById(id: string): Promise<User | null> {
@@ -34,6 +41,44 @@ export class UsersService {
       passwordHash: input.passwordHash,
       displayName: input.displayName,
       role: input.role ?? Role.USER,
+      provider: AuthProvider.LOCAL,
+    });
+    return this.users.save(user);
+  }
+
+  /**
+   * Resolves the local user for an external OIDC identity, creating one on
+   * first sign-in. If a local account already exists with the same email, the
+   * external identity is linked to it rather than creating a duplicate.
+   */
+  async findOrCreateOAuthUser(input: {
+    provider: AuthProvider;
+    providerSubject: string;
+    email: string;
+    displayName: string;
+  }): Promise<User> {
+    const linked = await this.findByProvider(
+      input.provider,
+      input.providerSubject,
+    );
+    if (linked) {
+      return linked;
+    }
+
+    const byEmail = await this.findByEmail(input.email);
+    if (byEmail) {
+      byEmail.provider = input.provider;
+      byEmail.providerSubject = input.providerSubject;
+      return this.users.save(byEmail);
+    }
+
+    const user = this.users.create({
+      email: input.email.toLowerCase(),
+      displayName: input.displayName,
+      role: Role.USER,
+      provider: input.provider,
+      providerSubject: input.providerSubject,
+      passwordHash: null,
     });
     return this.users.save(user);
   }

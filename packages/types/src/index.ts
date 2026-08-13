@@ -31,12 +31,20 @@ export interface AuthPrincipal {
   role: Role;
 }
 
+/** Identity provider a user authenticated with. */
+export enum AuthProvider {
+  LOCAL = 'local',
+  GOOGLE = 'google',
+  AWS = 'aws',
+}
+
 /** Public-safe representation of a user. Never includes the password hash. */
 export interface PublicUser {
   id: string;
   email: string;
   displayName: string;
   role: Role;
+  provider: AuthProvider;
   createdAt: string;
 }
 
@@ -44,6 +52,16 @@ export interface PublicUser {
 export interface AuthTokenResponse {
   accessToken: string;
   user: PublicUser;
+}
+
+/** A configured OIDC provider the client can offer as a sign-in option. */
+export interface OidcProviderInfo {
+  /** Stable id used in the login URL, e.g. "google" or "aws". */
+  id: string;
+  /** Human-friendly label for the sign-in button. */
+  label: string;
+  /** Absolute URL that begins the login redirect flow. */
+  loginUrl: string;
 }
 
 /** Teacher verification lifecycle states. */
@@ -95,6 +113,131 @@ export interface PresignedUploadResponse {
   uploadUrl: string;
   storageKey: string;
   expiresInSeconds: number;
+}
+
+/** Preferred gender of the instructor for a class. */
+export enum InstructorGender {
+  MALE = 'male',
+  FEMALE = 'female',
+  ANY = 'any',
+}
+
+/**
+ * A recurring weekly timing. `weekday` is ISO (1=Mon .. 7=Sun); the platform
+ * focuses on weekday evenings. `startMinute` is minutes from local midnight.
+ */
+export interface ClassTiming {
+  weekday: number;
+  startMinute: number;
+}
+
+export interface ClassOfferingDto {
+  id: string;
+  teacherId: string;
+  activity: string;
+  description: string | null;
+  instructorGender: InstructorGender;
+  durationMinutes: number;
+  seats: number;
+  location: GeoLocation | null;
+  timings: ClassTiming[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A concrete future occurrence of a recurring class, with seat availability. */
+export interface ClassOccurrence {
+  start: string;
+  end: string;
+  seatsTotal: number;
+  seatsAvailable: number;
+}
+
+/** A ranked search hit for a class. */
+export interface ClassSearchHit {
+  classId: string;
+  teacherId: string;
+  activity: string;
+  description: string | null;
+  location: GeoLocation | null;
+  distanceMeters: number | null;
+  score: number;
+}
+
+export interface ClassSearchResponse {
+  query: string;
+  total: number;
+  hits: ClassSearchHit[];
+}
+
+/** Structured intent parsed from a natural-language / voice query. */
+export interface VoiceIntent {
+  activity: string | null;
+  eveningOnly: boolean;
+  nearMe: boolean;
+  radiusMeters: number;
+  keywords: string[];
+}
+
+export interface VoiceQueryResponse {
+  transcript: string;
+  intent: VoiceIntent;
+  results: ClassSearchResponse;
+}
+
+/** Lifecycle of a class meeting session. */
+export enum MeetingStatus {
+  SCHEDULED = 'scheduled',
+  LIVE = 'live',
+  ENDED = 'ended',
+  CANCELLED = 'cancelled',
+}
+
+export interface MeetingDto {
+  id: string;
+  classId: string;
+  hostId: string;
+  provider: string;
+  roomName: string;
+  status: MeetingStatus;
+  scheduledStart: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Short-lived credentials a participant uses to join a meeting. */
+export interface MeetingJoinInfo {
+  meetingId: string;
+  token: string;
+  joinUrl: string;
+  expiresAt: string;
+}
+
+/** Lifecycle of a payment for a class booking. */
+export enum PaymentStatus {
+  PENDING = 'pending',
+  SUCCEEDED = 'succeeded',
+  FAILED = 'failed',
+  REFUNDED = 'refunded',
+}
+
+export interface PaymentDto {
+  id: string;
+  userId: string;
+  classId: string;
+  amountMinor: number;
+  currency: string;
+  status: PaymentStatus;
+  provider: string;
+  providerRef: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Response when creating a payment: includes client secret for the provider. */
+export interface PaymentIntentResponse {
+  payment: PaymentDto;
+  clientSecret: string;
 }
 
 

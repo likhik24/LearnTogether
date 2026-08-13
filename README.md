@@ -85,6 +85,26 @@ Roles: `user`, `teacher`, `admin` (shared `Role` enum in `@learn-and-build/types
 
 Set `ADMIN_EMAIL` / `ADMIN_PASSWORD` to seed an initial admin on first boot.
 
+### OIDC (Google + AWS Cognito)
+
+The auth service also supports OIDC login via Google and AWS Cognito
+(Authorization Code + PKCE, using `openid-client`). Providers are enabled only
+when their env vars are set, so it degrades gracefully to password-only.
+
+| Method | Route                          | Purpose                                   |
+| ------ | ------------------------------ | ----------------------------------------- |
+| GET    | /auth/oidc/providers           | List enabled providers (for UI buttons)   |
+| GET    | /auth/oidc/:provider/login     | 302 redirect to the provider              |
+| GET    | /auth/oidc/:provider/callback  | Exchange code, then redirect to console   |
+
+On success the browser is redirected to `OIDC_SUCCESS_REDIRECT` with the JWT in
+the URL fragment (`#access_token=...`); the admin console reads it on load.
+External identities are linked to a local user (matched by email, else created
+as a `user`). Configure via `GOOGLE_CLIENT_ID/SECRET` and
+`AWS_COGNITO_ISSUER` + `AWS_COGNITO_CLIENT_ID/SECRET` (see `.env.example`).
+Set each provider's redirect URI to
+`${OIDC_REDIRECT_BASE}/auth/oidc/<google|aws>/callback`.
+
 ## Teacher service (port 3002)
 
 Profiles with PostGIS location, S3 document uploads, and an admin-driven
@@ -105,6 +125,39 @@ approved/rejected`, with resubmit from `rejected`).
 
 The admin approve/reject actions are wired to the shared role guards from
 `@learn-and-build/nest-auth`, the same guards the auth service uses.
+
+## Scheduling service (port 3004)
+
+Verified teachers publish classes (activity, description, instructor gender,
+duration, seats) with recurring weekday-evening timings; an availability query
+expands them into concrete upcoming occurrences with seat counts.
+
+| Method | Route                          | Auth          | Purpose                       |
+| ------ | ------------------------------ | ------------- | ----------------------------- |
+| POST   | /classes                       | JWT + TEACHER | Publish a class               |
+| GET    | /classes/mine                  | JWT + TEACHER | A teacher's own classes       |
+| GET    | /classes/:id                   | public        | Class details                 |
+| GET    | /classes/:id/availability?days | public        | Upcoming occurrences + seats  |
+
+Timings are validated to weekday evenings (Mon-Fri, fitting inside 17:00-22:00).
+
+## Search service (port 3003)
+
+Hybrid semantic + keyword search over classes, geo-filtered to a radius
+(default 5 km) via PostGIS `ST_DWithin`. Classes are indexed into OpenSearch
+(keyword fields + embedding vector); ranking combines a concept-expanded
+keyword score with embedding cosine similarity. A "text path" concept map lets
+a query for "martial arts" match a "Jiu Jitsu" class. Re-indexing runs
+asynchronously via an EventBridge -> SQS consumer (enabled when `SQS_QUEUE_URL`
+is set) plus an admin-triggered full reindex.
+
+| Method | Route                              | Auth        | Purpose                        |
+| ------ | ---------------------------------- | ----------- | ------------------------------ |
+| GET    | /search?q=&lat=&lng=&radius=       | public      | Ranked classes within radius   |
+| POST   | /search/index                      | JWT + ADMIN | Index a single class           |
+| POST   | /search/reindex                    | JWT + ADMIN | Full reindex from the database  |
+
+Try the full flow (stack running): `node scripts/demo-search.mjs`.
 
 ## Admin console shell (apps/web)
 

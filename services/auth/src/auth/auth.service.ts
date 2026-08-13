@@ -39,13 +39,19 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<AuthTokenResponse> {
     const user = await this.users.findByEmail(dto.email);
-    if (!user) {
+    if (!user || !user.passwordHash) {
+      // No local password set (e.g. an OIDC-only account) -> reject.
       throw new UnauthorizedException('Invalid credentials');
     }
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    return this.issueToken(user);
+  }
+
+  /** Issues a platform JWT for an already-authenticated user (e.g. via OIDC). */
+  issueTokenFor(user: User): AuthTokenResponse {
     return this.issueToken(user);
   }
 

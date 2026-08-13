@@ -70,6 +70,13 @@ services:
       ADMIN_EMAIL: admin@learnbuild.local
       ADMIN_PASSWORD: change-me-now
       ADMIN_NAME: Administrator
+      OIDC_REDIRECT_BASE: http://localhost:3001
+      OIDC_SUCCESS_REDIRECT: http://localhost:3100/admin
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      AWS_COGNITO_ISSUER: ${AWS_COGNITO_ISSUER:-}
+      AWS_COGNITO_CLIENT_ID: ${AWS_COGNITO_CLIENT_ID:-}
+      AWS_COGNITO_CLIENT_SECRET: ${AWS_COGNITO_CLIENT_SECRET:-}
     ports:
       - "3001:3001"
     depends_on:
@@ -94,6 +101,7 @@ services:
       DATABASE_URL: postgres://learnbuild:learnbuild@postgres:5432/learnbuild
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-insecure-secret
+      AUTH_SERVICE_URL: http://auth:3001
       DOCUMENTS_BUCKET: learnbuild-documents
       AWS_REGION: us-east-1
     ports:
@@ -116,8 +124,11 @@ services:
       dockerfile: services/search/Dockerfile
     environment:
       PORT: 3003
+      NODE_ENV: development
       OPENSEARCH_URL: http://opensearch:9200
       REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgres://learnbuild:learnbuild@postgres:5432/learnbuild
+      JWT_SECRET: dev-insecure-secret
     ports:
       - "3003:3003"
     depends_on:
@@ -138,8 +149,10 @@ services:
       dockerfile: services/scheduling/Dockerfile
     environment:
       PORT: 3004
+      NODE_ENV: development
       DATABASE_URL: postgres://learnbuild:learnbuild@postgres:5432/learnbuild
       REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-insecure-secret
     ports:
       - "3004:3004"
     depends_on:
@@ -161,6 +174,7 @@ services:
     environment:
       PORT: 3005
       REDIS_URL: redis://redis:6379
+      SEARCH_SERVICE_URL: http://search:3003
     ports:
       - "3005:3005"
     depends_on:
