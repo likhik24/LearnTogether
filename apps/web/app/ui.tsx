@@ -114,7 +114,7 @@ export function BottomNav() {
   return (
     <nav className="bottom-nav" aria-label="Main navigation">
       {navItems.map((item) => {
-        const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+        const active = item.href === '/' ? pathname === '/' || pathname.startsWith('/recommendations') : pathname.startsWith(item.href);
         return (
           <Link className={active ? 'active' : ''} href={item.href} key={item.label}>
             <Icon name={item.icon} size={21} /><span>{item.label}</span>

@@ -26,7 +26,7 @@ export default function HomePage() {
         <section className="section-block">
           <div className="section-heading">
             <div><span className="eyebrow purple">THIS WEEKEND</span><h2>Ready when you are</h2></div>
-            <Link href="/discover">See all</Link>
+            <Link href="/recommendations">View timeline</Link>
           </div>
           <ClassCard item={classes[0]} compact />
         </section>

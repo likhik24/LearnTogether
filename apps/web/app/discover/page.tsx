@@ -5,16 +5,32 @@ import { categories, classes } from '../data';
 import { AppHeader, BottomNav, ClassCard, Icon } from '../ui';
 
 const filters = ['All', 'Today', 'Tomorrow', 'Weekend', 'Nearby'];
+const viewModes = ['Categories', 'List', 'Map'] as const;
+type ViewMode = (typeof viewModes)[number];
+
+const markerPositions: Record<string, { left: string; top: string }> = {
+  'build-a-car': { left: '61%', top: '31%' },
+  'messy-art-play': { left: '19%', top: '22%' },
+  'rhythm-and-rhyme': { left: '29%', top: '61%' },
+  'story-time': { left: '73%', top: '65%' },
+};
 
 export default function DiscoverPage() {
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('Categories');
+  const [selectedSlug, setSelectedSlug] = useState(classes[0].slug);
   const searchInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const category = new URLSearchParams(window.location.search).get('category');
-    if (category) setQuery(category);
+    const requestedView = new URLSearchParams(window.location.search).get('view');
+    if (category) {
+      setQuery(category);
+      setViewMode('List');
+    }
+    if (requestedView === 'map') setViewMode('Map');
     const shortcut = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
@@ -32,6 +48,7 @@ export default function DiscoverPage() {
       return matchesQuery && matchesFilter;
     });
   }, [activeFilter, query]);
+  const selectedClass = visibleClasses.find((item) => item.slug === selectedSlug) ?? visibleClasses[0];
 
   return (
     <main className="page-canvas">
@@ -44,27 +61,30 @@ export default function DiscoverPage() {
         </section>
         <label className="search-field">
           <Icon name="search" size={20} />
-          <input ref={searchInput} aria-label="Search classes" placeholder="Search activities, skills, teachers…" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <input ref={searchInput} aria-label="Search classes" placeholder="Search activities, skills, teachers…" value={query} onChange={(event) => { setQuery(event.target.value); setViewMode('List'); }} />
           <kbd>⌘ K</kbd>
         </label>
+        <div className="view-switcher" aria-label="Discover view">
+          {viewModes.map((mode) => <button type="button" aria-pressed={viewMode === mode} className={viewMode === mode ? 'active' : ''} key={mode} onClick={() => setViewMode(mode)}>{mode}</button>)}
+        </div>
         <div className="filter-row" aria-label="Class filters">
           {filters.map((filter) => (
             <button className={activeFilter === filter ? 'active' : ''} key={filter} type="button" onClick={() => setActiveFilter(filter)}>{filter}</button>
           ))}
         </div>
-        {!query && (
+        {viewMode === 'Categories' && !query && (
           <section className="section-block discover-categories">
             <div className="section-heading"><div><h2>Browse by interest</h2></div></div>
             <div className="category-grid">
               {categories.map((category) => (
-                <button className={`category-tile ${category.tone}`} type="button" key={category.name} onClick={() => setQuery(category.query)}>
+                <button className={`category-tile ${category.tone}`} type="button" key={category.name} onClick={() => { setQuery(category.query); setViewMode('List'); }}>
                   <span className="category-icon">{category.icon}</span><strong>{category.name}</strong><small>{category.count} classes</small><span className="tile-arrow">↗</span>
                 </button>
               ))}
             </div>
           </section>
         )}
-        <section className="section-block results-section">
+        {viewMode === 'List' && <section className="section-block results-section">
           <div className="section-heading">
             <div><span className="eyebrow coral">{activeFilter.toUpperCase()}</span><h2>{query ? 'Search results' : 'Popular near you'}</h2></div>
             <button type="button" className="filter-link" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((value) => !value)}>Filters <span>⌁</span></button>
@@ -82,7 +102,28 @@ export default function DiscoverPage() {
             {visibleClasses.map((item) => <ClassCard item={item} key={item.slug} />)}
             {visibleClasses.length === 0 && <div className="empty-state"><span>✦</span><h3>No perfect match yet</h3><p>Try searching for art, music, STEM, or stories.</p></div>}
           </div>
-        </section>
+        </section>}
+        {viewMode === 'Map' && (
+          <section className="section-block map-results-section">
+            <div className="section-heading"><div><span className="eyebrow coral">MAP VIEW</span><h2>{visibleClasses.length} classes around you</h2></div><button className="filter-link" onClick={() => setSelectedSlug(visibleClasses[0]?.slug ?? '')}>Recenter</button></div>
+            <div className="discovery-map" aria-label="Map of nearby classes">
+              <span className="map-label label-one">Botanical Garden Rd</span><span className="map-label label-two">Hitech City Rd</span><span className="map-label label-three">Kondapur</span>
+              <i className="street horizontal one" /><i className="street horizontal two" /><i className="street vertical one" /><i className="street vertical two" /><i className="street diagonal" />
+              <span className="park park-one" /><span className="park park-two" /><span className="water" />
+              <span className="you-are-here" aria-label="Your location"><i /></span>
+              {visibleClasses.map((item) => (
+                <button
+                  className={selectedClass?.slug === item.slug ? 'map-price-pin active' : 'map-price-pin'}
+                  style={markerPositions[item.slug]}
+                  key={item.slug}
+                  aria-label={`Select ${item.title}, ₹${item.price}`}
+                  onClick={() => setSelectedSlug(item.slug)}
+                >₹{item.price}</button>
+              ))}
+            </div>
+            {selectedClass ? <div className="map-preview"><ClassCard item={selectedClass} compact /></div> : <div className="empty-state"><h3>No classes on this map</h3><p>Try another day or reset your filters.</p></div>}
+          </section>
+        )}
         <BottomNav />
       </div>
     </main>
