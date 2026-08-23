@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtStrategy } from '@learn-and-build/nest-auth';
 import { HealthController } from './health/health.controller';
 import { ClassOffering } from './scheduling/class-offering.entity';
+import { ClassReservation } from './scheduling/class-reservation.entity';
 import { SchedulingModule } from './scheduling/scheduling.module';
 
 @Module({
@@ -19,7 +20,7 @@ import { SchedulingModule } from './scheduling/scheduling.module';
           'DATABASE_URL',
           'postgres://learnbuild:learnbuild@localhost:5432/learnbuild',
         ),
-        entities: [ClassOffering],
+        entities: [ClassOffering, ClassReservation],
         synchronize: config.get<string>('NODE_ENV') !== 'production',
       }),
     }),

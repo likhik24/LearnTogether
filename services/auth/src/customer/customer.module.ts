@@ -6,11 +6,12 @@ import { CustomerNotification } from './entities/customer-notification.entity';
 import { SavedClass } from './entities/saved-class.entity';
 import { CustomerController } from './customer.controller';
 import { CustomerService } from './customer.service';
+import { SchedulingGateway } from './scheduling.gateway';
 
 @Module({
   imports: [TypeOrmModule.forFeature([ChildProfile, SavedClass, Booking, CustomerNotification])],
   controllers: [CustomerController],
-  providers: [CustomerService],
+  providers: [CustomerService, SchedulingGateway],
   exports: [CustomerService],
 })
 export class CustomerModule {}

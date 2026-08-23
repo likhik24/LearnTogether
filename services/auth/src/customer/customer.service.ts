@@ -9,6 +9,7 @@ import { SavedClass } from './entities/saved-class.entity';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { CreateChildDto } from './dto/create-child.dto';
 import { UpdateChildDto } from './dto/update-child.dto';
+import { SchedulingGateway } from './scheduling.gateway';
 
 @Injectable()
 export class CustomerService {
@@ -17,6 +18,7 @@ export class CustomerService {
     @InjectRepository(SavedClass) private readonly saved: Repository<SavedClass>,
     @InjectRepository(Booking) private readonly bookings: Repository<Booking>,
     @InjectRepository(CustomerNotification) private readonly notifications: Repository<CustomerNotification>,
+    private readonly scheduling: SchedulingGateway,
   ) {}
 
   listChildren(userId: string): Promise<ChildProfile[]> {
@@ -66,19 +68,28 @@ export class CustomerService {
     return this.bookings.find({ where: { userId }, order: { scheduledStart: 'ASC' } });
   }
 
-  async createBooking(userId: string, dto: CreateBookingDto): Promise<Booking> {
+  async createBooking(userId: string, authorization: string, dto: CreateBookingDto): Promise<Booking> {
     const scheduledStart = new Date(dto.scheduledStart);
     const existing = await this.bookings.findOne({ where: { userId, classRef: dto.classRef, scheduledStart, status: BookingStatus.CONFIRMED } });
     if (existing) return existing;
-    const booking = await this.bookings.save(this.bookings.create({
-      userId,
-      classRef: dto.classRef,
-      title: dto.title,
-      scheduledStart,
-      amountMinor: dto.amountMinor,
-      currency: dto.currency,
-      status: BookingStatus.CONFIRMED,
-    }));
+    const reservation = await this.scheduling.reserve(authorization, dto.classRef, dto.scheduledStart);
+    let booking: Booking;
+    try {
+      booking = await this.bookings.save(this.bookings.create({
+        userId,
+        classRef: dto.classRef,
+        classSlug: dto.classSlug ?? null,
+        reservationId: reservation.id,
+        title: dto.title,
+        scheduledStart,
+        amountMinor: dto.amountMinor,
+        currency: dto.currency,
+        status: BookingStatus.CONFIRMED,
+      }));
+    } catch (error) {
+      await this.scheduling.release(authorization, dto.classRef, reservation.id).catch(() => undefined);
+      throw error;
+    }
     await this.notifications.save(this.notifications.create({
       userId,
       kind: 'booking',
@@ -89,10 +100,11 @@ export class CustomerService {
     return booking;
   }
 
-  async cancelBooking(userId: string, id: string): Promise<Booking> {
+  async cancelBooking(userId: string, authorization: string, id: string): Promise<Booking> {
     const booking = await this.bookings.findOne({ where: { id, userId } });
     if (!booking) throw new NotFoundException(`Booking ${id} not found`);
     if (booking.status === BookingStatus.CANCELLED) return booking;
+    if (booking.reservationId) await this.scheduling.release(authorization, booking.classRef, booking.reservationId);
     booking.status = BookingStatus.CANCELLED;
     const cancelled = await this.bookings.save(booking);
     await this.notifications.save(this.notifications.create({

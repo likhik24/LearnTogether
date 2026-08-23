@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { classes } from '../../data';
-import { BookingBar, DetailTopActions, ReviewsButton } from '../../detail-actions';
+import { BookingBar, ClassLocationMap, DetailTopActions, ReviewsButton } from '../../detail-actions';
 import { Icon } from '../../ui';
 
 export function generateStaticParams() {
@@ -48,11 +48,7 @@ export default function ClassDetailsPage({ params }: { params: { slug: string } 
               <div><strong>10:30 AM – 11:30 AM</strong><span><Icon name="location" size={16} /> Little Makers Studio, Hitech City</span></div>
               <a href="https://www.google.com/maps/search/?api=1&query=Little+Makers+Studio+Hitech+City+Hyderabad" target="_blank" rel="noreferrer" aria-label="Open directions">›</a>
             </div>
-            <div className="mini-map">
-              <div className="map-road one" /><div className="map-road two" /><div className="map-road three" />
-              <span className="map-pin"><Icon name="location" size={21} /></span>
-              <div><strong>2.3 km away</strong><small>About 8 min drive</small></div>
-            </div>
+            <ClassLocationMap item={item} />
           </section>
           <section className="details-section included-section">
             <span className="eyebrow coral">THE GOOD STUFF</span><h2>Everything’s taken care of</h2>

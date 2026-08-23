@@ -4,7 +4,10 @@ import {
   IsEnum,
   IsInt,
   IsOptional,
+  IsNumber,
   IsString,
+  Length,
+  Matches,
   Max,
   Min,
   MinLength,
@@ -29,6 +32,11 @@ export class ClassTimingDto {
 }
 
 export class CreateClassDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+  slug?: string;
+
   @IsString()
   @MinLength(2)
   activity!: string;
@@ -36,6 +44,17 @@ export class CreateClassDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsInt() @Min(0) @Max(17) ageMin?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(17) ageMax?: number;
+  @IsOptional() @IsInt() @Min(0) priceMinor?: number;
+  @IsOptional() @IsString() @Length(3, 3) currency?: string;
+  @IsOptional() @IsString() imageUrl?: string;
+  @IsOptional() @IsString() tone?: string;
+  @IsOptional() @IsNumber() @Min(0) @Max(5) rating?: number;
+  @IsOptional() @IsInt() @Min(0) reviewCount?: number;
+  @IsOptional() @IsString() venueName?: string;
 
   @IsEnum(InstructorGender)
   instructorGender!: InstructorGender;

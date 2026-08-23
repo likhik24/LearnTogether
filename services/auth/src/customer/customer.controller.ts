@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser, JwtAuthGuard, type AuthPrincipal } from '@learn-and-build/nest-auth';
 import type { BookingDto, ChildProfileDto, CustomerNotificationDto, SavedClassDto } from '@learn-and-build/types';
 import { CustomerService } from './customer.service';
@@ -49,13 +49,13 @@ export class CustomerController {
   }
 
   @Post('bookings')
-  async createBooking(@CurrentUser() user: AuthPrincipal, @Body() dto: CreateBookingDto): Promise<BookingDto> {
-    return (await this.customer.createBooking(user.sub, dto)).toDto();
+  async createBooking(@CurrentUser() user: AuthPrincipal, @Headers('authorization') authorization: string, @Body() dto: CreateBookingDto): Promise<BookingDto> {
+    return (await this.customer.createBooking(user.sub, authorization, dto)).toDto();
   }
 
   @Patch('bookings/:id/cancel')
-  async cancelBooking(@CurrentUser() user: AuthPrincipal, @Param('id') id: string): Promise<BookingDto> {
-    return (await this.customer.cancelBooking(user.sub, id)).toDto();
+  async cancelBooking(@CurrentUser() user: AuthPrincipal, @Headers('authorization') authorization: string, @Param('id') id: string): Promise<BookingDto> {
+    return (await this.customer.cancelBooking(user.sub, authorization, id)).toDto();
   }
 
   @Get('notifications')

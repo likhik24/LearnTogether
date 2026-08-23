@@ -1,4 +1,5 @@
 export type ClassCardData = {
+  backendId?: string;
   slug: string;
   title: string;
   category: string;
@@ -12,6 +13,10 @@ export type ClassCardData = {
   image: string;
   tone: string;
   availability: string[];
+  occurrenceStart?: string;
+  latitude?: number;
+  longitude?: number;
+  venueName?: string;
 };
 
 export const classes: ClassCardData[] = [
@@ -29,6 +34,8 @@ export const classes: ClassCardData[] = [
     image: '/images/build-a-car-workshop.jpg',
     tone: 'mint',
     availability: ['Weekend'],
+    latitude: 17.4483,
+    longitude: 78.3847,
   },
   {
     slug: 'messy-art-play',
@@ -44,6 +51,8 @@ export const classes: ClassCardData[] = [
     image: 'https://images.unsplash.com/photo-1598880940080-ff9a29891b85?auto=format&fit=crop&w=700&q=85',
     tone: 'peach',
     availability: ['Today', 'Nearby'],
+    latitude: 17.4474,
+    longitude: 78.3971,
   },
   {
     slug: 'rhythm-and-rhyme',
@@ -59,6 +68,8 @@ export const classes: ClassCardData[] = [
     image: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&w=700&q=85',
     tone: 'sky',
     availability: ['Tomorrow', 'Nearby'],
+    latitude: 17.4419,
+    longitude: 78.3916,
   },
   {
     slug: 'story-time',
@@ -74,6 +85,8 @@ export const classes: ClassCardData[] = [
     image: 'https://images.unsplash.com/photo-1602030028438-4cf153cbae9e?auto=format&fit=crop&w=700&q=85',
     tone: 'lilac',
     availability: ['Weekend'],
+    latitude: 17.4548,
+    longitude: 78.3788,
   },
 ];
 

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   DefaultValuePipe,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -20,9 +21,12 @@ import {
 import type {
   ClassOccurrence,
   ClassOfferingDto,
+  ClassReservationDto,
+  DiscoverClassDto,
 } from '@learn-and-build/types';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
+import { ReserveClassDto } from './dto/reserve-class.dto';
 
 @Controller('classes')
 export class ClassesController {
@@ -51,6 +55,29 @@ export class ClassesController {
     return list.map((c) => c.toDto());
   }
 
+  /** Public customer discovery data with live occurrence capacity. */
+  @Get('discover')
+  discover(
+    @Query('q', new DefaultValuePipe('')) query: string,
+    @Query('lat') lat?: string,
+    @Query('lng') lng?: string,
+    @Query('radius', new DefaultValuePipe('5000')) radius?: string,
+    @Query('days', new DefaultValuePipe('21')) days?: string,
+  ): Promise<DiscoverClassDto[]> {
+    const hasOrigin = lat !== undefined && lng !== undefined;
+    return this.classes.discover({
+      query,
+      origin: hasOrigin ? { lat: Number(lat), lng: Number(lng) } : undefined,
+      radiusMeters: Number(radius),
+      days: Number(days),
+    });
+  }
+
+  @Get('slug/:slug')
+  async getBySlug(@Param('slug') slug: string): Promise<ClassOfferingDto> {
+    return (await this.classes.getBySlugOrThrow(slug)).toDto();
+  }
+
   @Get(':id')
   async get(@Param('id') id: string): Promise<ClassOfferingDto> {
     const offering = await this.classes.getOrThrow(id);
@@ -64,5 +91,25 @@ export class ClassesController {
     @Query('days', new DefaultValuePipe(14), ParseIntPipe) days: number,
   ): Promise<ClassOccurrence[]> {
     return this.classes.availability(id, days);
+  }
+
+  @Post(':id/reservations')
+  @UseGuards(JwtAuthGuard)
+  async reserve(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body() dto: ReserveClassDto,
+  ): Promise<ClassReservationDto> {
+    return (await this.classes.reserve(user.sub, id, dto)).toDto();
+  }
+
+  @Delete(':id/reservations/:reservationId')
+  @UseGuards(JwtAuthGuard)
+  async cancelReservation(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Param('reservationId') reservationId: string,
+  ): Promise<ClassReservationDto> {
+    return (await this.classes.cancelReservation(user.sub, id, reservationId)).toDto();
   }
 }

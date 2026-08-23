@@ -27,11 +27,45 @@ export class ClassOffering {
   @Column({ name: 'teacher_id' })
   teacherId!: string;
 
+  @Index({ unique: true })
+  @Column({ type: 'varchar', nullable: true })
+  slug!: string | null;
+
   @Column()
   activity!: string;
 
   @Column({ type: 'text', nullable: true })
   description!: string | null;
+
+  @Column({ default: 'General' })
+  category!: string;
+
+  @Column({ name: 'age_min', type: 'int', default: 3 })
+  ageMin!: number;
+
+  @Column({ name: 'age_max', type: 'int', default: 6 })
+  ageMax!: number;
+
+  @Column({ name: 'price_minor', type: 'int', default: 0 })
+  priceMinor!: number;
+
+  @Column({ length: 3, default: 'INR' })
+  currency!: string;
+
+  @Column({ name: 'image_url', type: 'text', nullable: true })
+  imageUrl!: string | null;
+
+  @Column({ default: 'mint' })
+  tone!: string;
+
+  @Column({ type: 'real', default: 0 })
+  rating!: number;
+
+  @Column({ name: 'review_count', type: 'int', default: 0 })
+  reviewCount!: number;
+
+  @Column({ name: 'venue_name', type: 'varchar', nullable: true })
+  venueName!: string | null;
 
   @Column({
     name: 'instructor_gender',
@@ -76,8 +110,19 @@ export class ClassOffering {
     return {
       id: this.id,
       teacherId: this.teacherId,
+      slug: this.slug,
       activity: this.activity,
       description: this.description ?? null,
+      category: this.category,
+      ageMin: this.ageMin,
+      ageMax: this.ageMax,
+      priceMinor: this.priceMinor,
+      currency: this.currency,
+      imageUrl: this.imageUrl,
+      tone: this.tone,
+      rating: this.rating,
+      reviewCount: this.reviewCount,
+      venueName: this.venueName,
       instructorGender: this.instructorGender,
       durationMinutes: this.durationMinutes,
       seats: this.seats,

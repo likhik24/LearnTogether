@@ -134,8 +134,19 @@ export interface ClassTiming {
 export interface ClassOfferingDto {
   id: string;
   teacherId: string;
+  slug: string | null;
   activity: string;
   description: string | null;
+  category: string;
+  ageMin: number;
+  ageMax: number;
+  priceMinor: number;
+  currency: string;
+  imageUrl: string | null;
+  tone: string;
+  rating: number;
+  reviewCount: number;
+  venueName: string | null;
   instructorGender: InstructorGender;
   durationMinutes: number;
   seats: number;
@@ -151,6 +162,29 @@ export interface ClassOccurrence {
   end: string;
   seatsTotal: number;
   seatsAvailable: number;
+}
+
+/** Customer-facing class data enriched with its next available occurrence. */
+export interface DiscoverClassDto extends ClassOfferingDto {
+  distanceMeters: number | null;
+  nextOccurrence: ClassOccurrence | null;
+}
+
+export enum ReservationStatus {
+  RESERVED = 'reserved',
+  CANCELLED = 'cancelled',
+}
+
+/** An atomic seat hold owned by a signed-in customer. */
+export interface ClassReservationDto {
+  id: string;
+  classId: string;
+  userId: string;
+  occurrenceStart: string;
+  seats: number;
+  status: ReservationStatus;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** A ranked search hit for a class. */
@@ -271,6 +305,8 @@ export interface BookingDto {
   id: string;
   userId: string;
   classRef: string;
+  classSlug: string | null;
+  reservationId: string | null;
   title: string;
   scheduledStart: string;
   amountMinor: number;

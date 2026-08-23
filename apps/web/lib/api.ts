@@ -9,11 +9,21 @@ export const AUTH_API_URL =
   process.env.NEXT_PUBLIC_AUTH_API_URL ?? 'http://localhost:3001';
 export const SEARCH_API_URL =
   process.env.NEXT_PUBLIC_SEARCH_API_URL ?? 'http://localhost:3003';
+export const SCHEDULING_API_URL =
+  process.env.NEXT_PUBLIC_SCHEDULING_API_URL ?? 'http://localhost:3004';
 export const VOICE_API_URL =
   process.env.NEXT_PUBLIC_VOICE_API_URL ?? 'http://localhost:3005';
 
 export function createAuthClient(token?: string): ApiClient {
   return new ApiClient({ baseUrl: AUTH_API_URL, token });
+}
+
+export function createSchedulingClient(token?: string): ApiClient {
+  return new ApiClient({ baseUrl: SCHEDULING_API_URL, token });
+}
+
+export function createSearchClient(): ApiClient {
+  return new ApiClient({ baseUrl: SEARCH_API_URL });
 }
 
 /**

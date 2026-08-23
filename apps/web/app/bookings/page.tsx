@@ -7,7 +7,7 @@ import { BookingStatus } from '@learn-and-build/types';
 import { getCustomerClient } from '../../lib/customer-session';
 import { AppHeader, BottomNav, Icon } from '../ui';
 
-type LocalBooking = { id?: string; classRef?: string; title: string; date: string; time: string; price: number };
+type LocalBooking = { id?: string; classRef?: string; classSlug?: string; title: string; date: string; time: string; price: number };
 type DisplayBooking = LocalBooking & { source?: BookingDto };
 
 export default function BookingsPage() {
@@ -30,6 +30,7 @@ export default function BookingsPage() {
       setBooking({
         id: item.id,
         classRef: item.classRef,
+        classSlug: item.classSlug ?? undefined,
         title: item.title,
         date: new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }).format(start),
         time: new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit' }).format(start),
@@ -65,7 +66,7 @@ export default function BookingsPage() {
           <section className="booked-card">
             <div className="booking-date"><span>{calendarMonth}</span><strong>{calendarDay}</strong><small>{calendarWeekday}</small></div>
             <div><span className="status-pill">CONFIRMED</span><h2>{booking.title}</h2><p>{booking.date} • {booking.time}</p><small>Little Makers Studio • Hitech City{syncMessage ? ` • ${syncMessage}` : ''}</small></div>
-            <div className="booking-actions"><Link href={`/classes/${booking.classRef ?? 'build-a-car'}`}>View details</Link><button onClick={() => void cancelBooking()}>Cancel booking</button></div>
+            <div className="booking-actions"><Link href={`/classes/${booking.classSlug ?? booking.classRef ?? 'build-a-car'}`}>View details</Link><button onClick={() => void cancelBooking()}>Cancel booking</button></div>
           </section>
         ) : (
           <div className="empty-bookings"><span><Icon name="calendar" size={35} /></span><h2>No bookings yet</h2><p>Find a class Abhiram will love and reserve a trial.</p><Link href="/discover">Explore classes →</Link></div>

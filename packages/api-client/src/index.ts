@@ -1,8 +1,13 @@
 import type {
   AuthTokenResponse,
   BookingDto,
+  ClassOccurrence,
+  ClassOfferingDto,
+  ClassReservationDto,
+  ClassSearchResponse,
   ChildProfileDto,
   CustomerNotificationDto,
+  DiscoverClassDto,
   HealthResponse,
   OidcProviderInfo,
   PublicUser,
@@ -130,7 +135,7 @@ export class ApiClient {
     return this.request<BookingDto[]>('/customer/bookings');
   }
 
-  createBooking(input: { classRef: string; title: string; scheduledStart: string; amountMinor: number; currency: string }): Promise<BookingDto> {
+  createBooking(input: { classRef: string; classSlug?: string; title: string; scheduledStart: string; amountMinor: number; currency: string }): Promise<BookingDto> {
     return this.request<BookingDto>('/customer/bookings', { method: 'POST', body: JSON.stringify(input) });
   }
 
@@ -149,13 +154,55 @@ export class ApiClient {
   markAllNotificationsRead(): Promise<void> {
     return this.request<void>('/customer/notifications/read-all', { method: 'POST' });
   }
+
+  discoverClasses(params: { query?: string; lat?: number; lng?: number; radiusMeters?: number; days?: number } = {}): Promise<DiscoverClassDto[]> {
+    const query = new URLSearchParams();
+    if (params.query) query.set('q', params.query);
+    if (params.lat !== undefined) query.set('lat', String(params.lat));
+    if (params.lng !== undefined) query.set('lng', String(params.lng));
+    if (params.radiusMeters !== undefined) query.set('radius', String(params.radiusMeters));
+    if (params.days !== undefined) query.set('days', String(params.days));
+    const suffix = query.size ? `?${query.toString()}` : '';
+    return this.request<DiscoverClassDto[]>(`/classes/discover${suffix}`);
+  }
+
+  getClassBySlug(slug: string): Promise<ClassOfferingDto> {
+    return this.request<ClassOfferingDto>(`/classes/slug/${encodeURIComponent(slug)}`);
+  }
+
+  classAvailability(id: string, days = 21): Promise<ClassOccurrence[]> {
+    return this.request<ClassOccurrence[]>(`/classes/${encodeURIComponent(id)}/availability?days=${days}`);
+  }
+
+  reserveClass(id: string, occurrenceStart: string, seats = 1): Promise<ClassReservationDto> {
+    return this.request<ClassReservationDto>(`/classes/${encodeURIComponent(id)}/reservations`, { method: 'POST', body: JSON.stringify({ occurrenceStart, seats }) });
+  }
+
+  cancelClassReservation(classId: string, reservationId: string): Promise<ClassReservationDto> {
+    return this.request<ClassReservationDto>(`/classes/${encodeURIComponent(classId)}/reservations/${encodeURIComponent(reservationId)}`, { method: 'DELETE' });
+  }
+
+  searchClasses(queryText: string, coords?: { lat: number; lng: number; radiusMeters?: number }): Promise<ClassSearchResponse> {
+    const query = new URLSearchParams({ q: queryText });
+    if (coords) {
+      query.set('lat', String(coords.lat));
+      query.set('lng', String(coords.lng));
+      query.set('radius', String(coords.radiusMeters ?? 5000));
+    }
+    return this.request<ClassSearchResponse>(`/search?${query.toString()}`);
+  }
 }
 
 export type {
   AuthTokenResponse,
   BookingDto,
+  ClassOccurrence,
+  ClassOfferingDto,
+  ClassReservationDto,
+  ClassSearchResponse,
   ChildProfileDto,
   CustomerNotificationDto,
+  DiscoverClassDto,
   HealthResponse,
   OidcProviderInfo,
   PublicUser,

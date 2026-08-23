@@ -3,7 +3,20 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { getCustomerClient } from '../lib/customer-session';
+import { createSchedulingClient } from '../lib/api';
 import { Icon } from './ui';
+import type { ClassCardData } from './data';
+import { RealDiscoveryMap } from './discover/real-discovery-map';
+
+export function ClassLocationMap({ item }: { item: ClassCardData }) {
+  const [selected, setSelected] = useState(item.slug);
+  return (
+    <div className="mini-map live-mini-map">
+      <RealDiscoveryMap items={[item]} selectedSlug={selected} onSelect={setSelected} recenterKey={0} />
+      <div className="mini-map-caption"><strong>{item.distance} away</strong><small>{item.venueName ?? 'Hitech City'} • interactive map</small></div>
+    </div>
+  );
+}
 
 export function DetailTopActions({ slug, title }: { slug: string; title: string }) {
   const [saved, setSaved] = useState(false);
@@ -64,36 +77,78 @@ export function BookingBar({ classRef, title, price, spots }: { classRef: string
   const [step, setStep] = useState<'idle' | 'held' | 'booked'>('idle');
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingPending, setBookingPending] = useState(false);
+  const [inventory, setInventory] = useState<{ classId: string; occurrenceStart: string; spots: number } | null>(null);
+  const [inventoryLoading, setInventoryLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const scheduling = createSchedulingClient();
+    void scheduling.getClassBySlug(classRef)
+      .then(async (offering) => ({ offering, occurrences: await scheduling.classAvailability(offering.id, 21) }))
+      .then(({ offering, occurrences }) => {
+        if (cancelled) return;
+        const occurrence = occurrences.find((item) => item.seatsAvailable > 0);
+        if (occurrence) setInventory({ classId: offering.id, occurrenceStart: occurrence.start, spots: occurrence.seatsAvailable });
+      })
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setInventoryLoading(false); });
+    return () => { cancelled = true; };
+  }, [classRef]);
 
   async function confirmBooking() {
     if (bookingPending) return;
     setBookingPending(true);
     setBookingError(null);
-    const localBooking = { classRef, title, date: 'Sat, 17 May', time: '10:30 AM', price };
-    const client = getCustomerClient();
+    const customerClient = getCustomerClient();
+    if (customerClient && !inventory) {
+      setBookingError('Live availability could not be confirmed. Please try again when Scheduling is online.');
+      setBookingPending(false);
+      return;
+    }
+    const occurrenceStart = inventory?.occurrenceStart ?? '2031-05-17T05:00:00.000Z';
+    const bookingDate = new Date(occurrenceStart);
+    const localBooking = {
+      classRef: inventory?.classId ?? classRef,
+      classSlug: classRef,
+      title,
+      date: new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }).format(bookingDate),
+      time: new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit' }).format(bookingDate),
+      price,
+    };
     try {
-      const booking = client ? await client.createBooking({
-        classRef,
+      const booking = customerClient ? await customerClient.createBooking({
+        classRef: inventory!.classId,
+        classSlug: classRef,
         title,
-        scheduledStart: '2031-05-17T05:00:00.000Z',
+        scheduledStart: inventory!.occurrenceStart,
         amountMinor: price * 100,
         currency: 'INR',
       }) : null;
       window.localStorage.setItem('learn-together-booking', JSON.stringify({ ...localBooking, id: booking?.id }));
       setStep('booked');
-    } catch {
-      window.localStorage.setItem('learn-together-booking', JSON.stringify(localBooking));
-      setBookingError('The API is unavailable, so this booking was saved on this device.');
-      setStep('booked');
+    } catch (error) {
+      if (customerClient) {
+        setBookingError(error instanceof Error && error.message.includes('sold out')
+          ? 'That class has just sold out. Please choose another time.'
+          : 'We could not reserve a seat. Nothing was booked—please try again.');
+      } else {
+        window.localStorage.setItem('learn-together-booking', JSON.stringify(localBooking));
+        setBookingError('Saved on this device. Sign in to reserve a live seat.');
+        setStep('booked');
+      }
     } finally {
       setBookingPending(false);
     }
   }
 
+  const scheduleLabel = inventory
+    ? new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(inventory.occurrenceStart))
+    : 'Next Saturday • 10:30 AM';
+
   return (
     <>
       <aside className="booking-bar">
-        <div><span><strong>₹{price}</strong> trial class</span><small><b>{spots} spots</b> left for Saturday</small></div>
+        <div><span><strong>₹{price}</strong> trial class</span><small><b>{inventory?.spots ?? spots} spots</b> left {inventoryLoading ? '• checking live availability' : 'for the next class'}</small></div>
         <button type="button" onClick={() => setStep('held')}>Book trial <span>→</span></button>
       </aside>
       {step !== 'idle' && (
@@ -104,17 +159,18 @@ export function BookingBar({ classRef, title, price, spots }: { classRef: string
             <span className="success-mark"><Icon name="check" size={27} /></span>
             {step === 'held' ? (
               <>
-                <span className="eyebrow purple">SPOT HELD FOR 10 MINUTES</span>
+                <span className="eyebrow purple">READY TO RESERVE</span>
                 <h2>Abhiram’s Saturday<br />just got more exciting.</h2>
-                <p>{title}<br />Sat, 17 May • 10:30 AM</p>
+                <p>{title}<br />{scheduleLabel}</p>
                 <button className="primary-wide" disabled={bookingPending} onClick={() => void confirmBooking()}>{bookingPending ? 'Confirming…' : `Confirm ₹${price} booking`}</button>
+                {bookingError && <small className="booking-error">{bookingError}</small>}
                 <small>Demo checkout — no payment will be charged.</small>
               </>
             ) : (
               <>
                 <span className="eyebrow purple">BOOKING CONFIRMED</span>
                 <h2>You’re all set.</h2>
-                <p>We’ve added the workshop to your bookings.<br />Sat, 17 May • 10:30 AM</p>
+                <p>We’ve added the workshop to your bookings.<br />{scheduleLabel}</p>
                 <Link className="primary-wide link-button" href="/bookings">View my bookings</Link>
                 <small>{bookingError ?? (getCustomerClient() ? 'Synced to your LearnTogether account.' : 'Saved on this device. Sign in to sync future bookings.')}</small>
               </>

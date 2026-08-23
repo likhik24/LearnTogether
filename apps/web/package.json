@@ -11,6 +11,7 @@
   "dependencies": {
     "@learn-and-build/api-client": "workspace:*",
     "@learn-and-build/types": "workspace:*",
+    "maplibre-gl": "^5.6.1",
     "next": "^14.2.18",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

@@ -6,6 +6,7 @@ import { Booking } from './entities/booking.entity';
 import { ChildProfile } from './entities/child-profile.entity';
 import { CustomerNotification } from './entities/customer-notification.entity';
 import { SavedClass } from './entities/saved-class.entity';
+import { SchedulingGateway } from './scheduling.gateway';
 
 type Repo<T extends ObjectLiteral> = jest.Mocked<Pick<Repository<T>, 'create' | 'save' | 'find' | 'findOne' | 'delete' | 'update'>>;
 
@@ -18,6 +19,7 @@ describe('CustomerService', () => {
   let saved: Repo<SavedClass>;
   let bookings: Repo<Booking>;
   let notifications: Repo<CustomerNotification>;
+  let scheduling: jest.Mocked<Pick<SchedulingGateway, 'reserve' | 'release'>>;
   let service: CustomerService;
 
   beforeEach(() => {
@@ -25,11 +27,13 @@ describe('CustomerService', () => {
     saved = repository();
     bookings = repository();
     notifications = repository();
+    scheduling = { reserve: jest.fn(), release: jest.fn() };
     service = new CustomerService(
       children as unknown as Repository<ChildProfile>,
       saved as unknown as Repository<SavedClass>,
       bookings as unknown as Repository<Booking>,
       notifications as unknown as Repository<CustomerNotification>,
+      scheduling as unknown as SchedulingGateway,
     );
   });
 
@@ -61,17 +65,21 @@ describe('CustomerService', () => {
   });
 
   it('creates and cancels a booking', async () => {
-    const booking = Object.assign(new Booking(), { id: 'booking-1', userId: 'user-1', status: BookingStatus.CONFIRMED });
+    const booking = Object.assign(new Booking(), { id: 'booking-1', userId: 'user-1', reservationId: 'reservation-1', status: BookingStatus.CONFIRMED });
     bookings.create.mockReturnValue(booking);
     bookings.save.mockResolvedValue(booking);
     notifications.create.mockImplementation((value) => value as CustomerNotification);
     notifications.save.mockImplementation(async (value) => value as CustomerNotification);
+    scheduling.reserve.mockResolvedValue({ id: 'reservation-1' } as never);
+    scheduling.release.mockResolvedValue({ id: 'reservation-1' } as never);
 
-    await service.createBooking('user-1', { classRef: 'build-a-car', title: 'Build a Car', scheduledStart: '2026-08-29T05:00:00.000Z', amountMinor: 49900, currency: 'INR' });
+    await service.createBooking('user-1', 'Bearer token', { classRef: 'class-1', title: 'Build a Car', scheduledStart: '2026-08-29T05:00:00.000Z', amountMinor: 49900, currency: 'INR' });
     bookings.findOne.mockResolvedValue(booking);
-    await service.cancelBooking('user-1', 'booking-1');
+    await service.cancelBooking('user-1', 'Bearer token', 'booking-1');
 
     expect(booking.status).toBe(BookingStatus.CANCELLED);
+    expect(scheduling.reserve).toHaveBeenCalledTimes(1);
+    expect(scheduling.release).toHaveBeenCalledTimes(1);
     expect(notifications.save).toHaveBeenCalledTimes(2);
   });
 
