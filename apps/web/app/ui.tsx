@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import type { ClassCardData } from './data';
 
 type IconName =
@@ -34,18 +35,69 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 }
 
 export function AppHeader({ greeting = true }: { greeting?: boolean }) {
+  const [location, setLocation] = useState('Hitech City, Hyderabad');
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unread, setUnread] = useState(true);
+
+  useEffect(() => {
+    const savedLocation = window.localStorage.getItem('learn-together-location');
+    if (savedLocation) setLocation(savedLocation);
+    setUnread(window.localStorage.getItem('learn-together-notifications-read') !== 'true');
+  }, []);
+
+  function chooseLocation(nextLocation: string) {
+    setLocation(nextLocation);
+    window.localStorage.setItem('learn-together-location', nextLocation);
+    setLocationOpen(false);
+  }
+
+  function markNotificationsRead() {
+    setUnread(false);
+    window.localStorage.setItem('learn-together-notifications-read', 'true');
+  }
+
   return (
-    <header className="app-header">
-      <div>
-        {greeting && <span className="eyebrow">Good morning, Priya</span>}
-        <button className="location-button" type="button" aria-label="Change location">
-          <Icon name="location" size={16} /> Hitech City, Hyderabad <span>⌄</span>
+    <>
+      <header className="app-header">
+        <div>
+          {greeting && <span className="eyebrow">Good morning, Priya</span>}
+          <button className="location-button" type="button" aria-label="Change location" onClick={() => setLocationOpen(true)}>
+            <Icon name="location" size={16} /> {location} <span>⌄</span>
+          </button>
+        </div>
+        <button className="icon-button notification" type="button" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen(true)}>
+          <Icon name="bell" size={21} />{unread && <span className="notification-dot" />}
         </button>
-      </div>
-      <button className="icon-button notification" type="button" aria-label="Notifications">
-        <Icon name="bell" size={21} /><span className="notification-dot" />
-      </button>
-    </header>
+      </header>
+      {notificationsOpen && (
+        <div className="app-overlay" role="dialog" aria-modal="true" aria-label="Notifications panel">
+          <button className="overlay-backdrop" aria-label="Close notifications" onClick={() => setNotificationsOpen(false)} />
+          <section className="app-sheet notification-sheet">
+            <div className="sheet-heading"><div><span className="eyebrow purple">UPDATES</span><h2>Notifications</h2></div><button aria-label="Close" onClick={() => setNotificationsOpen(false)}>×</button></div>
+            <div className="notification-list">
+              <article className={unread ? 'unread' : ''}><span>✦</span><div><strong>A new class matches Abhiram</strong><p>LEGO Mechanics Fun is available this weekend.</p><small>12 min ago</small></div></article>
+              <article className={unread ? 'unread' : ''}><span>✓</span><div><strong>Rhythm & Rhyme confirmed</strong><p>Your Saturday 11:00 AM spot is ready.</p><small>Yesterday</small></div></article>
+            </div>
+            <button className="secondary-wide" onClick={markNotificationsRead} disabled={!unread}>{unread ? 'Mark all as read' : 'You’re all caught up'}</button>
+          </section>
+        </div>
+      )}
+      {locationOpen && (
+        <div className="app-overlay" role="dialog" aria-modal="true" aria-label="Choose your location">
+          <button className="overlay-backdrop" aria-label="Close location picker" onClick={() => setLocationOpen(false)} />
+          <section className="app-sheet location-sheet">
+            <div className="sheet-heading"><div><span className="eyebrow coral">NEAR YOU</span><h2>Choose your area</h2></div><button aria-label="Close" onClick={() => setLocationOpen(false)}>×</button></div>
+            <p>We’ll use this to show nearby classes and travel times.</p>
+            {['Hitech City, Hyderabad', 'Gachibowli, Hyderabad', 'Kondapur, Hyderabad'].map((item) => (
+              <button className={item === location ? 'location-option active' : 'location-option'} key={item} onClick={() => chooseLocation(item)}>
+                <Icon name="location" size={18} /><span>{item}<small>{item === location ? 'Current area' : 'Show classes here'}</small></span>{item === location && <Icon name="check" size={18} />}
+              </button>
+            ))}
+          </section>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -81,7 +133,7 @@ export function ClassCard({ item, compact = false }: { item: ClassCardData; comp
         {!compact && <span className="category-tag">{item.category}</span>}
       </div>
       <div className="class-card-copy">
-        <div className="class-card-topline"><h3>{item.title}</h3>{!compact && <span className="small-heart">♡</span>}</div>
+        <div className="class-card-topline"><h3>{item.title}</h3>{!compact && <span className="small-heart">→</span>}</div>
         <p>{item.age} <span>•</span> {item.distance}</p>
         <p>{item.time} <span>•</span> {item.spots} spots left</p>
         <div className="class-card-meta">

@@ -12,7 +12,7 @@ export default function HomePage() {
             <h1>Let’s find something<br />Abhiram will love.</h1>
             <p>Thoughtful picks for a curious little builder.</p>
           </div>
-          <div className="child-avatar" aria-label="Profile for Abhiram">A</div>
+          <Link className="child-avatar" href="/children" aria-label="Open Abhiram’s profile">A</Link>
         </section>
         <section className="recommendation-hero">
           <div className="hero-content">
@@ -34,17 +34,17 @@ export default function HomePage() {
           <div className="section-heading"><div><h2>Explore their interests</h2></div></div>
           <div className="category-strip">
             {categories.slice(0, 4).map((category) => (
-              <Link href={`/discover?category=${encodeURIComponent(category.name)}`} key={category.name}>
+              <Link href={`/discover?category=${encodeURIComponent(category.query)}`} key={category.name}>
                 <span className={`category-icon ${category.tone}`}>{category.icon}</span><span>{category.name}</span>
               </Link>
             ))}
           </div>
         </section>
-        <section className="trust-note">
+        <Link className="trust-note" href="/profile">
           <Icon name="shield" size={22} />
           <div><strong>Grown-up peace of mind</strong><span>Every educator is identity-verified.</span></div>
           <span>→</span>
-        </section>
+        </Link>
         <BottomNav />
       </div>
     </main>

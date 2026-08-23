@@ -11,6 +11,7 @@ export type ClassCardData = {
   spots: number;
   image: string;
   tone: string;
+  availability: string[];
 };
 
 export const classes: ClassCardData[] = [
@@ -27,6 +28,7 @@ export const classes: ClassCardData[] = [
     spots: 6,
     image: '/images/build-a-car-workshop.jpg',
     tone: 'mint',
+    availability: ['Weekend'],
   },
   {
     slug: 'messy-art-play',
@@ -41,6 +43,7 @@ export const classes: ClassCardData[] = [
     spots: 2,
     image: 'https://images.unsplash.com/photo-1598880940080-ff9a29891b85?auto=format&fit=crop&w=700&q=85',
     tone: 'peach',
+    availability: ['Today', 'Nearby'],
   },
   {
     slug: 'rhythm-and-rhyme',
@@ -55,6 +58,7 @@ export const classes: ClassCardData[] = [
     spots: 4,
     image: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&w=700&q=85',
     tone: 'sky',
+    availability: ['Tomorrow', 'Nearby'],
   },
   {
     slug: 'story-time',
@@ -69,14 +73,15 @@ export const classes: ClassCardData[] = [
     spots: 5,
     image: 'https://images.unsplash.com/photo-1602030028438-4cf153cbae9e?auto=format&fit=crop&w=700&q=85',
     tone: 'lilac',
+    availability: ['Weekend'],
   },
 ];
 
 export const categories = [
-  { name: 'Art & Craft', count: 13, icon: '✿', tone: 'peach' },
-  { name: 'Music', count: 10, icon: '♪', tone: 'sky' },
-  { name: 'Dance', count: 14, icon: '⌁', tone: 'pink' },
-  { name: 'STEM / Robotics', count: 20, icon: '⚙', tone: 'lilac' },
-  { name: 'Stories & Culture', count: 10, icon: '▤', tone: 'butter' },
-  { name: 'Sports & Fitness', count: 16, icon: '↗', tone: 'lime' },
+  { name: 'Art & Craft', query: 'Art', count: 13, icon: '✿', tone: 'peach' },
+  { name: 'Music', query: 'Music', count: 10, icon: '♪', tone: 'sky' },
+  { name: 'Dance', query: 'Dance', count: 14, icon: '⌁', tone: 'pink' },
+  { name: 'STEM / Robotics', query: 'STEM', count: 20, icon: '⚙', tone: 'lilac' },
+  { name: 'Stories & Culture', query: 'Stories', count: 10, icon: '▤', tone: 'butter' },
+  { name: 'Sports & Fitness', query: 'Sports', count: 16, icon: '↗', tone: 'lime' },
 ];
