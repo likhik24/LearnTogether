@@ -1,32 +1,16 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import './globals.css';
 
-export const metadata = {
-  title: 'Learn&Build Admin Console',
-  description: 'Admin console shell for the Learn&Build platform',
+export const metadata: Metadata = {
+  title: 'LearnTogether — Activities kids love',
+  description: 'Discover thoughtful, nearby classes for curious kids.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body
-        style={{
-          fontFamily: 'system-ui, sans-serif',
-          margin: 0,
-          background: '#0b1020',
-          color: '#e7ecff',
-        }}
-      >
-        <header
-          style={{
-            padding: '16px 24px',
-            borderBottom: '1px solid #243',
-            fontWeight: 600,
-          }}
-        >
-          Learn&amp;Build Admin Console
-        </header>
-        <main style={{ padding: 24 }}>{children}</main>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
