@@ -35,7 +35,14 @@ export class SearchService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     const docs = await this.opensearch.loadAll();
     for (const doc of docs) this.cache.set(doc.classId, doc);
-    if (docs.length) this.logger.log(`Warmed cache with ${docs.length} classes`);
+    if (docs.length) {
+      this.logger.log(`Warmed cache with ${docs.length} classes`);
+      return;
+    }
+    // Local/demo stacks should be searchable without a separate admin action.
+    // This still writes through to OpenSearch when it is available.
+    const indexed = await this.reindexAll();
+    if (indexed) this.logger.log(`Bootstrapped search index with ${indexed} classes`);
   }
 
   async index(input: ClassIndexInput): Promise<ClassDocument> {

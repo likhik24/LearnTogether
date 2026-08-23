@@ -27,8 +27,9 @@ docker-compose.yml  Local dev infra + services
 turbo.json
 ```
 
-The `apps/web` admin console shell (Next.js) and the `auth` / `teacher`
-services are implemented; the remaining services are health-check skeletons.
+The `apps/web` customer discovery experience and admin console (Next.js), plus
+the `auth`, `teacher`, `search`, and `scheduling` services, are implemented.
+Some of the remaining services are still health-check skeletons.
 
 ## Prerequisites
 
@@ -85,6 +86,30 @@ Roles: `user`, `teacher`, `admin` (shared `Role` enum in `@learn-and-build/types
 
 Set `ADMIN_EMAIL` / `ADMIN_PASSWORD` to seed an initial admin on first boot.
 
+### Customer account data
+
+The customer UI stores data in PostgreSQL whenever a user signs in. Every
+route below requires a bearer JWT and is scoped to that user.
+
+| Method | Route                                  | Purpose                         |
+| ------ | -------------------------------------- | ------------------------------- |
+| GET    | /customer/children                     | List child profiles             |
+| POST   | /customer/children                     | Create a child profile          |
+| PATCH  | /customer/children/:id                 | Update an owned child profile   |
+| GET    | /customer/saved-classes                | List saved classes              |
+| PUT    | /customer/saved-classes/:classRef      | Save a class (idempotent)       |
+| DELETE | /customer/saved-classes/:classRef      | Remove a saved class            |
+| GET    | /customer/bookings                     | List customer bookings          |
+| POST   | /customer/bookings                     | Reserve a seat and book a trial |
+| PATCH  | /customer/bookings/:id/cancel          | Cancel an owned booking         |
+| GET    | /customer/notifications                | List in-app notifications       |
+| PATCH  | /customer/notifications/:id/read       | Mark one notification as read   |
+| POST   | /customer/notifications/read-all       | Mark all notifications as read  |
+
+Booking and profile actions create notifications automatically. Booking calls
+the scheduling service to reserve inventory transactionally before persisting
+the customer record. Payment capture remains a separate, unfinished concern.
+
 ### OIDC (Google + AWS Cognito)
 
 The auth service also supports OIDC login via Google and AWS Cognito
@@ -138,8 +163,16 @@ expands them into concrete upcoming occurrences with seat counts.
 | GET    | /classes/mine                  | JWT + TEACHER | A teacher's own classes       |
 | GET    | /classes/:id                   | public        | Class details                 |
 | GET    | /classes/:id/availability?days | public        | Upcoming occurrences + seats  |
+| GET    | /classes/discover              | public        | Discovery cards + live seats  |
+| GET    | /classes/slug/:slug            | public        | Resolve a public class slug   |
+| POST   | /classes/:id/reservations      | JWT           | Atomically reserve seats      |
+| DELETE | /classes/:id/reservations/:id  | JWT           | Cancel and release seats      |
 
 Timings are validated to weekday evenings (Mon-Fri, fitting inside 17:00-22:00).
+The reservation transaction takes a row lock on the class offering, validates
+the occurrence, sums active reservations, and rejects requests beyond capacity.
+Production environments with schema sync disabled should apply
+`infra/sql/20260823_discovery_reservations.sql` during deployment.
 
 ## Search service (port 3003)
 
@@ -157,16 +190,28 @@ is set) plus an admin-triggered full reindex.
 | POST   | /search/index                      | JWT + ADMIN | Index a single class           |
 | POST   | /search/reindex                    | JWT + ADMIN | Full reindex from the database  |
 
-Try the full flow (stack running): `node scripts/demo-search.mjs`.
+The search service bootstraps its local index from Scheduling when the index is
+empty. Try the full flow (stack running): `node scripts/demo-search.mjs`.
 
-## Admin console shell (apps/web)
+## Customer web app and admin console (apps/web)
 
 ```bash
-pnpm --filter @learn-and-build/web dev   # http://localhost:3100
+# Terminal 1: database, search, scheduling, and customer APIs
+docker compose up --build postgres redis opensearch scheduling search auth
+
+# Terminal 2: Next.js app
+pnpm --filter @learn-and-build/web dev
 ```
 
-A minimal Next.js console: sign in as an admin, list users, and change roles.
-Point it at the auth service with `NEXT_PUBLIC_AUTH_API_URL`.
+Open http://localhost:3100. Create an account from **Profile** to sync child
+profiles, saved classes, bookings, and notifications through the auth service.
+Signed-out visitors retain a local-device fallback. Point the app at a custom
+auth service URL with `NEXT_PUBLIC_AUTH_API_URL` (defaults to
+`http://localhost:3001`). The admin console remains available at `/admin`.
+
+Discovery reads live cards and availability from Scheduling and uses Search for
+ranked text queries. Its Map and class-detail map use MapLibre with OpenFreeMap
+tiles by default. Set `NEXT_PUBLIC_MAPBOX_TOKEN` to use Mapbox Streets instead.
 
 ## Infrastructure (CDK)
 
