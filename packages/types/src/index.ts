@@ -240,6 +240,57 @@ export interface PaymentIntentResponse {
   clientSecret: string;
 }
 
+/** A child belonging to the signed-in parent account. */
+export interface ChildProfileDto {
+  id: string;
+  userId: string;
+  name: string;
+  birthDate: string | null;
+  interests: string[];
+  avatarColor: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A class saved by a parent for later. `classRef` may be a UUID or public slug. */
+export interface SavedClassDto {
+  id: string;
+  userId: string;
+  classRef: string;
+  title: string;
+  createdAt: string;
+}
+
+export enum BookingStatus {
+  CONFIRMED = 'confirmed',
+  CANCELLED = 'cancelled',
+}
+
+/** Customer booking snapshot owned by the authenticated user. */
+export interface BookingDto {
+  id: string;
+  userId: string;
+  classRef: string;
+  title: string;
+  scheduledStart: string;
+  amountMinor: number;
+  currency: string;
+  status: BookingStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** In-app notification for the authenticated customer. */
+export interface CustomerNotificationDto {
+  id: string;
+  userId: string;
+  kind: string;
+  title: string;
+  body: string;
+  readAt: string | null;
+  createdAt: string;
+}
+
 
 /** Standard health-check response returned by every service's `GET /health`. */
 export interface HealthResponse {

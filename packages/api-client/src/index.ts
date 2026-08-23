@@ -1,9 +1,13 @@
 import type {
   AuthTokenResponse,
+  BookingDto,
+  ChildProfileDto,
+  CustomerNotificationDto,
   HealthResponse,
   OidcProviderInfo,
   PublicUser,
   Role,
+  SavedClassDto,
 } from '@learn-and-build/types';
 
 export interface ApiClientOptions {
@@ -51,6 +55,7 @@ export class ApiClient {
       const body = await res.text();
       throw new Error(`Request ${path} failed (${res.status}): ${body}`);
     }
+    if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
   }
 
@@ -96,12 +101,64 @@ export class ApiClient {
       body: JSON.stringify({ role }),
     });
   }
+
+  listChildren(): Promise<ChildProfileDto[]> {
+    return this.request<ChildProfileDto[]>('/customer/children');
+  }
+
+  createChild(input: { name: string; birthDate?: string; interests?: string[]; avatarColor?: string }): Promise<ChildProfileDto> {
+    return this.request<ChildProfileDto>('/customer/children', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  updateChild(id: string, input: { name?: string; birthDate?: string; interests?: string[]; avatarColor?: string }): Promise<ChildProfileDto> {
+    return this.request<ChildProfileDto>(`/customer/children/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  }
+
+  listSavedClasses(): Promise<SavedClassDto[]> {
+    return this.request<SavedClassDto[]>('/customer/saved-classes');
+  }
+
+  saveClass(classRef: string, title: string): Promise<SavedClassDto> {
+    return this.request<SavedClassDto>(`/customer/saved-classes/${encodeURIComponent(classRef)}`, { method: 'PUT', body: JSON.stringify({ title }) });
+  }
+
+  removeSavedClass(classRef: string): Promise<void> {
+    return this.request<void>(`/customer/saved-classes/${encodeURIComponent(classRef)}`, { method: 'DELETE' });
+  }
+
+  listBookings(): Promise<BookingDto[]> {
+    return this.request<BookingDto[]>('/customer/bookings');
+  }
+
+  createBooking(input: { classRef: string; title: string; scheduledStart: string; amountMinor: number; currency: string }): Promise<BookingDto> {
+    return this.request<BookingDto>('/customer/bookings', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  cancelBooking(id: string): Promise<BookingDto> {
+    return this.request<BookingDto>(`/customer/bookings/${id}/cancel`, { method: 'PATCH' });
+  }
+
+  listNotifications(unreadOnly = false): Promise<CustomerNotificationDto[]> {
+    return this.request<CustomerNotificationDto[]>(`/customer/notifications${unreadOnly ? '?unreadOnly=true' : ''}`);
+  }
+
+  markNotificationRead(id: string): Promise<CustomerNotificationDto> {
+    return this.request<CustomerNotificationDto>(`/customer/notifications/${id}/read`, { method: 'PATCH' });
+  }
+
+  markAllNotificationsRead(): Promise<void> {
+    return this.request<void>('/customer/notifications/read-all', { method: 'POST' });
+  }
 }
 
 export type {
   AuthTokenResponse,
+  BookingDto,
+  ChildProfileDto,
+  CustomerNotificationDto,
   HealthResponse,
   OidcProviderInfo,
   PublicUser,
+  SavedClassDto,
 } from '@learn-and-build/types';
 export { Role } from '@learn-and-build/types';

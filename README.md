@@ -27,8 +27,9 @@ docker-compose.yml  Local dev infra + services
 turbo.json
 ```
 
-The `apps/web` admin console shell (Next.js) and the `auth` / `teacher`
-services are implemented; the remaining services are health-check skeletons.
+The `apps/web` customer discovery experience and admin console (Next.js), plus
+the `auth`, `teacher`, `search`, and `scheduling` services, are implemented.
+Some of the remaining services are still health-check skeletons.
 
 ## Prerequisites
 
@@ -84,6 +85,30 @@ Roles: `user`, `teacher`, `admin` (shared `Role` enum in `@learn-and-build/types
 | PATCH  | /admin/users/:id/role      | JWT + ADMIN         | Change a user's role            |
 
 Set `ADMIN_EMAIL` / `ADMIN_PASSWORD` to seed an initial admin on first boot.
+
+### Customer account data
+
+The customer UI stores data in PostgreSQL whenever a user signs in. Every
+route below requires a bearer JWT and is scoped to that user.
+
+| Method | Route                                  | Purpose                         |
+| ------ | -------------------------------------- | ------------------------------- |
+| GET    | /customer/children                     | List child profiles             |
+| POST   | /customer/children                     | Create a child profile          |
+| PATCH  | /customer/children/:id                 | Update an owned child profile   |
+| GET    | /customer/saved-classes                | List saved classes              |
+| PUT    | /customer/saved-classes/:classRef      | Save a class (idempotent)       |
+| DELETE | /customer/saved-classes/:classRef      | Remove a saved class            |
+| GET    | /customer/bookings                     | List booking snapshots          |
+| POST   | /customer/bookings                     | Confirm a demo trial booking    |
+| PATCH  | /customer/bookings/:id/cancel          | Cancel an owned booking         |
+| GET    | /customer/notifications                | List in-app notifications       |
+| PATCH  | /customer/notifications/:id/read       | Mark one notification as read   |
+| POST   | /customer/notifications/read-all       | Mark all notifications as read  |
+
+Booking and profile actions create notifications automatically. The current
+booking endpoint persists the customer-facing trial booking; payment capture
+and transactional seat reservation are intentionally not claimed by this API.
 
 ### OIDC (Google + AWS Cognito)
 
@@ -159,14 +184,21 @@ is set) plus an admin-triggered full reindex.
 
 Try the full flow (stack running): `node scripts/demo-search.mjs`.
 
-## Admin console shell (apps/web)
+## Customer web app and admin console (apps/web)
 
 ```bash
-pnpm --filter @learn-and-build/web dev   # http://localhost:3100
+# Terminal 1: database, Redis, and the API used by the customer UI
+docker compose up --build postgres redis auth
+
+# Terminal 2: Next.js app
+pnpm --filter @learn-and-build/web dev
 ```
 
-A minimal Next.js console: sign in as an admin, list users, and change roles.
-Point it at the auth service with `NEXT_PUBLIC_AUTH_API_URL`.
+Open http://localhost:3100. Create an account from **Profile** to sync child
+profiles, saved classes, bookings, and notifications through the auth service.
+Signed-out visitors retain a local-device fallback. Point the app at a custom
+auth service URL with `NEXT_PUBLIC_AUTH_API_URL` (defaults to
+`http://localhost:3001`). The admin console remains available at `/admin`.
 
 ## Infrastructure (CDK)
 

@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import type { CustomerNotificationDto } from '@learn-and-build/types';
+import { getCustomerClient } from '../lib/customer-session';
 import type { ClassCardData } from './data';
 
 type IconName =
@@ -39,11 +41,15 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
   const [locationOpen, setLocationOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unread, setUnread] = useState(true);
+  const [notifications, setNotifications] = useState<CustomerNotificationDto[] | null>(null);
 
   useEffect(() => {
     const savedLocation = window.localStorage.getItem('learn-together-location');
     if (savedLocation) setLocation(savedLocation);
-    setUnread(window.localStorage.getItem('learn-together-notifications-read') !== 'true');
+    const localUnread = window.localStorage.getItem('learn-together-notifications-read') !== 'true';
+    setUnread(localUnread);
+    const client = getCustomerClient();
+    if (client) client.listNotifications().then((items) => { setNotifications(items); setUnread(items.some((item) => !item.readAt)); }).catch(() => setNotifications(null));
   }, []);
 
   function chooseLocation(nextLocation: string) {
@@ -52,9 +58,14 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
     setLocationOpen(false);
   }
 
-  function markNotificationsRead() {
+  async function markNotificationsRead() {
     setUnread(false);
+    setNotifications((items) => items?.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() })) ?? null);
     window.localStorage.setItem('learn-together-notifications-read', 'true');
+    const client = getCustomerClient();
+    if (client) {
+      try { await client.markAllNotificationsRead(); } catch { /* Optimistic local state remains useful offline. */ }
+    }
   }
 
   return (
@@ -76,10 +87,17 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
           <section className="app-sheet notification-sheet">
             <div className="sheet-heading"><div><span className="eyebrow purple">UPDATES</span><h2>Notifications</h2></div><button aria-label="Close" onClick={() => setNotificationsOpen(false)}>×</button></div>
             <div className="notification-list">
-              <article className={unread ? 'unread' : ''}><span>✦</span><div><strong>A new class matches Abhiram</strong><p>LEGO Mechanics Fun is available this weekend.</p><small>12 min ago</small></div></article>
-              <article className={unread ? 'unread' : ''}><span>✓</span><div><strong>Rhythm & Rhyme confirmed</strong><p>Your Saturday 11:00 AM spot is ready.</p><small>Yesterday</small></div></article>
+              {notifications ? notifications.map((item) => (
+                <article className={!item.readAt ? 'unread' : ''} key={item.id}><span>{item.kind === 'profile' ? 'A' : '✦'}</span><div><strong>{item.title}</strong><p>{item.body}</p><small>{new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' }).format(new Date(item.createdAt))}</small></div></article>
+              )) : (
+                <>
+                  <article className={unread ? 'unread' : ''}><span>✦</span><div><strong>A new class matches Abhiram</strong><p>LEGO Mechanics Fun is available this weekend.</p><small>12 min ago</small></div></article>
+                  <article className={unread ? 'unread' : ''}><span>✓</span><div><strong>Rhythm & Rhyme confirmed</strong><p>Your Saturday 11:00 AM spot is ready.</p><small>Yesterday</small></div></article>
+                </>
+              )}
+              {notifications?.length === 0 && <p className="notification-empty">No notifications yet. New profile and booking updates will appear here.</p>}
             </div>
-            <button className="secondary-wide" onClick={markNotificationsRead} disabled={!unread}>{unread ? 'Mark all as read' : 'You’re all caught up'}</button>
+            <button className="secondary-wide" onClick={() => void markNotificationsRead()} disabled={!unread}>{unread ? 'Mark all as read' : 'You’re all caught up'}</button>
           </section>
         </div>
       )}

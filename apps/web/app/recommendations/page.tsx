@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { classes } from '../data';
+import { getCustomerClient } from '../../lib/customer-session';
 import { AppHeader, BottomNav, Icon } from '../ui';
 
 const tabs = ['For You', 'Today', 'Weekend', 'Saved'] as const;
@@ -20,7 +21,13 @@ export default function RecommendationsPage() {
   const [savedSlugs, setSavedSlugs] = useState<string[]>([]);
 
   useEffect(() => {
-    setSavedSlugs(classes.filter((item) => window.localStorage.getItem(`learn-together-saved-${item.slug}`) === 'true').map((item) => item.slug));
+    const localSaved = () => classes.filter((item) => window.localStorage.getItem(`learn-together-saved-${item.slug}`) === 'true').map((item) => item.slug);
+    const client = getCustomerClient();
+    if (client) {
+      client.listSavedClasses().then((items) => setSavedSlugs(items.map((item) => item.classRef))).catch(() => setSavedSlugs(localSaved()));
+      return;
+    }
+    setSavedSlugs(localSaved());
   }, []);
 
   const events = useMemo(() => {

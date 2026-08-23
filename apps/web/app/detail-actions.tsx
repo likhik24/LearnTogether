@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { getCustomerClient } from '../lib/customer-session';
 import { Icon } from './ui';
 
 export function DetailTopActions({ slug, title }: { slug: string; title: string }) {
@@ -9,15 +10,28 @@ export function DetailTopActions({ slug, title }: { slug: string; title: string 
   const [shared, setShared] = useState(false);
 
   useEffect(() => {
+    const client = getCustomerClient();
+    if (client) {
+      client.listSavedClasses()
+        .then((items) => setSaved(items.some((item) => item.classRef === slug)))
+        .catch(() => setSaved(window.localStorage.getItem(`learn-together-saved-${slug}`) === 'true'));
+      return;
+    }
     setSaved(window.localStorage.getItem(`learn-together-saved-${slug}`) === 'true');
   }, [slug]);
 
-  function toggleSaved() {
-    setSaved((value) => {
-      const nextValue = !value;
-      window.localStorage.setItem(`learn-together-saved-${slug}`, String(nextValue));
-      return nextValue;
-    });
+  async function toggleSaved() {
+    const nextValue = !saved;
+    setSaved(nextValue);
+    window.localStorage.setItem(`learn-together-saved-${slug}`, String(nextValue));
+    const client = getCustomerClient();
+    if (!client) return;
+    try {
+      if (nextValue) await client.saveClass(slug, title);
+      else await client.removeSavedClass(slug);
+    } catch {
+      // Keep the local copy so the interaction remains usable while offline.
+    }
   }
 
   async function share() {
@@ -39,19 +53,41 @@ export function DetailTopActions({ slug, title }: { slug: string; title: string 
       <button className="round-action" aria-label={shared ? 'Link copied' : 'Share class'} onClick={() => void share()}>
         <Icon name={shared ? 'check' : 'share'} />
       </button>
-      <button className={`round-action ${saved ? 'saved' : ''}`} aria-label={saved ? 'Remove saved class' : 'Save class'} aria-pressed={saved} onClick={toggleSaved}>
+      <button className={`round-action ${saved ? 'saved' : ''}`} aria-label={saved ? 'Remove saved class' : 'Save class'} aria-pressed={saved} onClick={() => void toggleSaved()}>
         <Icon name="heart" />
       </button>
     </>
   );
 }
 
-export function BookingBar({ price, spots }: { price: number; spots: number }) {
+export function BookingBar({ classRef, title, price, spots }: { classRef: string; title: string; price: number; spots: number }) {
   const [step, setStep] = useState<'idle' | 'held' | 'booked'>('idle');
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const [bookingPending, setBookingPending] = useState(false);
 
-  function confirmBooking() {
-    window.localStorage.setItem('learn-together-booking', JSON.stringify({ title: 'Build-a-Car STEM Workshop', date: 'Sat, 17 May', time: '10:30 AM', price }));
-    setStep('booked');
+  async function confirmBooking() {
+    if (bookingPending) return;
+    setBookingPending(true);
+    setBookingError(null);
+    const localBooking = { classRef, title, date: 'Sat, 17 May', time: '10:30 AM', price };
+    const client = getCustomerClient();
+    try {
+      const booking = client ? await client.createBooking({
+        classRef,
+        title,
+        scheduledStart: '2031-05-17T05:00:00.000Z',
+        amountMinor: price * 100,
+        currency: 'INR',
+      }) : null;
+      window.localStorage.setItem('learn-together-booking', JSON.stringify({ ...localBooking, id: booking?.id }));
+      setStep('booked');
+    } catch {
+      window.localStorage.setItem('learn-together-booking', JSON.stringify(localBooking));
+      setBookingError('The API is unavailable, so this booking was saved on this device.');
+      setStep('booked');
+    } finally {
+      setBookingPending(false);
+    }
   }
 
   return (
@@ -70,8 +106,8 @@ export function BookingBar({ price, spots }: { price: number; spots: number }) {
               <>
                 <span className="eyebrow purple">SPOT HELD FOR 10 MINUTES</span>
                 <h2>Abhiram’s Saturday<br />just got more exciting.</h2>
-                <p>Build-a-Car STEM Workshop<br />Sat, 17 May • 10:30 AM</p>
-                <button className="primary-wide" onClick={confirmBooking}>Confirm ₹{price} booking</button>
+                <p>{title}<br />Sat, 17 May • 10:30 AM</p>
+                <button className="primary-wide" disabled={bookingPending} onClick={() => void confirmBooking()}>{bookingPending ? 'Confirming…' : `Confirm ₹${price} booking`}</button>
                 <small>Demo checkout — no payment will be charged.</small>
               </>
             ) : (
@@ -80,7 +116,7 @@ export function BookingBar({ price, spots }: { price: number; spots: number }) {
                 <h2>You’re all set.</h2>
                 <p>We’ve added the workshop to your bookings.<br />Sat, 17 May • 10:30 AM</p>
                 <Link className="primary-wide link-button" href="/bookings">View my bookings</Link>
-                <small>A confirmation has been saved to this demo.</small>
+                <small>{bookingError ?? (getCustomerClient() ? 'Synced to your LearnTogether account.' : 'Saved on this device. Sign in to sync future bookings.')}</small>
               </>
             )}
           </div>

@@ -69,7 +69,7 @@ export default function ClassDetailsPage({ params }: { params: { slug: string } 
             <span className="verified-badge">✓</span>
           </section>
         </div>
-        <BookingBar price={item.price} spots={item.spots} />
+        <BookingBar classRef={item.slug} title={item.title} price={item.price} spots={item.spots} />
       </article>
     </main>
   );
