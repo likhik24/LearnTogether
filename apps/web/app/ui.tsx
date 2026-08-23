@@ -9,7 +9,7 @@ import type { ClassCardData } from './data';
 
 type IconName =
   | 'home' | 'search' | 'calendar' | 'child' | 'profile' | 'location'
-  | 'bell' | 'arrow' | 'heart' | 'share' | 'clock' | 'star' | 'shield' | 'check';
+  | 'bell' | 'arrow' | 'chevronDown' | 'heart' | 'share' | 'clock' | 'star' | 'shield' | 'check';
 
 const paths: Record<IconName, React.ReactNode> = {
   home: <><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></>,
@@ -20,6 +20,7 @@ const paths: Record<IconName, React.ReactNode> = {
   location: <><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></>,
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></>,
   arrow: <path d="m15 18-6-6 6-6"/>,
+  chevronDown: <path d="m7 9 5 5 5-5"/>,
   heart: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>,
   share: <><circle cx="18" cy="5" r="2"/><circle cx="6" cy="12" r="2"/><circle cx="18" cy="19" r="2"/><path d="m8 11 8-5M8 13l8 5"/></>,
   clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
@@ -28,9 +29,9 @@ const paths: Record<IconName, React.ReactNode> = {
   check: <path d="m5 12 4 4L19 6"/>,
 };
 
-export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
+export function Icon({ name, size = 20, className }: { name: IconName; size?: number; className?: string }) {
   return (
-    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       {paths[name]}
     </svg>
   );
@@ -74,7 +75,9 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
         <div>
           {greeting && <span className="eyebrow">Good morning, Priya</span>}
           <button className="location-button" type="button" aria-label="Change location" onClick={() => setLocationOpen(true)}>
-            <Icon name="location" size={16} /> {location} <span>⌄</span>
+            <Icon name="location" size={16} />
+            <span>{location}</span>
+            <Icon className="location-chevron" name="chevronDown" size={14} />
           </button>
         </div>
         <button className="icon-button notification" type="button" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen(true)}>

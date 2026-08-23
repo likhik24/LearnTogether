@@ -32,8 +32,9 @@ img { display: block; max-width: 100%; }
 .eyebrow { display: block; margin-bottom: 8px; color: #807d77; font-size: 10px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
 .eyebrow.purple { color: var(--purple); }
 .eyebrow.coral { color: var(--coral); }
-.location-button { display: flex; align-items: center; gap: 5px; padding: 0; border: 0; background: transparent; font-size: 13px; font-weight: 700; cursor: pointer; }
-.location-button svg { color: var(--coral); }
+.location-button { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: transparent; font-size: 13px; font-weight: 700; line-height: 1; cursor: pointer; }
+.location-button > svg:first-child { flex: 0 0 auto; color: var(--coral); }
+.location-button .location-chevron { flex: 0 0 auto; margin-left: 1px; color: currentColor; }
 .icon-button, .round-action { display: inline-grid; place-items: center; width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 50%; background: rgba(255,255,255,.92); cursor: pointer; }
 .notification { position: relative; }
 .notification-dot { position: absolute; top: 8px; right: 8px; width: 7px; height: 7px; border: 2px solid white; border-radius: 50%; background: var(--coral); }
