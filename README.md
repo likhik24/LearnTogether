@@ -132,13 +132,15 @@ Set each provider's redirect URI to
 
 ## Teacher service (port 3002)
 
-Profiles with PostGIS location, S3 document uploads, and an admin-driven
+Provider (teacher) profiles with PostGIS location, a full onboarding +
+availability questionnaire, S3 document uploads, and an admin-driven
 verification state machine (`pending → submitted → under_review →
 approved/rejected`, with resubmit from `rejected`).
 
 | Method | Route                              | Auth          | Purpose                          |
 | ------ | ---------------------------------- | ------------- | -------------------------------- |
-| PUT    | /teachers/me                       | JWT + TEACHER | Create/update own profile        |
+| GET    | /teachers/me                       | JWT + TEACHER | Fetch own profile                |
+| PUT    | /teachers/me                       | JWT + TEACHER | Create/update own profile (upsert) |
 | POST   | /teachers/me/documents/presign     | JWT + TEACHER | Get a presigned S3 upload URL    |
 | POST   | /teachers/me/documents             | JWT + TEACHER | Attach an uploaded document      |
 | POST   | /teachers/me/submit                | JWT + TEACHER | Submit profile for review        |
@@ -151,11 +153,50 @@ approved/rejected`, with resubmit from `rejected`).
 The admin approve/reject actions are wired to the shared role guards from
 `@learn-and-build/nest-auth`, the same guards the auth service uses.
 
+### Provider onboarding + availability
+
+`PUT /teachers/me` accepts the full provider questionnaire in addition to the
+core `displayName`/`bio`/`subjects`/`location` fields. Every field is optional
+and validated against shared enums in `@learn-and-build/types`; the upsert is
+partial-save safe, so saving one section never clears answers from another.
+
+Captured fields include: contact (`phone`, `email`), `ageBand`, `locality`,
+`city`; what they teach (`category`, `subcategories`, `skills`,
+`skillDescription`, `yearsExperience`); portfolio + child experience
+(`portfolio`, `childrenExperience`, `childrenExperienceDetail`); teaching
+preferences (`childAgeGroups`, `teachingFormats`, `venuePreferences`,
+`travelRadius`); and availability (`availableDays`, `timeSlots`,
+`preferredAvailability`, `sessionFrequency`, `whyJoin`).
+
+Enum-valued fields are stored as varchar and array (checkbox) fields as
+`text[]`; all are nullable/defaulted, so existing profiles migrate cleanly
+under TypeORM `synchronize` in dev. Exercise the register → upsert → read-back
+flow (stack running): `node scripts/verify-provider-profile.mjs`.
+
+**Category taxonomy → discovery.** `PROVIDER_CATEGORY_TAXONOMY` (in
+`@learn-and-build/types`) is the single source of truth mapping each provider
+category (Music, Dance, Art & Craft, STEM, Stories & Culture, Sports & Fitness,
+Life & Wellbeing) to its subcategories (e.g. Music → Carnatic music) and to the
+discover/home category tile it should surface under (`discoverQuery`). The web
+app's discover categories derive their mapping from the same taxonomy via
+`discoverCategoryForProvider()`, keeping provider categories aligned with how
+customers browse and search.
+
+### Portfolio document uploads (S3)
+
+Portfolio/resume PDFs use the direct-to-S3 flow: presign
+(`POST /teachers/me/documents/presign`) → `PUT` the bytes to the returned URL →
+confirm (`POST /teachers/me/documents`). The shared API client wraps all three
+steps in `ApiClient.uploadTeacherDocument(file, type)`. Presigning requires the
+service to have AWS credentials and a bucket (`DOCUMENTS_BUCKET`); for local
+dev, point it at MinIO/LocalStack with `S3_ENDPOINT` (path-style addressing is
+enabled automatically when set).
+
 ## Scheduling service (port 3004)
 
 Verified teachers publish classes (activity, description, instructor gender,
-duration, seats) with recurring weekday-evening timings; an availability query
-expands them into concrete upcoming occurrences with seat counts.
+duration, seats) with recurring weekly timings; an availability query expands
+them into concrete upcoming occurrences with seat counts.
 
 | Method | Route                          | Auth          | Purpose                       |
 | ------ | ------------------------------ | ------------- | ----------------------------- |
@@ -168,7 +209,11 @@ expands them into concrete upcoming occurrences with seat counts.
 | POST   | /classes/:id/reservations      | JWT           | Atomically reserve seats      |
 | DELETE | /classes/:id/reservations/:id  | JWT           | Cancel and release seats      |
 
-Timings are validated to weekday evenings (Mon-Fri, fitting inside 17:00-22:00).
+Timings are validated to a daily operating window: any day of the week
+(Mon-Sun) with each session fitting inside 07:00-22:00. This supports weekend
+and daytime classes (e.g. a Saturday 10:00 storytelling class) alongside
+weekday evenings. Create a sample weekend class end to end (stack running):
+`node scripts/create-puppetry-listing.mjs`.
 The reservation transaction takes a row lock on the class offering, validates
 the occurrence, sums active reservations, and rejects requests beyond capacity.
 Production environments with schema sync disabled should apply
@@ -212,6 +257,17 @@ auth service URL with `NEXT_PUBLIC_AUTH_API_URL` (defaults to
 Discovery reads live cards and availability from Scheduling and uses Search for
 ranked text queries. Its Map and class-detail map use MapLibre with OpenFreeMap
 tiles by default. Set `NEXT_PUBLIC_MAPBOX_TOKEN` to use Mapbox Streets instead.
+
+### Provider onboarding page (`/provider`)
+
+`/provider` (linked from the home page) lets an educator sign in or create a
+provider account (role `teacher`) and complete a five-section onboarding +
+availability form covering all provider fields, including a category selector
+that reveals matching subcategories from the shared taxonomy and a portfolio
+PDF upload. It reads/writes the teacher service via `createTeacherClient()`,
+which the Next server proxies to the teacher service at `/api/teacher`
+(override the origin with `TEACHER_SERVICE_ORIGIN`, or the browser base URL
+with `NEXT_PUBLIC_TEACHER_API_URL`; defaults to `http://localhost:3002`).
 
 ## Infrastructure (CDK)
 

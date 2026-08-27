@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { classes } from '../data';
 import { getCustomerClient } from '../../lib/customer-session';
 import { AppHeader, BottomNav, Icon } from '../ui';
+import { ChildName } from '../child-name';
 
 const tabs = ['For You', 'Today', 'Weekend', 'Saved'] as const;
 type TimelineTab = (typeof tabs)[number];
@@ -41,7 +42,7 @@ export default function RecommendationsPage() {
       <div className="phone-shell timeline-page">
         <AppHeader greeting={false} />
         <section className="timeline-intro">
-          <span className="eyebrow purple">PERSONALISED FOR ABHIRAM</span>
+          <span className="eyebrow purple">PERSONALISED FOR <ChildName uppercase /></span>
           <h1>A little plan for<br />a brilliant day.</h1>
           <p>Thoughtful options, ordered around your family’s schedule.</p>
         </section>
@@ -61,7 +62,7 @@ export default function RecommendationsPage() {
                 <Link href={`/classes/${item.slug}`}>
                   {recommended && <span className="recommendation-label">✦ TOP MATCH</span>}
                   <div className="timeline-card-top"><div><h2>{item.title}</h2><p>{item.age} • {duration}</p></div><img src={item.image} alt="" /></div>
-                  {recommended && <p className="timeline-reason">Because Abhiram enjoyed rhythm class and vehicle play.</p>}
+                  {recommended && <p className="timeline-reason">Because <ChildName />’s interests match this class.</p>}
                   <div className="timeline-meta"><span><Icon name="location" size={14} /> {item.distance}</span><strong>₹{item.price} Trial →</strong></div>
                 </Link>
               </div>

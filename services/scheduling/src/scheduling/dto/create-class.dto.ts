@@ -18,13 +18,13 @@ import { InstructorGender } from '@learn-and-build/types';
 import { GeoLocationDto } from './geo-location.dto';
 
 export class ClassTimingDto {
-  // ISO weekday 1=Mon .. 5=Fri (weekday-evening focus).
+  // ISO weekday 1=Mon .. 7=Sun (weekend daytime classes supported).
   @IsInt()
   @Min(1)
-  @Max(5)
+  @Max(7)
   weekday!: number;
 
-  // Minutes from midnight; evening window enforced in the service.
+  // Minutes from midnight; operating window enforced in the service.
   @IsInt()
   @Min(0)
   @Max(1439)

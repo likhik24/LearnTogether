@@ -95,6 +95,218 @@ export interface TeacherDocumentDto {
   uploadedAt: string;
 }
 
+/* ------------------------------------------------------------------ *
+ * Provider (teacher) onboarding + availability
+ * ------------------------------------------------------------------ */
+
+/** Optional self-reported age band (form question 4). */
+export enum ProviderAgeBand {
+  A_23_29 = '23-29',
+  A_30_39 = '30-39',
+  A_40_50 = '40-50',
+  A_50_PLUS = '50+',
+  PREFER_NOT_SAY = 'prefer_not_say',
+}
+
+/** Years practising the primary skill (form question 9). */
+export enum ProviderExperience {
+  LT_1 = 'lt_1',
+  Y_1_3 = '1-3',
+  Y_3_5 = '3-5',
+  Y_5_10 = '5-10',
+  Y_10_PLUS = '10+',
+}
+
+/** Prior experience working with children (form question 12). */
+export enum ChildrenExperience {
+  REGULARLY = 'regularly',
+  OCCASIONALLY = 'occasionally',
+  INFORMALLY = 'informally',
+  FIRST_TIME = 'first_time',
+}
+
+/** Child age groups a provider is comfortable teaching (form question 14). */
+export enum ChildAgeGroup {
+  G_2_5_4 = '2.5-4',
+  G_4_6 = '4-6',
+  G_6_8 = '6-8',
+  G_8_10 = '8-10',
+  G_10_12 = '10-12',
+  G_12_PLUS = '12+',
+}
+
+/** Preferred teaching formats (form question 15). */
+export enum TeachingFormat {
+  SMALL_GROUP = 'small_group',
+  ONE_ON_ONE = 'one_on_one',
+  WORKSHOPS = 'workshops',
+  WEEKEND_EXPERIENCES = 'weekend_experiences',
+  RECURRING_WEEKLY = 'recurring_weekly',
+  SHORT_PROGRAMS = 'short_programs',
+  OPEN_TO_EXPLORING = 'open_to_exploring',
+}
+
+/** Where a provider is comfortable conducting a class (form question 16). */
+export enum ClassVenuePreference {
+  HOME_STUDIO = 'home_studio',
+  GATED_COMMUNITY = 'gated_community',
+  PARENT_VENUE = 'parent_venue',
+  PARTNER_SPACE = 'partner_space',
+  OUTDOORS = 'outdoors',
+  ONLINE = 'online',
+  OPEN_TO_DISCUSS = 'open_to_discuss',
+}
+
+/** How far a provider will travel to teach (form question 17). */
+export enum TravelRadius {
+  WITHIN_2KM = 'within_2km',
+  WITHIN_5KM = 'within_5km',
+  WITHIN_10KM = 'within_10km',
+  OVER_10KM = 'over_10km',
+  OWN_LOCATION_ONLY = 'own_location_only',
+}
+
+/** Days of the week a provider is generally available (form question 18). */
+export enum AvailabilityDay {
+  MONDAY = 'monday',
+  TUESDAY = 'tuesday',
+  WEDNESDAY = 'wednesday',
+  THURSDAY = 'thursday',
+  FRIDAY = 'friday',
+  SATURDAY = 'saturday',
+  SUNDAY = 'sunday',
+}
+
+/** Time-of-day slots that work for a provider (form question 19). */
+export enum TimeSlot {
+  S_7_9 = '7-9am',
+  S_9_11 = '9-11am',
+  S_11_1 = '11am-1pm',
+  S_1_3 = '1-3pm',
+  S_3_5 = '3-5pm',
+  S_5_7 = '5-7pm',
+  S_7_9_PM = '7-9pm',
+}
+
+/** How often a provider would ideally run sessions (form question 21). */
+export enum SessionFrequency {
+  ONE_PER_WEEK = '1_per_week',
+  TWO_THREE_PER_WEEK = '2-3_per_week',
+  FOUR_PLUS_PER_WEEK = '4+_per_week',
+  WEEKENDS_ONLY = 'weekends_only',
+  OCCASIONAL_WORKSHOPS = 'occasional_workshops',
+  FLEXIBLE = 'flexible',
+}
+
+/**
+ * Canonical provider categories. `discoverQuery` maps each category to the
+ * search `query` key used by the home / discover category tiles, so a
+ * provider's declared category lines up with how customers browse.
+ */
+export enum ProviderCategory {
+  MUSIC = 'music',
+  DANCE = 'dance',
+  ART_CRAFT = 'art_craft',
+  STEM = 'stem',
+  STORIES_CULTURE = 'stories_culture',
+  SPORTS_FITNESS = 'sports_fitness',
+  LIFE_SKILLS = 'life_skills',
+}
+
+/** A provider category with its display label, discover mapping and subcategories. */
+export interface ProviderCategoryDef {
+  category: ProviderCategory;
+  label: string;
+  /** The discover/home `query` key this category maps to for search. */
+  discoverQuery: string;
+  subcategories: string[];
+}
+
+/**
+ * Single source of truth for the provider category -> subcategory taxonomy and
+ * its mapping onto the customer-facing discover categories. Consumed by the
+ * provider onboarding form and by discovery so search stays aligned.
+ */
+export const PROVIDER_CATEGORY_TAXONOMY: readonly ProviderCategoryDef[] = [
+  {
+    category: ProviderCategory.MUSIC,
+    label: 'Music',
+    discoverQuery: 'Music',
+    subcategories: [
+      'Piano',
+      'Guitar',
+      'Carnatic music',
+      'Hindustani music',
+      'Other classical music',
+      'Musical instruments',
+    ],
+  },
+  {
+    category: ProviderCategory.DANCE,
+    label: 'Dance',
+    discoverQuery: 'Dance',
+    subcategories: ['Classical dance'],
+  },
+  {
+    category: ProviderCategory.ART_CRAFT,
+    label: 'Art & Craft',
+    discoverQuery: 'Art',
+    subcategories: [
+      'Art / painting',
+      'Crafts',
+      'Woodworking / wooden toy making',
+    ],
+  },
+  {
+    category: ProviderCategory.STEM,
+    label: 'STEM / Robotics',
+    discoverQuery: 'STEM',
+    subcategories: ['STEM / science', 'Lego / building'],
+  },
+  {
+    category: ProviderCategory.STORIES_CULTURE,
+    label: 'Stories & Culture',
+    discoverQuery: 'Stories',
+    subcategories: [
+      'Storytelling',
+      'Telugu / Indian stories',
+      'Sanatana / mythology stories',
+    ],
+  },
+  {
+    category: ProviderCategory.SPORTS_FITNESS,
+    label: 'Sports & Fitness',
+    discoverQuery: 'Sports',
+    subcategories: [
+      'Sports / physical activities',
+      'Karra Samu / traditional martial arts',
+      'Yoga',
+    ],
+  },
+  {
+    category: ProviderCategory.LIFE_SKILLS,
+    label: 'Life & Wellbeing',
+    discoverQuery: 'Stories',
+    subcategories: [
+      'Cooking / baking',
+      'Mindfulness',
+      'Nature-based activities',
+      'Life skills',
+      'Other',
+    ],
+  },
+] as const;
+
+/** Resolves the discover `query` key for a provider category (search mapping). */
+export function discoverQueryForCategory(
+  category: ProviderCategory,
+): string | null {
+  return (
+    PROVIDER_CATEGORY_TAXONOMY.find((c) => c.category === category)
+      ?.discoverQuery ?? null
+  );
+}
+
 export interface TeacherProfileDto {
   id: string;
   userId: string;
@@ -104,6 +316,35 @@ export interface TeacherProfileDto {
   location: GeoLocation | null;
   verificationStatus: VerificationStatus;
   documents: TeacherDocumentDto[];
+  // --- Provider onboarding + availability (all optional) ---
+  /** Section 1 — contact + basics */
+  phone: string | null;
+  email: string | null;
+  ageBand: ProviderAgeBand | null;
+  locality: string | null;
+  city: string | null;
+  /** Section 2 — what they teach */
+  category: ProviderCategory | null;
+  subcategories: string[];
+  skills: string[];
+  skillDescription: string | null;
+  yearsExperience: ProviderExperience | null;
+  /** Section 3 — portfolio + child experience */
+  portfolio: string | null;
+  childrenExperience: ChildrenExperience | null;
+  childrenExperienceDetail: string | null;
+  /** Section 4 — teaching preferences */
+  childAgeGroups: ChildAgeGroup[];
+  teachingFormats: TeachingFormat[];
+  venuePreferences: ClassVenuePreference[];
+  travelRadius: TravelRadius | null;
+  /** Section 5 — availability */
+  availableDays: AvailabilityDay[];
+  timeSlots: TimeSlot[];
+  preferredAvailability: string | null;
+  sessionFrequency: SessionFrequency | null;
+  /** Final — motivation */
+  whyJoin: string | null;
   createdAt: string;
   updatedAt: string;
 }

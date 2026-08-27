@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { getCustomerClient } from '../lib/customer-session';
 import { createSchedulingClient } from '../lib/api';
 import { Icon } from './ui';
+import { ChildName } from './child-name';
 import type { ClassCardData } from './data';
 import { RealDiscoveryMap } from './discover/real-discovery-map';
 
@@ -160,7 +161,7 @@ export function BookingBar({ classRef, title, price, spots }: { classRef: string
             {step === 'held' ? (
               <>
                 <span className="eyebrow purple">READY TO RESERVE</span>
-                <h2>Abhiram’s Saturday<br />just got more exciting.</h2>
+                <h2><ChildName possessive /> Saturday<br />just got more exciting.</h2>
                 <p>{title}<br />{scheduleLabel}</p>
                 <button className="primary-wide" disabled={bookingPending} onClick={() => void confirmBooking()}>{bookingPending ? 'Confirming…' : `Confirm ₹${price} booking`}</button>
                 {bookingError && <small className="booking-error">{bookingError}</small>}

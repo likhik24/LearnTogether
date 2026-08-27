@@ -2,16 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import type { ChildProfileDto } from '@learn-and-build/types';
-import { getCustomerClient } from '../../lib/customer-session';
+import { getCustomerClient, invalidatePrimaryChild } from '../../lib/customer-session';
 import { AppHeader, BottomNav, Icon } from '../ui';
 
 const interestOptions = ['Vehicles', 'STEM', 'Music', 'Art', 'Stories', 'Sports'];
 
 export default function ChildrenPage() {
   const [child, setChild] = useState<ChildProfileDto | null>(null);
-  const [name, setName] = useState('Abhiram');
-  const [birthDate, setBirthDate] = useState('2021-05-17');
-  const [interests, setInterests] = useState(['Vehicles', 'STEM', 'Music']);
+  const [name, setName] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [interests, setInterests] = useState<string[]>([]);
   const [message, setMessage] = useState('Saved in this browser');
   const [saving, setSaving] = useState(false);
 
@@ -49,9 +49,11 @@ export default function ChildrenPage() {
           ? await client.updateChild(child.id, { name, birthDate: birthDate || undefined, interests })
           : await client.createChild({ name, birthDate: birthDate || undefined, interests });
         setChild(result);
+        invalidatePrimaryChild(); // home/discover will re-read fresh interests
         setMessage('Saved to LearnTogether API');
       } else {
         window.localStorage.setItem('learn-together-child-profile', JSON.stringify({ name, birthDate, interests }));
+        invalidatePrimaryChild();
         setMessage('Saved in this browser — sign in to sync');
       }
     } catch {
@@ -66,7 +68,7 @@ export default function ChildrenPage() {
     <main className="page-canvas">
       <div className="phone-shell child-page">
         <AppHeader />
-        <span className="eyebrow purple">ABHIRAM’S SPACE</span>
+        <span className="eyebrow purple">{(name || 'Your child').toUpperCase()}’S SPACE</span>
         <h1>Growing interests,<br />all in one place.</h1>
         <p>These details help us make calmer, more useful recommendations.</p>
         <section className="child-profile-card">

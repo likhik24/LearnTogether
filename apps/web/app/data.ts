@@ -90,11 +90,46 @@ export const classes: ClassCardData[] = [
   },
 ];
 
-export const categories = [
-  { name: 'Art & Craft', query: 'Art', count: 13, icon: '✿', tone: 'peach' },
-  { name: 'Music', query: 'Music', count: 10, icon: '♪', tone: 'sky' },
-  { name: 'Dance', query: 'Dance', count: 14, icon: '⌁', tone: 'pink' },
-  { name: 'STEM / Robotics', query: 'STEM', count: 20, icon: '⚙', tone: 'lilac' },
-  { name: 'Stories & Culture', query: 'Stories', count: 10, icon: '▤', tone: 'butter' },
-  { name: 'Sports & Fitness', query: 'Sports', count: 16, icon: '↗', tone: 'lime' },
+import {
+  discoverQueryForCategory,
+  ProviderCategory,
+} from '@learn-and-build/api-client';
+
+export type DiscoverCategory = {
+  name: string;
+  /** Search key used by discover/search (also the provider category mapping). */
+  query: string;
+  count: number;
+  icon: string;
+  tone: string;
+  /** Provider categories whose declared category maps onto this tile. */
+  providerCategories: ProviderCategory[];
+};
+
+/**
+ * Customer-facing discover categories. `query` is the search key; it lines up
+ * with `discoverQueryForCategory()` from the shared taxonomy so a provider's
+ * declared category (e.g. Music -> Carnatic music) surfaces under the matching
+ * tile. `providerCategories` records that mapping explicitly.
+ */
+export const categories: DiscoverCategory[] = [
+  { name: 'Art & Craft', query: 'Art', count: 13, icon: '✿', tone: 'peach', providerCategories: [ProviderCategory.ART_CRAFT] },
+  { name: 'Music', query: 'Music', count: 10, icon: '♪', tone: 'sky', providerCategories: [ProviderCategory.MUSIC] },
+  { name: 'Dance', query: 'Dance', count: 14, icon: '⌁', tone: 'pink', providerCategories: [ProviderCategory.DANCE] },
+  { name: 'STEM / Robotics', query: 'STEM', count: 20, icon: '⚙', tone: 'lilac', providerCategories: [ProviderCategory.STEM] },
+  { name: 'Stories & Culture', query: 'Stories', count: 10, icon: '▤', tone: 'butter', providerCategories: [ProviderCategory.STORIES_CULTURE, ProviderCategory.LIFE_SKILLS] },
+  { name: 'Sports & Fitness', query: 'Sports', count: 16, icon: '↗', tone: 'lime', providerCategories: [ProviderCategory.SPORTS_FITNESS] },
 ];
+
+/**
+ * The discover `query` key a provider category should surface under. Single
+ * source of truth is the shared taxonomy; this resolves the tile whose search
+ * key equals the taxonomy's `discoverQuery`.
+ */
+export function discoverCategoryForProvider(
+  category: ProviderCategory,
+): DiscoverCategory | null {
+  const query = discoverQueryForCategory(category);
+  if (!query) return null;
+  return categories.find((c) => c.query === query) ?? null;
+}

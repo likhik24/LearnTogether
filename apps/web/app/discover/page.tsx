@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DiscoverClassDto } from '@learn-and-build/types';
 import { createSchedulingClient, createSearchClient } from '../../lib/api';
+import { getCustomerClient } from '../../lib/customer-session';
 import { categories, classes, type ClassCardData } from '../data';
 import { AppHeader, BottomNav, ClassCard, Icon } from '../ui';
 import { RealDiscoveryMap } from './real-discovery-map';
@@ -22,7 +23,42 @@ export default function DiscoverPage() {
   const [selectedSlug, setSelectedSlug] = useState(classes[0].slug);
   const [recenterKey, setRecenterKey] = useState(0);
   const [dataStatus, setDataStatus] = useState<'loading' | 'live' | 'offline'>('loading');
+  const [childName, setChildName] = useState<string | null>(null);
+  const [childInterests, setChildInterests] = useState<string[]>([]);
   const searchInput = useRef<HTMLInputElement>(null);
+
+  // Load the signed-in parent's child (with a local fallback) so the page is
+  // personalized to their child and interests, not a hardcoded sample.
+  useEffect(() => {
+    function applyLocal() {
+      try {
+        const raw = window.localStorage.getItem('learn-together-child-profile');
+        if (!raw) return;
+        const local = JSON.parse(raw) as { name?: string; interests?: string[] };
+        setChildName(local.name ?? null);
+        setChildInterests(local.interests ?? []);
+      } catch {
+        /* ignore malformed local data */
+      }
+    }
+    const client = getCustomerClient();
+    if (!client) {
+      applyLocal();
+      return;
+    }
+    client
+      .listChildren()
+      .then((items) => {
+        const first = items[0];
+        if (first) {
+          setChildName(first.name);
+          setChildInterests(first.interests ?? []);
+        } else {
+          applyLocal();
+        }
+      })
+      .catch(applyLocal);
+  }, []);
 
   useEffect(() => {
     const category = new URLSearchParams(window.location.search).get('category');
@@ -44,19 +80,31 @@ export default function DiscoverPage() {
     const timer = window.setTimeout(() => {
       const scheduling = createSchedulingClient();
       const search = createSearchClient();
+      const typed = query.trim();
+      // With no typed query, rank by the child's interests so relevant classes
+      // surface first (personalized discovery).
+      const rankQuery = typed || childInterests.join(' ');
       setDataStatus('loading');
       void Promise.all([
         scheduling.discoverClasses({ ...origin, radiusMeters: 5000, days: 21 }),
-        query.trim() ? search.searchClasses(query.trim(), { ...origin, radiusMeters: 5000 }).catch(() => null) : Promise.resolve(null),
+        rankQuery ? search.searchClasses(rankQuery, { ...origin, radiusMeters: 5000 }).catch(() => null) : Promise.resolve(null),
       ]).then(([offerings, searchResponse]) => {
         if (cancelled) return;
         let mapped = offerings.map(toClassCard);
-        if (query.trim()) {
-          const rank = new Map(searchResponse?.hits.map((hit, index) => [hit.classId, index]) ?? []);
-          const normalized = query.trim().toLowerCase();
+        const rank = new Map(searchResponse?.hits.map((hit, index) => [hit.classId, index]) ?? []);
+        const rankOf = (item: ClassCardData) =>
+          item.backendId && rank.has(item.backendId)
+            ? rank.get(item.backendId)!
+            : Number.MAX_SAFE_INTEGER;
+        if (typed) {
+          // Explicit search: filter to matches (semantic rank, else text match).
+          const normalized = typed.toLowerCase();
           mapped = rank.size
-            ? mapped.filter((item) => item.backendId && rank.has(item.backendId)).sort((a, b) => rank.get(a.backendId!)! - rank.get(b.backendId!)!)
+            ? mapped.filter((item) => item.backendId && rank.has(item.backendId)).sort((a, b) => rankOf(a) - rankOf(b))
             : mapped.filter((item) => `${item.title} ${item.category} ${item.age}`.toLowerCase().includes(normalized));
+        } else if (rank.size) {
+          // Interest-based: reorder (don't filter) so matches lead the list.
+          mapped = [...mapped].sort((a, b) => rankOf(a) - rankOf(b));
         }
         setAllClasses(mapped);
         setSelectedSlug((current) => mapped.some((item) => item.slug === current) ? current : mapped[0]?.slug ?? '');
@@ -68,7 +116,8 @@ export default function DiscoverPage() {
       });
     }, 220);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, childInterests.join(',')]);
 
   const visibleClasses = useMemo(() => allClasses.filter((item) => (
     activeFilter === 'All' || item.availability.includes(activeFilter)
@@ -82,8 +131,12 @@ export default function DiscoverPage() {
         <AppHeader greeting={false} />
         <section className="discover-intro">
           <span className="eyebrow purple">DISCOVER</span>
-          <h1>What would Abhiram<br />like to explore?</h1>
-          <p>Classes close to home, picked for ages 3–6.</p>
+          <h1>What would {childName ?? 'your child'}<br />like to explore?</h1>
+          <p>
+            {childInterests.length
+              ? `Classes close to home for ${childInterests.slice(0, 3).join(', ')}.`
+              : 'Classes close to home, picked for your family.'}
+          </p>
         </section>
         <label className="search-field">
           <Icon name="search" size={20} />
@@ -110,7 +163,7 @@ export default function DiscoverPage() {
         )}
         {viewMode === 'List' && <section className="section-block results-section">
           <div className="section-heading">
-            <div><span className="eyebrow coral">{activeFilter.toUpperCase()}</span><h2>{query ? 'Search results' : 'Popular near you'}</h2></div>
+            <div><span className="eyebrow coral">{activeFilter.toUpperCase()}</span><h2>{query ? 'Search results' : childInterests.length ? `Picked for ${childName ?? 'your child'}` : 'Popular near you'}</h2></div>
             <button type="button" className="filter-link" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((value) => !value)}>Filters <span>⌁</span></button>
           </div>
           {filtersOpen && (

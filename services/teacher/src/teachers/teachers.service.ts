@@ -78,6 +78,65 @@ export class TeachersService {
         coordinates: [dto.location.lng, dto.location.lat],
       };
     }
+
+    // Provider onboarding + availability. Only overwrite when the field is
+    // provided so a section-by-section save never clears earlier answers.
+    const keep = <T>(next: T | undefined, current: T): T =>
+      next === undefined ? current : next;
+
+    profile.phone = keep(dto.phone, profile.phone ?? null);
+    profile.email = keep(dto.email, profile.email ?? null);
+    profile.ageBand = keep(dto.ageBand, profile.ageBand ?? null);
+    profile.locality = keep(dto.locality, profile.locality ?? null);
+    profile.city = keep(dto.city, profile.city ?? null);
+    profile.category = keep(dto.category, profile.category ?? null);
+    profile.subcategories = keep(dto.subcategories, profile.subcategories ?? []);
+    profile.skills = keep(dto.skills, profile.skills ?? []);
+    profile.skillDescription = keep(
+      dto.skillDescription,
+      profile.skillDescription ?? null,
+    );
+    profile.yearsExperience = keep(
+      dto.yearsExperience,
+      profile.yearsExperience ?? null,
+    );
+    profile.portfolio = keep(dto.portfolio, profile.portfolio ?? null);
+    profile.childrenExperience = keep(
+      dto.childrenExperience,
+      profile.childrenExperience ?? null,
+    );
+    profile.childrenExperienceDetail = keep(
+      dto.childrenExperienceDetail,
+      profile.childrenExperienceDetail ?? null,
+    );
+    profile.childAgeGroups = keep(
+      dto.childAgeGroups,
+      profile.childAgeGroups ?? [],
+    );
+    profile.teachingFormats = keep(
+      dto.teachingFormats,
+      profile.teachingFormats ?? [],
+    );
+    profile.venuePreferences = keep(
+      dto.venuePreferences,
+      profile.venuePreferences ?? [],
+    );
+    profile.travelRadius = keep(dto.travelRadius, profile.travelRadius ?? null);
+    profile.availableDays = keep(
+      dto.availableDays,
+      profile.availableDays ?? [],
+    );
+    profile.timeSlots = keep(dto.timeSlots, profile.timeSlots ?? []);
+    profile.preferredAvailability = keep(
+      dto.preferredAvailability,
+      profile.preferredAvailability ?? null,
+    );
+    profile.sessionFrequency = keep(
+      dto.sessionFrequency,
+      profile.sessionFrequency ?? null,
+    );
+    profile.whyJoin = keep(dto.whyJoin, profile.whyJoin ?? null);
+
     return this.profiles.save(profile);
   }
 

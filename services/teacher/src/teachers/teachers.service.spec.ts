@@ -1,6 +1,14 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Repository } from 'typeorm';
-import { VerificationStatus } from '@learn-and-build/types';
+import {
+  AvailabilityDay,
+  ChildAgeGroup,
+  ProviderCategory,
+  SessionFrequency,
+  TimeSlot,
+  TravelRadius,
+  VerificationStatus,
+} from '@learn-and-build/types';
 import { TeachersService } from './teachers.service';
 import { TeacherProfile } from './entities/teacher-profile.entity';
 import { TeacherDocument } from './entities/teacher-document.entity';
@@ -78,5 +86,65 @@ describe('TeachersService verification flow', () => {
     const result = await service.reject('p-1', 'Blurry ID document');
     expect(result.verificationStatus).toBe(VerificationStatus.REJECTED);
     expect(result.rejectionReason).toBe('Blurry ID document');
+  });
+});
+
+describe('TeachersService.upsertProfile provider onboarding', () => {
+  let profiles: jest.Mocked<Pick<Repository<TeacherProfile>, 'findOne' | 'save' | 'create'>>;
+  let documents: jest.Mocked<Pick<Repository<TeacherDocument>, 'save' | 'create'>>;
+  let service: TeachersService;
+
+  beforeEach(() => {
+    profiles = { findOne: jest.fn(), save: jest.fn(), create: jest.fn() };
+    documents = { save: jest.fn(), create: jest.fn() };
+    profiles.create.mockImplementation((p) => Object.assign(new TeacherProfile(), p));
+    profiles.save.mockImplementation(async (p) => p as TeacherProfile);
+    service = new TeachersService(
+      profiles as unknown as Repository<TeacherProfile>,
+      documents as unknown as Repository<TeacherDocument>,
+    );
+  });
+
+  it('persists category, subcategories and availability on a new profile', async () => {
+    profiles.findOne.mockResolvedValue(null);
+    const result = await service.upsertProfile('u-9', {
+      displayName: 'Chitra',
+      phone: '+91 90000 00000',
+      email: 'chitra@example.com',
+      category: ProviderCategory.MUSIC,
+      subcategories: ['Carnatic music'],
+      skills: ['Carnatic music', 'Storytelling'],
+      childAgeGroups: [ChildAgeGroup.G_4_6, ChildAgeGroup.G_6_8],
+      availableDays: [AvailabilityDay.SATURDAY, AvailabilityDay.SUNDAY],
+      timeSlots: [TimeSlot.S_9_11],
+      travelRadius: TravelRadius.WITHIN_5KM,
+      sessionFrequency: SessionFrequency.WEEKENDS_ONLY,
+      whyJoin: 'I love sharing music with children.',
+    });
+    expect(result.category).toBe(ProviderCategory.MUSIC);
+    expect(result.subcategories).toEqual(['Carnatic music']);
+    expect(result.availableDays).toEqual([
+      AvailabilityDay.SATURDAY,
+      AvailabilityDay.SUNDAY,
+    ]);
+    expect(result.travelRadius).toBe(TravelRadius.WITHIN_5KM);
+    expect(result.whyJoin).toBe('I love sharing music with children.');
+  });
+
+  it('preserves earlier answers when a later save omits them', async () => {
+    profiles.findOne.mockResolvedValue(
+      makeProfile({
+        category: ProviderCategory.MUSIC,
+        subcategories: ['Carnatic music'],
+      }),
+    );
+    const result = await service.upsertProfile('u-1', {
+      displayName: 'Tess',
+      city: 'Hyderabad',
+    });
+    expect(result.city).toBe('Hyderabad');
+    // Untouched fields survive the partial update.
+    expect(result.category).toBe(ProviderCategory.MUSIC);
+    expect(result.subcategories).toEqual(['Carnatic music']);
   });
 });

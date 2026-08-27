@@ -1,27 +1,40 @@
 import {
   assertValidTimings,
   generateOccurrences,
-  isValidEveningTiming,
-  isWeekday,
+  isValidTiming,
+  isValidWeekday,
 } from './timing';
 
-describe('weekday-evening timing model', () => {
+describe('operating-window timing model', () => {
   it('accepts a weekday evening that fits the window', () => {
-    // Wednesday 18:00 for 60m -> ends 19:00, inside 17:00-22:00.
-    expect(isValidEveningTiming({ weekday: 3, startMinute: 18 * 60 }, 60)).toBe(
+    // Wednesday 18:00 for 60m -> ends 19:00, inside 07:00-22:00.
+    expect(isValidTiming({ weekday: 3, startMinute: 18 * 60 }, 60)).toBe(
       true,
     );
   });
 
-  it('rejects weekends', () => {
-    expect(isWeekday(6)).toBe(false);
-    expect(isValidEveningTiming({ weekday: 6, startMinute: 18 * 60 }, 60)).toBe(
-      false,
+  it('accepts a Saturday morning session', () => {
+    // Saturday 10:00 for 60m -> ends 11:00, inside 07:00-22:00.
+    expect(isValidWeekday(6)).toBe(true);
+    expect(isValidTiming({ weekday: 6, startMinute: 10 * 60 }, 60)).toBe(
+      true,
     );
   });
 
-  it('rejects times before the evening window', () => {
-    expect(isValidEveningTiming({ weekday: 2, startMinute: 15 * 60 }, 60)).toBe(
+  it('accepts a Sunday session', () => {
+    expect(isValidWeekday(7)).toBe(true);
+    expect(isValidTiming({ weekday: 7, startMinute: 9 * 60 }, 60)).toBe(true);
+  });
+
+  it('rejects invalid weekday numbers', () => {
+    expect(isValidWeekday(0)).toBe(false);
+    expect(isValidWeekday(8)).toBe(false);
+    expect(isValidTiming({ weekday: 8, startMinute: 10 * 60 }, 60)).toBe(false);
+  });
+
+  it('rejects times before the operating window', () => {
+    // 06:30 is before 07:00.
+    expect(isValidTiming({ weekday: 2, startMinute: 6 * 60 + 30 }, 60)).toBe(
       false,
     );
   });
@@ -29,14 +42,14 @@ describe('weekday-evening timing model', () => {
   it('rejects sessions that overflow past 22:00', () => {
     // 21:30 + 60m = 22:30 -> past the window.
     expect(
-      isValidEveningTiming({ weekday: 2, startMinute: 21 * 60 + 30 }, 60),
+      isValidTiming({ weekday: 2, startMinute: 21 * 60 + 30 }, 60),
     ).toBe(false);
   });
 
   it('assertValidTimings throws for empty or invalid timings', () => {
     expect(() => assertValidTimings([], 60)).toThrow();
     expect(() =>
-      assertValidTimings([{ weekday: 7, startMinute: 18 * 60 }], 60),
+      assertValidTimings([{ weekday: 6, startMinute: 6 * 60 }], 60),
     ).toThrow();
   });
 });

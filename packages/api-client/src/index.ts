@@ -1,19 +1,64 @@
 import type {
   AuthTokenResponse,
+  AvailabilityDay,
   BookingDto,
+  ChildAgeGroup,
+  ChildrenExperience,
   ClassOccurrence,
   ClassOfferingDto,
   ClassReservationDto,
   ClassSearchResponse,
+  ClassVenuePreference,
   ChildProfileDto,
   CustomerNotificationDto,
   DiscoverClassDto,
+  GeoLocation,
   HealthResponse,
   OidcProviderInfo,
+  PresignedUploadResponse,
+  ProviderAgeBand,
+  ProviderCategory,
+  ProviderExperience,
   PublicUser,
   Role,
   SavedClassDto,
+  SessionFrequency,
+  TeacherProfileDto,
+  TeachingFormat,
+  TimeSlot,
+  TravelRadius,
 } from '@learn-and-build/types';
+import { DocumentType } from '@learn-and-build/types';
+
+/** Input accepted by the teacher profile upsert (mirrors the service DTO). */
+export interface UpsertTeacherProfileInput {
+  displayName: string;
+  bio?: string;
+  subjects?: string[];
+  location?: GeoLocation;
+  phone?: string;
+  email?: string;
+  ageBand?: ProviderAgeBand;
+  locality?: string;
+  city?: string;
+  category?: ProviderCategory;
+  subcategories?: string[];
+  skills?: string[];
+  skillDescription?: string;
+  yearsExperience?: ProviderExperience;
+  portfolio?: string;
+  childrenExperience?: ChildrenExperience;
+  childrenExperienceDetail?: string;
+  childAgeGroups?: ChildAgeGroup[];
+  teachingFormats?: TeachingFormat[];
+  venuePreferences?: ClassVenuePreference[];
+  travelRadius?: TravelRadius;
+  availableDays?: AvailabilityDay[];
+  timeSlots?: TimeSlot[];
+  preferredAvailability?: string;
+  sessionFrequency?: SessionFrequency;
+  whyJoin?: string;
+}
 
 export interface ApiClientOptions {
   /** Base URL of the target service, e.g. http://localhost:3001 */
@@ -89,6 +134,74 @@ export class ApiClient {
 
   me(): Promise<PublicUser> {
     return this.request<PublicUser>('/auth/me');
+  }
+
+  /** The signed-in teacher's own profile (teacher service). */
+  getMyTeacherProfile(): Promise<TeacherProfileDto> {
+    return this.request<TeacherProfileDto>('/teachers/me');
+  }
+
+  /** Creates or updates the signed-in teacher's profile (upsert). */
+  upsertMyTeacherProfile(
+    input: UpsertTeacherProfileInput,
+  ): Promise<TeacherProfileDto> {
+    return this.request<TeacherProfileDto>('/teachers/me', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  }
+
+  /** Step 1: request a presigned S3 URL to upload a document directly. */
+  presignTeacherDocument(input: {
+    fileName: string;
+    contentType: string;
+    type: DocumentType;
+  }): Promise<PresignedUploadResponse> {
+    return this.request<PresignedUploadResponse>('/teachers/me/documents/presign', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  /** Step 3: confirm an uploaded document, attaching it to the profile. */
+  confirmTeacherDocument(input: {
+    storageKey: string;
+    fileName: string;
+    type: DocumentType;
+  }): Promise<TeacherProfileDto> {
+    return this.request<TeacherProfileDto>('/teachers/me/documents', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  /**
+   * Full document upload: presign, PUT the bytes straight to S3, then confirm.
+   * Returns the updated profile with the new document attached.
+   */
+  async uploadTeacherDocument(
+    file: File,
+    type: DocumentType = DocumentType.OTHER,
+  ): Promise<TeacherProfileDto> {
+    const contentType = file.type || 'application/octet-stream';
+    const { uploadUrl, storageKey } = await this.presignTeacherDocument({
+      fileName: file.name,
+      contentType,
+      type,
+    });
+    const put = await this.fetchFn(uploadUrl, {
+      method: 'PUT',
+      headers: { 'content-type': contentType },
+      body: file,
+    });
+    if (!put.ok) {
+      throw new Error(`Upload to storage failed (${put.status})`);
+    }
+    return this.confirmTeacherDocument({
+      storageKey,
+      fileName: file.name,
+      type,
+    });
   }
 
   /** Lists configured OIDC providers (Google, AWS) for sign-in buttons. */
@@ -203,9 +316,30 @@ export type {
   ChildProfileDto,
   CustomerNotificationDto,
   DiscoverClassDto,
+  GeoLocation,
   HealthResponse,
   OidcProviderInfo,
+  PresignedUploadResponse,
+  ProviderCategoryDef,
   PublicUser,
   SavedClassDto,
+  TeacherDocumentDto,
+  TeacherProfileDto,
 } from '@learn-and-build/types';
-export { Role } from '@learn-and-build/types';
+export {
+  AvailabilityDay,
+  ChildAgeGroup,
+  ChildrenExperience,
+  ClassVenuePreference,
+  discoverQueryForCategory,
+  DocumentType,
+  ProviderAgeBand,
+  ProviderCategory,
+  ProviderExperience,
+  PROVIDER_CATEGORY_TAXONOMY,
+  Role,
+  SessionFrequency,
+  TeachingFormat,
+  TimeSlot,
+  TravelRadius,
+} from '@learn-and-build/types';

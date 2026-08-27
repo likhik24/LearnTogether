@@ -50,8 +50,17 @@ describe('ClassesService', () => {
     expect(result.location).toEqual({ type: 'Point', coordinates: [77.6, 12.9] });
   });
 
-  it('rejects a class whose timing falls outside the evening window', async () => {
-    await expect(service.create('teacher-1', baseDto({ timings: [{ weekday: 2, startMinute: 9 * 60 }] })))
+  it('accepts a Saturday morning class', async () => {
+    const result = await service.create(
+      'teacher-1',
+      baseDto({ timings: [{ weekday: 6, startMinute: 10 * 60 }] }),
+    );
+    expect(result.timings).toEqual([{ weekday: 6, startMinute: 10 * 60 }]);
+  });
+
+  it('rejects a class whose timing falls outside the operating window', async () => {
+    // 06:30 is before the 07:00 window start.
+    await expect(service.create('teacher-1', baseDto({ timings: [{ weekday: 2, startMinute: 6 * 60 + 30 }] })))
       .rejects.toBeInstanceOf(BadRequestException);
   });
 

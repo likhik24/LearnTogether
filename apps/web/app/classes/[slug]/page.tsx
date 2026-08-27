@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { classes } from '../../data';
 import { BookingBar, ClassLocationMap, DetailTopActions, ReviewsButton } from '../../detail-actions';
 import { Icon } from '../../ui';
+import { ChildName, ChildInterests } from '../../child-name';
 
 export function generateStaticParams() {
   return classes.map((item) => ({ slug: item.slug }));
@@ -25,7 +26,7 @@ export default function ClassDetailsPage({ params }: { params: { slug: string } 
         </div>
         <div className="details-body">
           <div className="title-block">
-            <span className="eyebrow purple">{item.category} • PERFECT FOR ABHIRAM</span>
+            <span className="eyebrow purple">{item.category} • PERFECT FOR <ChildName uppercase /></span>
             <h1>{item.title}</h1>
             <p>A playful hour of building, testing, and proudly showing off a car made with their own hands.</p>
             <div className="rating-line">
@@ -34,9 +35,9 @@ export default function ClassDetailsPage({ params }: { params: { slug: string } 
             </div>
           </div>
           <section className="reason-card">
-            <div className="reason-heading"><span>✦</span><div><small>WHY WE PICKED THIS</small><h2>A lovely match for Abhiram</h2></div></div>
+            <div className="reason-heading"><span>✦</span><div><small>WHY WE PICKED THIS</small><h2>A lovely match for <ChildName /></h2></div></div>
             <ul>
-              <li><Icon name="check" size={17} /><span>Builds on his love of <strong>vehicles and making</strong></span></li>
+              <li><Icon name="check" size={17} /><span>Builds on a love of <strong><ChildInterests /></strong></span></li>
               <li><Icon name="check" size={17} /><span>Fits your usual <strong>Saturday morning</strong> routine</span></li>
               <li><Icon name="check" size={17} /><span>Only <strong>{item.distance}</strong> from home</span></li>
             </ul>

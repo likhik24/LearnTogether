@@ -1,26 +1,27 @@
 import type { ClassOccurrence, ClassTiming } from '@learn-and-build/types';
 
-/** Weekday-evening window: Mon-Fri, 17:00-22:00 (minutes from midnight). */
-export const EVENING_START_MIN = 17 * 60; // 1020
-export const EVENING_END_MIN = 22 * 60; // 1320
+/** Operating window: any day of the week, 07:00-22:00 (minutes from midnight). */
+export const OPERATING_START_MIN = 7 * 60; // 420
+export const OPERATING_END_MIN = 22 * 60; // 1320
 export const MINUTES_PER_DAY = 24 * 60;
 
-export function isWeekday(weekday: number): boolean {
-  return Number.isInteger(weekday) && weekday >= 1 && weekday <= 5;
+/** ISO weekday: 1=Mon .. 7=Sun. */
+export function isValidWeekday(weekday: number): boolean {
+  return Number.isInteger(weekday) && weekday >= 1 && weekday <= 7;
 }
 
 /**
- * A timing is valid when it falls on a weekday and the whole session fits
- * inside the evening window.
+ * A timing is valid when it falls on a real weekday (Mon-Sun) and the whole
+ * session fits inside the daily operating window (07:00-22:00).
  */
-export function isValidEveningTiming(
+export function isValidTiming(
   timing: ClassTiming,
   durationMinutes: number,
 ): boolean {
-  if (!isWeekday(timing.weekday)) return false;
+  if (!isValidWeekday(timing.weekday)) return false;
   if (!Number.isInteger(timing.startMinute)) return false;
-  if (timing.startMinute < EVENING_START_MIN) return false;
-  if (timing.startMinute + durationMinutes > EVENING_END_MIN) return false;
+  if (timing.startMinute < OPERATING_START_MIN) return false;
+  if (timing.startMinute + durationMinutes > OPERATING_END_MIN) return false;
   return true;
 }
 
@@ -32,9 +33,9 @@ export function assertValidTimings(
     throw new Error('At least one timing is required');
   }
   for (const t of timings) {
-    if (!isValidEveningTiming(t, durationMinutes)) {
+    if (!isValidTiming(t, durationMinutes)) {
       throw new Error(
-        `Invalid timing (weekday ${t.weekday}, start ${t.startMinute}): must be a weekday evening that fits ${durationMinutes}m within 17:00-22:00`,
+        `Invalid timing (weekday ${t.weekday}, start ${t.startMinute}): must be a day of the week that fits ${durationMinutes}m within 07:00-22:00`,
       );
     }
   }

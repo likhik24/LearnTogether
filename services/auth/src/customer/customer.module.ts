@@ -1,17 +1,26 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Booking } from './entities/booking.entity';
+import { PassportModule } from '@nestjs/passport';
+import { JwtStrategy } from '@learn-and-build/nest-auth';
 import { ChildProfile } from './entities/child-profile.entity';
-import { CustomerNotification } from './entities/customer-notification.entity';
 import { SavedClass } from './entities/saved-class.entity';
-import { CustomerController } from './customer.controller';
+import { Booking } from './entities/booking.entity';
+import { CustomerNotification } from './entities/customer-notification.entity';
 import { CustomerService } from './customer.service';
-import { SchedulingGateway } from './scheduling.gateway';
+import { CustomerController } from './customer.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ChildProfile, SavedClass, Booking, CustomerNotification])],
+  imports: [
+    PassportModule,
+    TypeOrmModule.forFeature([
+      ChildProfile,
+      SavedClass,
+      Booking,
+      CustomerNotification,
+    ]),
+  ],
   controllers: [CustomerController],
-  providers: [CustomerService, SchedulingGateway],
+  providers: [CustomerService, JwtStrategy],
   exports: [CustomerService],
 })
 export class CustomerModule {}

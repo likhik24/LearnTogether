@@ -94,7 +94,7 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
                 <article className={!item.readAt ? 'unread' : ''} key={item.id}><span>{item.kind === 'profile' ? 'A' : '✦'}</span><div><strong>{item.title}</strong><p>{item.body}</p><small>{new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' }).format(new Date(item.createdAt))}</small></div></article>
               )) : (
                 <>
-                  <article className={unread ? 'unread' : ''}><span>✦</span><div><strong>A new class matches Abhiram</strong><p>LEGO Mechanics Fun is available this weekend.</p><small>12 min ago</small></div></article>
+                  <article className={unread ? 'unread' : ''}><span>✦</span><div><strong>A new class matches your child’s interests</strong><p>LEGO Mechanics Fun is available this weekend.</p><small>12 min ago</small></div></article>
                   <article className={unread ? 'unread' : ''}><span>✓</span><div><strong>Rhythm & Rhyme confirmed</strong><p>Your Saturday 11:00 AM spot is ready.</p><small>Yesterday</small></div></article>
                 </>
               )}
