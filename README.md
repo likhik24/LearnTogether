@@ -55,15 +55,15 @@ docker compose up --build
 This boots Postgres+PostGIS, OpenSearch, Redis, and all NestJS services.
 Each service exposes a health endpoint:
 
-| Service     | Port | Health URL                  |
-| ----------- | ---- | --------------------------- |
-| auth        | 3001 | http://localhost:3001/health |
-| teacher     | 3002 | http://localhost:3002/health |
-| search      | 3003 | http://localhost:3003/health |
-| scheduling  | 3004 | http://localhost:3004/health |
-| voice       | 3005 | http://localhost:3005/health |
-| meetings    | 3006 | http://localhost:3006/health |
-| payments    | 3007 | http://localhost:3007/health |
+| Service    | Port | Health URL                   |
+| ---------- | ---- | ---------------------------- |
+| auth       | 3001 | http://localhost:3001/health |
+| teacher    | 3002 | http://localhost:3002/health |
+| search     | 3003 | http://localhost:3003/health |
+| scheduling | 3004 | http://localhost:3004/health |
+| voice      | 3005 | http://localhost:3005/health |
+| meetings   | 3006 | http://localhost:3006/health |
+| payments   | 3007 | http://localhost:3007/health |
 
 All `/health` endpoints return HTTP 200 with `{ "status": "ok", "service": "<name>" }`.
 
@@ -76,13 +76,13 @@ All `/health` endpoints return HTTP 200 with `{ "status": "ok", "service": "<nam
 
 Roles: `user`, `teacher`, `admin` (shared `Role` enum in `@learn-and-build/types`).
 
-| Method | Route                      | Auth                | Purpose                         |
-| ------ | -------------------------- | ------------------- | ------------------------------- |
-| POST   | /auth/register             | public              | Sign up (USER or TEACHER only)  |
-| POST   | /auth/login                | public              | Get a JWT                       |
-| GET    | /auth/me                   | JWT                 | Current user                    |
-| GET    | /admin/users               | JWT + ADMIN         | List users                      |
-| PATCH  | /admin/users/:id/role      | JWT + ADMIN         | Change a user's role            |
+| Method | Route                 | Auth        | Purpose                        |
+| ------ | --------------------- | ----------- | ------------------------------ |
+| POST   | /auth/register        | public      | Sign up (USER or TEACHER only) |
+| POST   | /auth/login           | public      | Get a JWT                      |
+| GET    | /auth/me              | JWT         | Current user                   |
+| GET    | /admin/users          | JWT + ADMIN | List users                     |
+| PATCH  | /admin/users/:id/role | JWT + ADMIN | Change a user's role           |
 
 Set `ADMIN_EMAIL` / `ADMIN_PASSWORD` to seed an initial admin on first boot.
 
@@ -91,20 +91,20 @@ Set `ADMIN_EMAIL` / `ADMIN_PASSWORD` to seed an initial admin on first boot.
 The customer UI stores data in PostgreSQL whenever a user signs in. Every
 route below requires a bearer JWT and is scoped to that user.
 
-| Method | Route                                  | Purpose                         |
-| ------ | -------------------------------------- | ------------------------------- |
-| GET    | /customer/children                     | List child profiles             |
-| POST   | /customer/children                     | Create a child profile          |
-| PATCH  | /customer/children/:id                 | Update an owned child profile   |
-| GET    | /customer/saved-classes                | List saved classes              |
-| PUT    | /customer/saved-classes/:classRef      | Save a class (idempotent)       |
-| DELETE | /customer/saved-classes/:classRef      | Remove a saved class            |
-| GET    | /customer/bookings                     | List customer bookings          |
-| POST   | /customer/bookings                     | Reserve a seat and book a trial |
-| PATCH  | /customer/bookings/:id/cancel          | Cancel an owned booking         |
-| GET    | /customer/notifications                | List in-app notifications       |
-| PATCH  | /customer/notifications/:id/read       | Mark one notification as read   |
-| POST   | /customer/notifications/read-all       | Mark all notifications as read  |
+| Method | Route                             | Purpose                         |
+| ------ | --------------------------------- | ------------------------------- |
+| GET    | /customer/children                | List child profiles             |
+| POST   | /customer/children                | Create a child profile          |
+| PATCH  | /customer/children/:id            | Update an owned child profile   |
+| GET    | /customer/saved-classes           | List saved classes              |
+| PUT    | /customer/saved-classes/:classRef | Save a class (idempotent)       |
+| DELETE | /customer/saved-classes/:classRef | Remove a saved class            |
+| GET    | /customer/bookings                | List customer bookings          |
+| POST   | /customer/bookings                | Reserve a seat and book a trial |
+| PATCH  | /customer/bookings/:id/cancel     | Cancel an owned booking         |
+| GET    | /customer/notifications           | List in-app notifications       |
+| PATCH  | /customer/notifications/:id/read  | Mark one notification as read   |
+| POST   | /customer/notifications/read-all  | Mark all notifications as read  |
 
 Booking and profile actions create notifications automatically. Booking calls
 the scheduling service to reserve inventory transactionally before persisting
@@ -116,11 +116,11 @@ The auth service also supports OIDC login via Google and AWS Cognito
 (Authorization Code + PKCE, using `openid-client`). Providers are enabled only
 when their env vars are set, so it degrades gracefully to password-only.
 
-| Method | Route                          | Purpose                                   |
-| ------ | ------------------------------ | ----------------------------------------- |
-| GET    | /auth/oidc/providers           | List enabled providers (for UI buttons)   |
-| GET    | /auth/oidc/:provider/login     | 302 redirect to the provider              |
-| GET    | /auth/oidc/:provider/callback  | Exchange code, then redirect to console   |
+| Method | Route                         | Purpose                                 |
+| ------ | ----------------------------- | --------------------------------------- |
+| GET    | /auth/oidc/providers          | List enabled providers (for UI buttons) |
+| GET    | /auth/oidc/:provider/login    | 302 redirect to the provider            |
+| GET    | /auth/oidc/:provider/callback | Exchange code, then redirect to console |
 
 On success the browser is redirected to `OIDC_SUCCESS_REDIRECT` with the JWT in
 the URL fragment (`#access_token=...`); the admin console reads it on load.
@@ -137,18 +137,18 @@ availability questionnaire, S3 document uploads, and an admin-driven
 verification state machine (`pending → submitted → under_review →
 approved/rejected`, with resubmit from `rejected`).
 
-| Method | Route                              | Auth          | Purpose                          |
-| ------ | ---------------------------------- | ------------- | -------------------------------- |
-| GET    | /teachers/me                       | JWT + TEACHER | Fetch own profile                |
-| PUT    | /teachers/me                       | JWT + TEACHER | Create/update own profile (upsert) |
-| POST   | /teachers/me/documents/presign     | JWT + TEACHER | Get a presigned S3 upload URL    |
-| POST   | /teachers/me/documents             | JWT + TEACHER | Attach an uploaded document      |
-| POST   | /teachers/me/submit                | JWT + TEACHER | Submit profile for review        |
-| GET    | /teachers/nearby?lat&lng&radius    | JWT           | Find approved teachers nearby    |
-| GET    | /admin/teachers?status=submitted   | JWT + ADMIN   | List profiles by status          |
-| POST   | /admin/teachers/:id/start-review   | JWT + ADMIN   | Move to under_review             |
-| POST   | /admin/teachers/:id/approve        | JWT + ADMIN   | Approve                          |
-| POST   | /admin/teachers/:id/reject         | JWT + ADMIN   | Reject (with optional reason)    |
+| Method | Route                            | Auth          | Purpose                            |
+| ------ | -------------------------------- | ------------- | ---------------------------------- |
+| GET    | /teachers/me                     | JWT + TEACHER | Fetch own profile                  |
+| PUT    | /teachers/me                     | JWT + TEACHER | Create/update own profile (upsert) |
+| POST   | /teachers/me/documents/presign   | JWT + TEACHER | Get a presigned S3 upload URL      |
+| POST   | /teachers/me/documents           | JWT + TEACHER | Attach an uploaded document        |
+| POST   | /teachers/me/submit              | JWT + TEACHER | Submit profile for review          |
+| GET    | /teachers/nearby?lat&lng&radius  | JWT           | Find approved teachers nearby      |
+| GET    | /admin/teachers?status=submitted | JWT + ADMIN   | List profiles by status            |
+| POST   | /admin/teachers/:id/start-review | JWT + ADMIN   | Move to under_review               |
+| POST   | /admin/teachers/:id/approve      | JWT + ADMIN   | Approve                            |
+| POST   | /admin/teachers/:id/reject       | JWT + ADMIN   | Reject (with optional reason)      |
 
 The admin approve/reject actions are wired to the shared role guards from
 `@learn-and-build/nest-auth`, the same guards the auth service uses.
@@ -192,22 +192,128 @@ service to have AWS credentials and a bucket (`DOCUMENTS_BUCKET`); for local
 dev, point it at MinIO/LocalStack with `S3_ENDPOINT` (path-style addressing is
 enabled automatically when set).
 
+#### Configure real AWS S3 for local development
+
+The following setup uses AWS account `960763460353`, bucket
+`providers-profiles`, and region `ap-southeast-2`. Replace these values if you
+use a different account or bucket. Do not commit credentials or put them in
+`.env.example`.
+
+1. Create the bucket in the S3 console, or with the CLI. S3 bucket names are
+   globally unique:
+
+   ```bash
+   aws s3api create-bucket \
+     --bucket providers-profiles \
+     --region ap-southeast-2 \
+     --create-bucket-configuration LocationConstraint=ap-southeast-2 \
+     --profile learnbuild-960
+   ```
+
+   Keep **Block all public access** enabled. Presigned URLs do not require a
+   public bucket.
+
+2. Give the teacher-service IAM identity permission to upload only under the
+   provider document prefix. In IAM, open **Users** → `likhilearnbuild` →
+   **Add permissions** → **Create inline policy** → **JSON**, and use:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "UploadProviderDocuments",
+         "Effect": "Allow",
+         "Action": "s3:PutObject",
+         "Resource": "arn:aws:s3:::providers-profiles/teachers/*"
+       }
+     ]
+   }
+   ```
+
+   An administrator must apply this policy if the IAM user cannot manage its
+   own permissions. A bucket policy is not required when the IAM identity
+   policy grants access in the same account.
+
+3. Configure bucket CORS so the browser can send the presigned `PUT`. Save the
+   following as `s3-cors.json` and apply it:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["http://localhost:3000", "http://localhost:3100"],
+       "AllowedMethods": ["PUT", "GET", "HEAD"],
+       "AllowedHeaders": ["*"],
+       "ExposeHeaders": ["ETag"],
+       "MaxAgeSeconds": 3000
+     }
+   ]
+   ```
+
+   ```bash
+   aws s3api put-bucket-cors \
+     --bucket providers-profiles \
+     --cors-configuration file://s3-cors.json \
+     --profile learnbuild-960 \
+     --region ap-southeast-2
+   ```
+
+4. Authenticate locally with IAM Identity Center. This uses short-lived
+   credentials and is preferred over creating long-lived access keys:
+
+   ```bash
+   aws sso login --profile learnbuild-960
+   eval "$(aws configure export-credentials \
+     --profile learnbuild-960 \
+     --format env)"
+   ```
+
+   The profile must be assigned to account `960763460353` with a permission
+   set that allows the S3 actions above. If SSO is not available, an
+   administrator can issue an IAM user access key; never create root access
+   keys and never commit the secret.
+
+5. Start the teacher service with the bucket and region. `docker-compose.yml`
+   passes these host environment variables into the container:
+
+   ```bash
+   export DOCUMENTS_BUCKET=providers-profiles
+   export AWS_REGION=ap-southeast-2
+   docker compose up -d --build teacher
+   ```
+
+6. Verify identity, bucket access, and the teacher health endpoint:
+
+   ```bash
+   aws sts get-caller-identity --profile learnbuild-960
+   aws s3api head-bucket \
+     --bucket providers-profiles \
+     --profile learnbuild-960 \
+     --region ap-southeast-2
+   curl http://localhost:3002/health
+   ```
+
+   If uploads fail, check that the S3 region matches `AWS_REGION`, the IAM
+   resource includes `teachers/*`, and the browser origin is listed in CORS.
+   SSO credentials expire, so repeat the login and `export-credentials` steps
+   when the session expires.
+
 ## Scheduling service (port 3004)
 
 Verified teachers publish classes (activity, description, instructor gender,
 duration, seats) with recurring weekly timings; an availability query expands
 them into concrete upcoming occurrences with seat counts.
 
-| Method | Route                          | Auth          | Purpose                       |
-| ------ | ------------------------------ | ------------- | ----------------------------- |
-| POST   | /classes                       | JWT + TEACHER | Publish a class               |
-| GET    | /classes/mine                  | JWT + TEACHER | A teacher's own classes       |
-| GET    | /classes/:id                   | public        | Class details                 |
-| GET    | /classes/:id/availability?days | public        | Upcoming occurrences + seats  |
-| GET    | /classes/discover              | public        | Discovery cards + live seats  |
-| GET    | /classes/slug/:slug            | public        | Resolve a public class slug   |
-| POST   | /classes/:id/reservations      | JWT           | Atomically reserve seats      |
-| DELETE | /classes/:id/reservations/:id  | JWT           | Cancel and release seats      |
+| Method | Route                          | Auth          | Purpose                      |
+| ------ | ------------------------------ | ------------- | ---------------------------- |
+| POST   | /classes                       | JWT + TEACHER | Publish a class              |
+| GET    | /classes/mine                  | JWT + TEACHER | A teacher's own classes      |
+| GET    | /classes/:id                   | public        | Class details                |
+| GET    | /classes/:id/availability?days | public        | Upcoming occurrences + seats |
+| GET    | /classes/discover              | public        | Discovery cards + live seats |
+| GET    | /classes/slug/:slug            | public        | Resolve a public class slug  |
+| POST   | /classes/:id/reservations      | JWT           | Atomically reserve seats     |
+| DELETE | /classes/:id/reservations/:id  | JWT           | Cancel and release seats     |
 
 Timings are validated to a daily operating window: any day of the week
 (Mon-Sun) with each session fitting inside 07:00-22:00. This supports weekend
@@ -229,11 +335,11 @@ a query for "martial arts" match a "Jiu Jitsu" class. Re-indexing runs
 asynchronously via an EventBridge -> SQS consumer (enabled when `SQS_QUEUE_URL`
 is set) plus an admin-triggered full reindex.
 
-| Method | Route                              | Auth        | Purpose                        |
-| ------ | ---------------------------------- | ----------- | ------------------------------ |
-| GET    | /search?q=&lat=&lng=&radius=       | public      | Ranked classes within radius   |
-| POST   | /search/index                      | JWT + ADMIN | Index a single class           |
-| POST   | /search/reindex                    | JWT + ADMIN | Full reindex from the database  |
+| Method | Route                        | Auth        | Purpose                        |
+| ------ | ---------------------------- | ----------- | ------------------------------ |
+| GET    | /search?q=&lat=&lng=&radius= | public      | Ranked classes within radius   |
+| POST   | /search/index                | JWT + ADMIN | Index a single class           |
+| POST   | /search/reindex              | JWT + ADMIN | Full reindex from the database |
 
 The search service bootstraps its local index from Scheduling when the index is
 empty. Try the full flow (stack running): `node scripts/demo-search.mjs`.

@@ -1,0 +1,25 @@
+FROM node:20-alpine AS base
+RUN corepack enable
+WORKDIR /repo
+
+FROM base AS build
+ARG NEXT_PUBLIC_AUTH_API_URL=http://localhost:3001
+ARG NEXT_PUBLIC_SEARCH_API_URL=http://localhost:3003
+ARG NEXT_PUBLIC_SCHEDULING_API_URL=http://localhost:3004
+ARG NEXT_PUBLIC_VOICE_API_URL=http://localhost:3005
+ENV NEXT_PUBLIC_AUTH_API_URL=$NEXT_PUBLIC_AUTH_API_URL
+ENV NEXT_PUBLIC_SEARCH_API_URL=$NEXT_PUBLIC_SEARCH_API_URL
+ENV NEXT_PUBLIC_SCHEDULING_API_URL=$NEXT_PUBLIC_SCHEDULING_API_URL
+ENV NEXT_PUBLIC_VOICE_API_URL=$NEXT_PUBLIC_VOICE_API_URL
+COPY . .
+RUN pnpm install --no-frozen-lockfile
+RUN pnpm --filter "@learn-and-build/web..." run build
+
+FROM base AS runtime
+ENV NODE_ENV=production
+ENV PORT=3100
+WORKDIR /repo
+COPY --from=build /repo /repo
+WORKDIR /repo/apps/web
+EXPOSE 3100
+CMD ["pnpm", "start"]
