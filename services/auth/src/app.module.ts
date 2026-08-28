@@ -23,8 +23,12 @@ import { SavedClass } from './customer/entities/saved-class.entity';
           'postgres://learnbuild:learnbuild@localhost:5432/learnbuild',
         ),
         entities: [User, ChildProfile, SavedClass, Booking, CustomerNotification],
-        // Auto-sync schema outside production only. Use migrations in prod.
-        synchronize: config.get<string>('NODE_ENV') !== 'production',
+        // Production bootstrap may opt in exactly once on an empty database.
+        // Keep it disabled afterwards and use reviewed migrations for changes.
+        synchronize:
+          config.get<string>('DB_SYNCHRONIZE') === 'true' ||
+          (config.get<string>('DB_SYNCHRONIZE') == null &&
+            config.get<string>('NODE_ENV') !== 'production'),
       }),
     }),
     AuthModule,

@@ -22,7 +22,10 @@ import { AuthDiscoveryModule } from './auth-discovery/auth-discovery.module';
           'postgres://learnbuild:learnbuild@localhost:5432/learnbuild',
         ),
         entities: [TeacherProfile, TeacherDocument],
-        synchronize: config.get<string>('NODE_ENV') !== 'production',
+        synchronize:
+          config.get<string>('DB_SYNCHRONIZE') === 'true' ||
+          (config.get<string>('DB_SYNCHRONIZE') == null &&
+            config.get<string>('NODE_ENV') !== 'production'),
       }),
     }),
     TeachersModule,

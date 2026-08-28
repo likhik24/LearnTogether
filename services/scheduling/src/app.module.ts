@@ -21,7 +21,10 @@ import { SchedulingModule } from './scheduling/scheduling.module';
           'postgres://learnbuild:learnbuild@localhost:5432/learnbuild',
         ),
         entities: [ClassOffering, ClassReservation],
-        synchronize: config.get<string>('NODE_ENV') !== 'production',
+        synchronize:
+          config.get<string>('DB_SYNCHRONIZE') === 'true' ||
+          (config.get<string>('DB_SYNCHRONIZE') == null &&
+            config.get<string>('NODE_ENV') !== 'production'),
       }),
     }),
     SchedulingModule,

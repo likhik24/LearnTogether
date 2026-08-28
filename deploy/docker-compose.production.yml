@@ -1,0 +1,298 @@
+name: learn-and-build-production
+
+x-app-defaults: &app-defaults
+  restart: unless-stopped
+  networks:
+    - app
+
+x-database-environment: &database-environment
+  NODE_ENV: production
+  DB_SYNCHRONIZE: ${DB_SYNCHRONIZE:-false}
+  DATABASE_URL: postgres://learnbuild:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/learnbuild
+  REDIS_URL: redis://redis:6379
+  JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+
+services:
+  postgres:
+    <<: *app-defaults
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: learnbuild
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: learnbuild
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U learnbuild -d learnbuild]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    <<: *app-defaults
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, 'yes']
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  opensearch:
+    <<: *app-defaults
+    image: opensearchproject/opensearch:2.18.0
+    environment:
+      discovery.type: single-node
+      bootstrap.memory_lock: 'true'
+      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+      DISABLE_SECURITY_PLUGIN: 'true'
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test: [CMD-SHELL, curl -sf http://localhost:9200/_cluster/health || exit 1]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 45s
+
+  scheduling:
+    <<: *app-defaults
+    build:
+      context: ..
+      dockerfile: services/scheduling/Dockerfile
+    environment:
+      <<: *database-environment
+      PORT: 3004
+      SEED_DEMO_CLASSES: ${SEED_DEMO_CLASSES:-true}
+      CORS_ORIGIN: https://learnandbuild.org
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://localhost:3004/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+
+  auth:
+    <<: *app-defaults
+    build:
+      context: ..
+      dockerfile: services/auth/Dockerfile
+    environment:
+      <<: *database-environment
+      PORT: 3001
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD}
+      ADMIN_NAME: ${ADMIN_NAME:-Administrator}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      SCHEDULING_API_URL: http://scheduling:3004
+      CORS_ORIGIN: https://learnandbuild.org
+      OIDC_REDIRECT_BASE: https://learnandbuild.org/api/auth
+      OIDC_SUCCESS_REDIRECT: https://learnandbuild.org/admin
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      AWS_COGNITO_ISSUER: ${AWS_COGNITO_ISSUER:-}
+      AWS_COGNITO_CLIENT_ID: ${AWS_COGNITO_CLIENT_ID:-}
+      AWS_COGNITO_CLIENT_SECRET: ${AWS_COGNITO_CLIENT_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      scheduling:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+
+  teacher:
+    <<: *app-defaults
+    build:
+      context: ..
+      dockerfile: services/teacher/Dockerfile
+    environment:
+      <<: *database-environment
+      PORT: 3002
+      AUTH_SERVICE_URL: http://auth:3001
+      DOCUMENTS_BUCKET: ${DOCUMENTS_BUCKET:?Set DOCUMENTS_BUCKET}
+      AWS_REGION: ${AWS_REGION:-ap-southeast-2}
+      UPLOAD_URL_TTL: ${UPLOAD_URL_TTL:-900}
+      CORS_ORIGIN: https://learnandbuild.org
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://localhost:3002/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+
+  search:
+    <<: *app-defaults
+    build:
+      context: ..
+      dockerfile: services/search/Dockerfile
+    environment:
+      <<: *database-environment
+      PORT: 3003
+      OPENSEARCH_URL: http://opensearch:9200
+      CORS_ORIGIN: https://learnandbuild.org
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      scheduling:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://localhost:3003/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  voice:
+    <<: *app-defaults
+    build:
+      context: ..
+      dockerfile: services/voice/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3005
+      REDIS_URL: redis://redis:6379
+      SEARCH_SERVICE_URL: http://search:3003
+      CORS_ORIGIN: https://learnandbuild.org
+    depends_on:
+      redis:
+        condition: service_healthy
+      search:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://localhost:3005/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+
+  web:
+    <<: *app-defaults
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_AUTH_API_URL: /api/auth
+        NEXT_PUBLIC_TEACHER_API_URL: /api/teacher
+        NEXT_PUBLIC_SEARCH_API_URL: /api/search
+        NEXT_PUBLIC_SCHEDULING_API_URL: /api/scheduling
+        NEXT_PUBLIC_VOICE_API_URL: /api/voice
+        AUTH_SERVICE_ORIGIN: http://auth:3001
+        TEACHER_SERVICE_ORIGIN: http://teacher:3002
+        SEARCH_SERVICE_ORIGIN: http://search:3003
+        SCHEDULING_SERVICE_ORIGIN: http://scheduling:3004
+        VOICE_SERVICE_ORIGIN: http://voice:3005
+    environment:
+      NODE_ENV: production
+      PORT: 3100
+      AUTH_SERVICE_ORIGIN: http://auth:3001
+      TEACHER_SERVICE_ORIGIN: http://teacher:3002
+      SEARCH_SERVICE_ORIGIN: http://search:3003
+      SCHEDULING_SERVICE_ORIGIN: http://scheduling:3004
+      VOICE_SERVICE_ORIGIN: http://voice:3005
+    depends_on:
+      auth:
+        condition: service_healthy
+      teacher:
+        condition: service_healthy
+      scheduling:
+        condition: service_healthy
+      search:
+        condition: service_healthy
+      voice:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://localhost:3100').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  cloudflared:
+    <<: *app-defaults
+    image: cloudflare/cloudflared:latest
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - '${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN}'
+    depends_on:
+      web:
+        condition: service_healthy
+
+networks:
+  app:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  opensearch_data:

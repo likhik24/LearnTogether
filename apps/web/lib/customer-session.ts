@@ -1,5 +1,5 @@
 import type { PublicUser } from '@learn-and-build/types';
-import { createAuthClient } from './api';
+import { createAuthClient, createSchedulingClient } from './api';
 
 export const CUSTOMER_TOKEN_KEY = 'learn-together-access-token';
 export const CUSTOMER_USER_KEY = 'learn-together-user';
@@ -10,6 +10,12 @@ export function getCustomerClient() {
   return token ? createAuthClient(token) : null;
 }
 
+export function getCustomerSchedulingClient() {
+  if (typeof window === 'undefined') return null;
+  const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
+  return token ? createSchedulingClient(token) : null;
+}
+
 export function saveCustomerSession(accessToken: string, user: PublicUser) {
   window.localStorage.setItem(CUSTOMER_TOKEN_KEY, accessToken);
   window.localStorage.setItem(CUSTOMER_USER_KEY, JSON.stringify(user));
@@ -18,7 +24,11 @@ export function saveCustomerSession(accessToken: string, user: PublicUser) {
 export function readCustomerUser(): PublicUser | null {
   const raw = window.localStorage.getItem(CUSTOMER_USER_KEY);
   if (!raw) return null;
-  try { return JSON.parse(raw) as PublicUser; } catch { return null; }
+  try {
+    return JSON.parse(raw) as PublicUser;
+  } catch {
+    return null;
+  }
 }
 
 export function clearCustomerSession() {
@@ -39,9 +49,7 @@ function loadLocalChild(): PrimaryChild | null {
     const raw = window.localStorage.getItem('learn-together-child-profile');
     if (!raw) return null;
     const local = JSON.parse(raw) as { name?: string; interests?: string[] };
-    return local.name
-      ? { name: local.name, interests: local.interests ?? [] }
-      : null;
+    return local.name ? { name: local.name, interests: local.interests ?? [] } : null;
   } catch {
     return null;
   }
@@ -60,17 +68,15 @@ export function getPrimaryChild(): Promise<PrimaryChild | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
   if (primaryChildPromise) return primaryChildPromise;
   const client = getCustomerClient();
-  primaryChildPromise = (
-    client
-      ? client
-          .listChildren()
-          .then((items) =>
-            items[0]
-              ? { name: items[0].name, interests: items[0].interests ?? [] }
-              : loadLocalChild(),
-          )
-          .catch(() => loadLocalChild())
-      : Promise.resolve(loadLocalChild())
-  );
+  primaryChildPromise = client
+    ? client
+        .listChildren()
+        .then((items) =>
+          items[0]
+            ? { name: items[0].name, interests: items[0].interests ?? [] }
+            : loadLocalChild(),
+        )
+        .catch(() => loadLocalChild())
+    : Promise.resolve(loadLocalChild());
   return primaryChildPromise;
 }
