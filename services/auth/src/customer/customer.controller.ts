@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Param,
   Patch,
@@ -19,12 +20,7 @@ import type {
   SavedClassDto,
 } from '@learn-and-build/types';
 import { CustomerService } from './customer.service';
-import {
-  CreateBookingDto,
-  CreateChildDto,
-  SaveClassDto,
-  UpdateChildDto,
-} from './customer.dto';
+import { CreateBookingDto, CreateChildDto, SaveClassDto, UpdateChildDto } from './customer.dto';
 
 /** Per-user customer data (children, saved classes, bookings, notifications). */
 @Controller('customer')
@@ -86,17 +82,19 @@ export class CustomerController {
   @Post('bookings')
   async createBooking(
     @CurrentUser() u: AuthPrincipal,
+    @Headers('authorization') authorization: string,
     @Body() dto: CreateBookingDto,
   ): Promise<BookingDto> {
-    return (await this.customer.createBooking(u.sub, dto)).toDto();
+    return (await this.customer.createBooking(u.sub, authorization, dto)).toDto();
   }
 
   @Patch('bookings/:id/cancel')
   async cancelBooking(
     @CurrentUser() u: AuthPrincipal,
+    @Headers('authorization') authorization: string,
     @Param('id') id: string,
   ): Promise<BookingDto> {
-    return (await this.customer.cancelBooking(u.sub, id)).toDto();
+    return (await this.customer.cancelBooking(u.sub, authorization, id)).toDto();
   }
 
   @Get('notifications')

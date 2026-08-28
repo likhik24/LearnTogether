@@ -1,0 +1,9 @@
+tunnel: 9d561d84-8bdf-4601-9ba5-1bb7f27df757
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: learnandbuild.org
+    service: http://web:3100
+  - hostname: www.learnandbuild.org
+    service: http://web:3100
+  - service: http_status:404

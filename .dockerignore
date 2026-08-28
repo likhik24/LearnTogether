@@ -19,3 +19,9 @@ infra/cdk/cdk.out
 .env.*
 *.tsbuildinfo
 **/*.tsbuildinfo
+
+# Never send local/private documents or signing workspaces into Docker layers.
+*.pdf
+*.docx
+.tmp_*
+**/.tmp_*

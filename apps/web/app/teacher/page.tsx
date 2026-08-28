@@ -1,16 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Role, type ClassOfferingDto, type PublicUser } from '@learn-and-build/types';
+import {
+  InstructorGender,
+  Role,
+  type ClassOfferingDto,
+  type PublicUser,
+} from '@learn-and-build/types';
 import { createAuthClient } from '../../lib/api';
 import {
-  getCustomerClient,
+  getCustomerSchedulingClient,
   readCustomerUser,
   saveCustomerSession,
 } from '../../lib/customer-session';
 import { AppHeader, BottomNav } from '../ui';
 
-type ScheduleRow = { weekday: number; start: string; intervalWeeks: number };
+type ScheduleRow = { weekday: number; start: string };
 const categoryOptions = ['Art', 'Music', 'LEGO'];
 const weekdays = [
   { value: 6, label: 'Saturday' },
@@ -35,7 +40,7 @@ export default function TeacherPage() {
   const [seats, setSeats] = useState('8');
   const [keywords, setKeywords] = useState('');
   const [rows, setRows] = useState<ScheduleRow[]>([
-    { weekday: 6, start: '10:00', intervalWeeks: 1 },
+    { weekday: 6, start: '10:00' },
   ]);
   const [classes, setClasses] = useState<ClassOfferingDto[]>([]);
   const [busy, setBusy] = useState(false);
@@ -49,7 +54,7 @@ export default function TeacherPage() {
   }, []);
 
   async function loadClasses() {
-    const client = getCustomerClient();
+    const client = getCustomerSchedulingClient();
     if (!client) return;
     try {
       setClasses(await client.listMyClasses());
@@ -87,7 +92,7 @@ export default function TeacherPage() {
 
   async function publish(event: React.FormEvent) {
     event.preventDefault();
-    const client = getCustomerClient();
+    const client = getCustomerSchedulingClient();
     if (!client) return;
     setBusy(true);
     setError(null);
@@ -96,24 +101,30 @@ export default function TeacherPage() {
       await client.createClass({
         activity,
         category,
-        description,
-        keywords: keywords
-          .split(',')
-          .map((item) => item.trim())
-          .filter(Boolean),
+        description: [
+          description,
+          keywords.trim()
+            ? `Keywords: ${keywords
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .join(', ')}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
         ageMin: 3,
         ageMax: 12,
         priceMinor: 0,
         currency: 'INR',
         imageUrl: undefined,
         tone: 'mint',
-        instructorGender: 'any',
+        instructorGender: InstructorGender.ANY,
         durationMinutes: Number(duration),
         seats: Number(seats),
         timings: rows.map((row) => ({
           weekday: row.weekday,
           startMinute: minutesFromTime(row.start),
-          intervalWeeks: row.intervalWeeks,
         })),
       });
       setMessage('Class published. It will appear in discovery with your keywords.');
@@ -257,7 +268,7 @@ export default function TeacherPage() {
                   <span className="form-step">02</span>
                 </div>
                 <p className="section-hint">
-                  Add one or both weekend days. Every 2 weeks keeps the slot biweekly.
+                  Add one or both weekend days. Published slots repeat every week.
                 </p>
                 {rows.map((row, index) => (
                   <div className="schedule-row" key={`${index}-${row.weekday}`}>
@@ -280,16 +291,7 @@ export default function TeacherPage() {
                       value={row.start}
                       onChange={(event) => updateRow(index, { start: event.target.value })}
                     />
-                    <select
-                      aria-label="Repeat"
-                      value={row.intervalWeeks}
-                      onChange={(event) =>
-                        updateRow(index, { intervalWeeks: Number(event.target.value) })
-                      }
-                    >
-                      <option value="1">Every week</option>
-                      <option value="2">Every 2 weeks</option>
-                    </select>
+                    <span className="schedule-repeat">Every week</span>
                     {rows.length > 1 && (
                       <button
                         type="button"
@@ -310,7 +312,7 @@ export default function TeacherPage() {
                   onClick={() =>
                     setRows((current) => [
                       ...current,
-                      { weekday: 7, start: '10:00', intervalWeeks: 1 },
+                      { weekday: 7, start: '10:00' },
                     ])
                   }
                 >
