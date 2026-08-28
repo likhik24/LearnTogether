@@ -180,12 +180,14 @@ test.describe.serial('live production journeys', () => {
     await page.screenshot({ path: `${screenshotDir}/provider-profile.png`, fullPage: true });
 
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Share your craft with young learners.' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Share your craft with young learners.' }),
+    ).toBeVisible();
     await page.locator('.auth-tabs').getByRole('button', { name: 'Sign in', exact: true }).click();
     const loginForm = page.locator('form.customer-auth-form');
     await loginForm.getByLabel('Email').fill(providerEmail);
     await loginForm.getByLabel('Password').fill(password);
-    await loginForm.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await loginForm.locator('button[type="submit"]').click();
     await expect(page.getByRole('heading', { name: /Welcome, Smoke Provider/ })).toBeVisible();
     await expect(page.getByLabel(/Phone \/ WhatsApp number/)).toHaveValue('9000000000');
     await expect(page.getByText(`smoke-portfolio-${runId}.pdf`)).toBeVisible();
@@ -204,6 +206,37 @@ test.describe.serial('live production journeys', () => {
     await page.getByPlaceholder('password').fill('definitely-wrong');
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.getByText(/Request \/auth\/login failed \(401\)/)).toBeVisible();
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('key pages render at desktop size without horizontal overflow', async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await clearSession(page);
+
+    for (const route of [
+      '/',
+      '/discover',
+      '/recommendations',
+      '/classes/build-a-car',
+      '/bookings',
+      '/children',
+      '/profile',
+      '/provider',
+      '/teacher',
+      '/admin',
+    ]) {
+      await page.goto(route);
+      await expect(page.locator('body')).toBeVisible();
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `${route} should not overflow the desktop viewport`).toBeLessThanOrEqual(0);
+    }
+
+    await page.goto('/');
+    await page.screenshot({ path: `${screenshotDir}/desktop-home.png`, fullPage: true });
     expect(pageErrors).toEqual([]);
   });
 });
