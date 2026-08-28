@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: "2010-09-09"
+AWSTemplateFormatVersion: '2010-09-09'
 Description: Private Learn and Build Docker origin reached only through Cloudflare Tunnel.
 
 Parameters:
@@ -79,7 +79,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
@@ -92,7 +92,7 @@ Resources:
       Policies:
         - PolicyName: TeacherDocuments
           PolicyDocument:
-            Version: "2012-10-17"
+            Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
@@ -108,6 +108,16 @@ Resources:
                   - s3:PutObject
                   - s3:DeleteObject
                 Resource: !Sub arn:${AWS::Partition}:s3:::${DocumentsBucket}/teachers/*
+        - PolicyName: CloudflareTunnelToken
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/learn-and-build/production/cloudflare-tunnel-token
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/learn-and-build/production/cloudflare-tunnel-credentials
 
   OriginInstanceProfile:
     Type: AWS::IAM::InstanceProfile

@@ -281,9 +281,12 @@ services:
     command:
       - tunnel
       - --no-autoupdate
+      - --config
+      - /etc/cloudflared/config.yml
       - run
-      - --token
-      - '${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN}'
+    volumes:
+      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - ${CLOUDFLARE_CREDENTIALS_PATH:?Set CLOUDFLARE_CREDENTIALS_PATH}:/etc/cloudflared/credentials.json:ro
     depends_on:
       web:
         condition: service_healthy

@@ -9,7 +9,7 @@ network, and Next rewrites `/api/*` requests to the appropriate service.
 1. Use a clean clone of the repository on the server.
 2. Run `node scripts/generate-production-env.mjs`.
 3. Edit `deploy/.env.production` locally on the server:
-   - set the Cloudflare Tunnel token;
+   - confirm the absolute Cloudflare credentials path;
    - confirm the admin email;
    - confirm the S3 bucket and AWS region;
    - add optional OIDC credentials only when needed.
@@ -59,8 +59,9 @@ Create one Tunnel public hostname:
 - Service: `http://web:3100`
 
 Add `www.learnandbuild.org` as a redirect to the apex domain or as a second
-public hostname pointing at the same service. The tunnel token belongs only in
-`deploy/.env.production` on the server.
+public hostname pointing at the same service. The tunnel credentials JSON
+belongs outside the repository at `CLOUDFLARE_CREDENTIALS_PATH`; keep it mode
+`0600`.
 
 ## Security notes
 

@@ -26,4 +26,4 @@ contents = contents
 await writeFile(outputPath, contents, { mode: 0o600 });
 await chmod(outputPath, 0o600);
 console.log('Created deploy/.env.production with mode 0600.');
-console.log('Add the Cloudflare Tunnel token locally; do not paste it into chat.');
+console.log('Install the Cloudflare Tunnel credentials JSON outside the repository.');
