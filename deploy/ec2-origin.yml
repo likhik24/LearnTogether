@@ -108,7 +108,7 @@ Resources:
                   - s3:PutObject
                   - s3:DeleteObject
                 Resource: !Sub arn:${AWS::Partition}:s3:::${DocumentsBucket}/teachers/*
-        - PolicyName: CloudflareTunnelToken
+        - PolicyName: CloudflareTunnelCredentials
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -116,7 +116,6 @@ Resources:
                 Action:
                   - ssm:GetParameter
                 Resource:
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/learn-and-build/production/cloudflare-tunnel-token
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/learn-and-build/production/cloudflare-tunnel-credentials
 
   OriginInstanceProfile:
