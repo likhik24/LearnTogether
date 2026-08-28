@@ -1,11 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Role,
-  type OidcProviderInfo,
-  type PublicUser,
-} from '@learn-and-build/api-client';
+import { Role, type OidcProviderInfo, type PublicUser } from '@learn-and-build/api-client';
 import { createAuthClient } from '../../lib/api';
 
 const ROLES: Role[] = [Role.USER, Role.TEACHER, Role.ADMIN];
@@ -75,12 +71,12 @@ export default function AdminPage() {
   );
 
   return (
-    <section>
+    <section className="admin-page">
       <h1>Admin Console</h1>
-      {error && <p style={{ color: '#f87171' }}>{error}</p>}
+      {error && <p className="admin-error">{error}</p>}
       {!token ? (
-        <div style={{ display: 'grid', gap: 16, maxWidth: 320 }}>
-          <form onSubmit={onLogin} style={{ display: 'grid', gap: 8 }}>
+        <div className="admin-login">
+          <form onSubmit={onLogin}>
             <input
               type="email"
               placeholder="admin email"
@@ -96,21 +92,10 @@ export default function AdminPage() {
             <button type="submit">Sign in</button>
           </form>
           {providers.length > 0 && (
-            <div style={{ display: 'grid', gap: 8 }}>
-              <span style={{ opacity: 0.7, fontSize: 13 }}>Or continue with</span>
+            <div className="admin-oidc">
+              <span>Or continue with</span>
               {providers.map((p) => (
-                <a
-                  key={p.id}
-                  href={p.loginUrl}
-                  style={{
-                    padding: '10px 16px',
-                    background: '#1f2937',
-                    color: '#e7ecff',
-                    borderRadius: 8,
-                    textDecoration: 'none',
-                    textAlign: 'center',
-                  }}
-                >
+                <a key={p.id} href={p.loginUrl}>
                   Sign in with {p.label}
                 </a>
               ))}
@@ -132,34 +117,33 @@ function UsersTable({
   onChangeRole: (id: string, role: Role) => void;
 }) {
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 16 }}>
-      <thead>
-        <tr>
-          <th style={{ textAlign: 'left' }}>Email</th>
-          <th style={{ textAlign: 'left' }}>Name</th>
-          <th style={{ textAlign: 'left' }}>Role</th>
-        </tr>
-      </thead>
-      <tbody>
-        {users.map((u) => (
-          <tr key={u.id}>
-            <td>{u.email}</td>
-            <td>{u.displayName}</td>
-            <td>
-              <select
-                value={u.role}
-                onChange={(e) => onChangeRole(u.id, e.target.value as Role)}
-              >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </td>
+    <div className="admin-table-wrap">
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Name</th>
+            <th>Role</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {users.map((u) => (
+            <tr key={u.id}>
+              <td>{u.email}</td>
+              <td>{u.displayName}</td>
+              <td>
+                <select value={u.role} onChange={(e) => onChangeRole(u.id, e.target.value as Role)}>
+                  {ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
