@@ -38,6 +38,9 @@ export class User {
   @Column({ name: 'provider_subject', type: 'varchar', nullable: true })
   providerSubject!: string | null;
 
+  @Column({ name: 'email_verified_at', type: 'timestamptz', nullable: true })
+  emailVerifiedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
@@ -51,6 +54,7 @@ export class User {
       displayName: this.displayName,
       role: this.role,
       provider: this.provider,
+      emailVerified: Boolean(this.emailVerifiedAt),
       createdAt: this.createdAt?.toISOString() ?? new Date().toISOString(),
     };
   }

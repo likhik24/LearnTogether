@@ -8,13 +8,12 @@ const DEFAULT_PORT = 3001;
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  // Bearer-token API consumed by the admin console (different origin in dev).
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.enableCors({
     origin: process.env.CORS_ORIGIN ?? true,
+    credentials: true,
   });
-  app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, transform: true }),
-  );
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   const port = Number(process.env.PORT) || DEFAULT_PORT;
   await app.listen(port, '0.0.0.0');
   console.log(`[${SERVICE_NAME}] listening on port ${port}`);

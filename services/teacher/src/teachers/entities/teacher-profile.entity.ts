@@ -166,6 +166,7 @@ export class TeacherProfile {
       subjects: this.subjects ?? [],
       location: this.locationToGeo(),
       verificationStatus: this.verificationStatus,
+      rejectionReason: this.rejectionReason ?? null,
       documents: (this.documents ?? []).map((d) => d.toDto()),
       phone: this.phone ?? null,
       email: this.email ?? null,

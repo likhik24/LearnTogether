@@ -17,6 +17,8 @@ export type ClassCardData = {
   latitude?: number;
   longitude?: number;
   venueName?: string;
+  durationMinutes?: number;
+  description?: string;
 };
 
 export const classes: ClassCardData[] = [
@@ -48,7 +50,8 @@ export const classes: ClassCardData[] = [
     reviews: 31,
     price: 399,
     spots: 2,
-    image: 'https://images.unsplash.com/photo-1598880940080-ff9a29891b85?auto=format&fit=crop&w=700&q=85',
+    image:
+      'https://images.unsplash.com/photo-1598880940080-ff9a29891b85?auto=format&fit=crop&w=700&q=85',
     tone: 'peach',
     availability: ['Today', 'Nearby'],
     latitude: 17.4474,
@@ -65,7 +68,8 @@ export const classes: ClassCardData[] = [
     reviews: 27,
     price: 399,
     spots: 4,
-    image: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&w=700&q=85',
+    image:
+      'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&w=700&q=85',
     tone: 'sky',
     availability: ['Tomorrow', 'Nearby'],
     latitude: 17.4419,
@@ -82,7 +86,8 @@ export const classes: ClassCardData[] = [
     reviews: 22,
     price: 299,
     spots: 5,
-    image: 'https://images.unsplash.com/photo-1602030028438-4cf153cbae9e?auto=format&fit=crop&w=700&q=85',
+    image:
+      'https://images.unsplash.com/photo-1602030028438-4cf153cbae9e?auto=format&fit=crop&w=700&q=85',
     tone: 'lilac',
     availability: ['Weekend'],
     latitude: 17.4548,
@@ -90,16 +95,12 @@ export const classes: ClassCardData[] = [
   },
 ];
 
-import {
-  discoverQueryForCategory,
-  ProviderCategory,
-} from '@learn-and-build/api-client';
+import { discoverQueryForCategory, ProviderCategory } from '@learn-and-build/api-client';
 
 export type DiscoverCategory = {
   name: string;
   /** Search key used by discover/search (also the provider category mapping). */
   query: string;
-  count: number;
   icon: string;
   tone: string;
   /** Provider categories whose declared category maps onto this tile. */
@@ -113,12 +114,48 @@ export type DiscoverCategory = {
  * tile. `providerCategories` records that mapping explicitly.
  */
 export const categories: DiscoverCategory[] = [
-  { name: 'Art & Craft', query: 'Art', count: 13, icon: '✿', tone: 'peach', providerCategories: [ProviderCategory.ART_CRAFT] },
-  { name: 'Music', query: 'Music', count: 10, icon: '♪', tone: 'sky', providerCategories: [ProviderCategory.MUSIC] },
-  { name: 'Dance', query: 'Dance', count: 14, icon: '⌁', tone: 'pink', providerCategories: [ProviderCategory.DANCE] },
-  { name: 'STEM / Robotics', query: 'STEM', count: 20, icon: '⚙', tone: 'lilac', providerCategories: [ProviderCategory.STEM] },
-  { name: 'Stories & Culture', query: 'Stories', count: 10, icon: '▤', tone: 'butter', providerCategories: [ProviderCategory.STORIES_CULTURE, ProviderCategory.LIFE_SKILLS] },
-  { name: 'Sports & Fitness', query: 'Sports', count: 16, icon: '↗', tone: 'lime', providerCategories: [ProviderCategory.SPORTS_FITNESS] },
+  {
+    name: 'Art & Craft',
+    query: 'Art',
+    icon: '✿',
+    tone: 'peach',
+    providerCategories: [ProviderCategory.ART_CRAFT],
+  },
+  {
+    name: 'Music',
+    query: 'Music',
+    icon: '♪',
+    tone: 'sky',
+    providerCategories: [ProviderCategory.MUSIC],
+  },
+  {
+    name: 'Dance',
+    query: 'Dance',
+    icon: '⌁',
+    tone: 'pink',
+    providerCategories: [ProviderCategory.DANCE],
+  },
+  {
+    name: 'STEM / Robotics',
+    query: 'STEM',
+    icon: '⚙',
+    tone: 'lilac',
+    providerCategories: [ProviderCategory.STEM],
+  },
+  {
+    name: 'Stories & Culture',
+    query: 'Stories',
+    icon: '▤',
+    tone: 'butter',
+    providerCategories: [ProviderCategory.STORIES_CULTURE, ProviderCategory.LIFE_SKILLS],
+  },
+  {
+    name: 'Sports & Fitness',
+    query: 'Sports',
+    icon: '↗',
+    tone: 'lime',
+    providerCategories: [ProviderCategory.SPORTS_FITNESS],
+  },
 ];
 
 /**
@@ -126,9 +163,7 @@ export const categories: DiscoverCategory[] = [
  * source of truth is the shared taxonomy; this resolves the tile whose search
  * key equals the taxonomy's `discoverQuery`.
  */
-export function discoverCategoryForProvider(
-  category: ProviderCategory,
-): DiscoverCategory | null {
+export function discoverCategoryForProvider(category: ProviderCategory): DiscoverCategory | null {
   const query = discoverQueryForCategory(category);
   if (!query) return null;
   return categories.find((c) => c.query === query) ?? null;

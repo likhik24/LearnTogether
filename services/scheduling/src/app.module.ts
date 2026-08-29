@@ -7,6 +7,7 @@ import { HealthController } from './health/health.controller';
 import { ClassOffering } from './scheduling/class-offering.entity';
 import { ClassReservation } from './scheduling/class-reservation.entity';
 import { SchedulingModule } from './scheduling/scheduling.module';
+import { ClassModerationAudit } from './scheduling/moderation-audit.entity';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { SchedulingModule } from './scheduling/scheduling.module';
           'DATABASE_URL',
           'postgres://learnbuild:learnbuild@localhost:5432/learnbuild',
         ),
-        entities: [ClassOffering, ClassReservation],
+        entities: [ClassOffering, ClassReservation, ClassModerationAudit],
         synchronize:
           config.get<string>('DB_SYNCHRONIZE') === 'true' ||
           (config.get<string>('DB_SYNCHRONIZE') == null &&

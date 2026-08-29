@@ -13,6 +13,7 @@ network, and Next rewrites `/api/*` requests to the appropriate service.
    - confirm the admin email;
    - confirm the S3 bucket and AWS region;
    - add optional OIDC credentials only when needed.
+   - set `AUTH_EMAIL_FROM` to an address on an SES-verified domain.
 4. Allow the production web origins to upload provider PDFs directly through
    presigned URLs:
 
@@ -22,7 +23,8 @@ network, and Next rewrites `/api/*` requests to the appropriate service.
      --cors-configuration file://deploy/s3-cors.json
    ```
 
-5. Start the private stack:
+5. Start the private stack. For a brand-new empty database only, set
+   `DB_SYNCHRONIZE=true` for this initial bootstrap:
 
    ```bash
    docker compose \
@@ -31,9 +33,11 @@ network, and Next rewrites `/api/*` requests to the appropriate service.
      up -d --build
    ```
 
-6. Verify container and endpoint health:
+6. Apply the reviewed migrations, then verify container and endpoint health:
 
    ```bash
+   bash scripts/run-production-migrations.sh
+
    docker compose \
      --env-file deploy/.env.production \
      -f deploy/docker-compose.production.yml \
@@ -59,6 +63,19 @@ network, and Next rewrites `/api/*` requests to the appropriate service.
 
 Do not enable `DB_SYNCHRONIZE` again after real customer data exists. Future
 schema changes must use reviewed migrations.
+
+## Updating an existing deployment
+
+Apply migrations while the current version is still running, then rebuild the
+services. The migrations are transactional and idempotent.
+
+```bash
+bash scripts/run-production-migrations.sh
+docker compose \
+  --env-file deploy/.env.production \
+  -f deploy/docker-compose.production.yml \
+  up -d --build
+```
 
 ## Cloudflare
 

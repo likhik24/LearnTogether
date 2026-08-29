@@ -45,6 +45,7 @@ export interface PublicUser {
   displayName: string;
   role: Role;
   provider: AuthProvider;
+  emailVerified: boolean;
   createdAt: string;
 }
 
@@ -251,11 +252,7 @@ export const PROVIDER_CATEGORY_TAXONOMY: readonly ProviderCategoryDef[] = [
     category: ProviderCategory.ART_CRAFT,
     label: 'Art & Craft',
     discoverQuery: 'Art',
-    subcategories: [
-      'Art / painting',
-      'Crafts',
-      'Woodworking / wooden toy making',
-    ],
+    subcategories: ['Art / painting', 'Crafts', 'Woodworking / wooden toy making'],
   },
   {
     category: ProviderCategory.STEM,
@@ -267,11 +264,7 @@ export const PROVIDER_CATEGORY_TAXONOMY: readonly ProviderCategoryDef[] = [
     category: ProviderCategory.STORIES_CULTURE,
     label: 'Stories & Culture',
     discoverQuery: 'Stories',
-    subcategories: [
-      'Storytelling',
-      'Telugu / Indian stories',
-      'Sanatana / mythology stories',
-    ],
+    subcategories: ['Storytelling', 'Telugu / Indian stories', 'Sanatana / mythology stories'],
   },
   {
     category: ProviderCategory.SPORTS_FITNESS,
@@ -298,13 +291,8 @@ export const PROVIDER_CATEGORY_TAXONOMY: readonly ProviderCategoryDef[] = [
 ] as const;
 
 /** Resolves the discover `query` key for a provider category (search mapping). */
-export function discoverQueryForCategory(
-  category: ProviderCategory,
-): string | null {
-  return (
-    PROVIDER_CATEGORY_TAXONOMY.find((c) => c.category === category)
-      ?.discoverQuery ?? null
-  );
+export function discoverQueryForCategory(category: ProviderCategory): string | null {
+  return PROVIDER_CATEGORY_TAXONOMY.find((c) => c.category === category)?.discoverQuery ?? null;
 }
 
 export interface TeacherProfileDto {
@@ -315,6 +303,7 @@ export interface TeacherProfileDto {
   subjects: string[];
   location: GeoLocation | null;
   verificationStatus: VerificationStatus;
+  rejectionReason: string | null;
   documents: TeacherDocumentDto[];
   // --- Provider onboarding + availability (all optional) ---
   /** Section 1 — contact + basics */
@@ -356,11 +345,30 @@ export interface PresignedUploadResponse {
   expiresInSeconds: number;
 }
 
+/** Upload response for a provider-owned image that can be rendered by customers. */
+export interface PresignedImageUploadResponse extends PresignedUploadResponse {
+  publicUrl: string;
+}
+
 /** Preferred gender of the instructor for a class. */
 export enum InstructorGender {
   MALE = 'male',
   FEMALE = 'female',
   ANY = 'any',
+}
+
+/** Provider-controlled publication state. Unpublished records are retained for audit/history. */
+export enum ClassOfferingStatus {
+  ACTIVE = 'active',
+  PAUSED = 'paused',
+  UNPUBLISHED = 'unpublished',
+}
+
+/** Admin-controlled moderation lifecycle for customer-visible classes. */
+export enum ClassModerationStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
 }
 
 /**
@@ -393,8 +401,21 @@ export interface ClassOfferingDto {
   seats: number;
   location: GeoLocation | null;
   timings: ClassTiming[];
+  status: ClassOfferingStatus;
+  moderationStatus: ClassModerationStatus;
+  moderationReason: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ModerationAuditDto {
+  id: string;
+  resourceType: 'teacher' | 'class';
+  resourceId: string;
+  action: string;
+  actorId: string;
+  note: string | null;
+  createdAt: string;
 }
 
 /** A concrete future occurrence of a recurring class, with seat availability. */
@@ -567,7 +588,6 @@ export interface CustomerNotificationDto {
   readAt: string | null;
   createdAt: string;
 }
-
 
 /** Standard health-check response returned by every service's `GET /health`. */
 export interface HealthResponse {

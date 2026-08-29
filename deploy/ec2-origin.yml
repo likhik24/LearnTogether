@@ -117,6 +117,15 @@ Resources:
                   - ssm:GetParameter
                 Resource:
                   - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/learn-and-build/production/cloudflare-tunnel-credentials
+        - PolicyName: AccountEmail
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: '*'
 
   OriginInstanceProfile:
     Type: AWS::IAM::InstanceProfile

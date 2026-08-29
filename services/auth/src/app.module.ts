@@ -10,6 +10,8 @@ import { Booking } from './customer/entities/booking.entity';
 import { ChildProfile } from './customer/entities/child-profile.entity';
 import { CustomerNotification } from './customer/entities/customer-notification.entity';
 import { SavedClass } from './customer/entities/saved-class.entity';
+import { AuthSession } from './auth/auth-session.entity';
+import { AccountToken } from './auth/account-token.entity';
 
 @Module({
   imports: [
@@ -22,7 +24,15 @@ import { SavedClass } from './customer/entities/saved-class.entity';
           'DATABASE_URL',
           'postgres://learnbuild:learnbuild@localhost:5432/learnbuild',
         ),
-        entities: [User, ChildProfile, SavedClass, Booking, CustomerNotification],
+        entities: [
+          User,
+          ChildProfile,
+          SavedClass,
+          Booking,
+          CustomerNotification,
+          AuthSession,
+          AccountToken,
+        ],
         // Production bootstrap may opt in exactly once on an empty database.
         // Keep it disabled afterwards and use reviewed migrations for changes.
         synchronize:

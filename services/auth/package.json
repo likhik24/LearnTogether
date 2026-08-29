@@ -11,12 +11,13 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.717.0",
+    "@learn-and-build/nest-auth": "workspace:*",
     "@learn-and-build/types": "workspace:*",
     "@nestjs/common": "^10.4.15",
     "@nestjs/config": "^3.3.0",
     "@nestjs/core": "^10.4.15",
     "@nestjs/jwt": "^10.2.0",
-    "@learn-and-build/nest-auth": "workspace:*",
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.4.15",
     "@nestjs/typeorm": "^10.0.2",

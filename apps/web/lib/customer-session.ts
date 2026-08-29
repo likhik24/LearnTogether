@@ -6,18 +6,18 @@ export const CUSTOMER_USER_KEY = 'learn-together-user';
 
 export function getCustomerClient() {
   if (typeof window === 'undefined') return null;
-  const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
-  return token ? createAuthClient(token) : null;
+  return readCustomerUser() ? createAuthClient() : null;
 }
 
 export function getCustomerSchedulingClient() {
   if (typeof window === 'undefined') return null;
-  const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
-  return token ? createSchedulingClient(token) : null;
+  return readCustomerUser() ? createSchedulingClient() : null;
 }
 
-export function saveCustomerSession(accessToken: string, user: PublicUser) {
-  window.localStorage.setItem(CUSTOMER_TOKEN_KEY, accessToken);
+export function saveCustomerSession(_accessToken: string, user: PublicUser) {
+  // Authentication lives in rotating HttpOnly cookies. Keep only public UI
+  // state here and remove tokens left behind by older releases.
+  window.localStorage.removeItem(CUSTOMER_TOKEN_KEY);
   window.localStorage.setItem(CUSTOMER_USER_KEY, JSON.stringify(user));
 }
 
@@ -35,6 +35,14 @@ export function clearCustomerSession() {
   window.localStorage.removeItem(CUSTOMER_TOKEN_KEY);
   window.localStorage.removeItem(CUSTOMER_USER_KEY);
   primaryChildPromise = null;
+}
+
+export async function signOutCustomerSession(): Promise<void> {
+  try {
+    await createAuthClient().logout();
+  } finally {
+    clearCustomerSession();
+  }
 }
 
 export interface PrimaryChild {

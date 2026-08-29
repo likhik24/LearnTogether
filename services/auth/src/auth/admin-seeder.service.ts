@@ -36,6 +36,7 @@ export class AdminSeeder implements OnApplicationBootstrap {
       passwordHash,
       displayName: this.config.get<string>('ADMIN_NAME', 'Administrator'),
       role: Role.ADMIN,
+      emailVerified: true,
     });
     this.logger.log(`Seeded initial admin account: ${email}`);
   }

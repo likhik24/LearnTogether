@@ -2,62 +2,67 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { getCustomerClient } from '../lib/customer-session';
-import { classes } from './data';
+import { createSchedulingClient } from '../lib/api';
+import { toClassCard } from '../lib/class-data';
+import { getPrimaryChild } from '../lib/customer-session';
+import type { ClassCardData } from './data';
+import { ClassCard } from './ui';
 
-/**
- * Personalized welcome + recommendation hero for the home page. Loads the
- * signed-in parent's child (with a local fallback) so copy reflects the real
- * child and interests instead of hardcoded sample data.
- */
+const origin = { lat: 17.4485, lng: 78.3915 };
+
 export function HomeHero() {
   const [name, setName] = useState<string | null>(null);
   const [interests, setInterests] = useState<string[]>([]);
+  const [picks, setPicks] = useState<ClassCardData[]>([]);
+  const [live, setLive] = useState(false);
 
   useEffect(() => {
-    function applyLocal() {
-      try {
-        const raw = window.localStorage.getItem('learn-together-child-profile');
-        if (!raw) return;
-        const local = JSON.parse(raw) as { name?: string; interests?: string[] };
-        setName(local.name ?? null);
-        setInterests(local.interests ?? []);
-      } catch {
-        /* ignore malformed local data */
-      }
-    }
-    const client = getCustomerClient();
-    if (!client) {
-      applyLocal();
-      return;
-    }
-    client
-      .listChildren()
-      .then((items) => {
-        const first = items[0];
-        if (first) {
-          setName(first.name);
-          setInterests(first.interests ?? []);
-        } else {
-          applyLocal();
-        }
+    let active = true;
+    void Promise.all([
+      getPrimaryChild(),
+      createSchedulingClient().discoverClasses({ ...origin, radiusMeters: 5_000, days: 21 }),
+    ])
+      .then(([child, offerings]) => {
+        if (!active) return;
+        setName(child?.name ?? null);
+        setInterests(child?.interests ?? []);
+        const normalized = (child?.interests ?? []).map((interest) => interest.toLowerCase());
+        const mapped = offerings.map(toClassCard).sort((a, b) => {
+          const score = (item: ClassCardData) =>
+            normalized.some((interest) =>
+              `${item.category} ${item.title}`.toLowerCase().includes(interest),
+            )
+              ? 0
+              : 1;
+          return score(a) - score(b);
+        });
+        setPicks(mapped);
+        setLive(true);
       })
-      .catch(applyLocal);
+      .catch(async () => {
+        const child = await getPrimaryChild();
+        if (!active) return;
+        setName(child?.name ?? null);
+        setInterests(child?.interests ?? []);
+        setPicks([]);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const displayName = name ?? 'your child';
   const initial = (name ?? 'Y').charAt(0).toUpperCase();
-  const interestText =
-    interests.length >= 2
-      ? `${interests[0].toLowerCase()} and ${interests[1].toLowerCase()}`
-      : interests[0]?.toLowerCase() ?? 'hands-on play';
+  const featured = picks[0];
+  const interestText = interests.slice(0, 2).join(' and ').toLowerCase();
 
   return (
     <>
       <section className="welcome-row">
         <div>
           <h1>
-            Let’s find something<br />
+            Let’s find something
+            <br />
             {displayName} will love.
           </h1>
           <p>Thoughtful picks for a curious little learner.</p>
@@ -70,23 +75,51 @@ export function HomeHero() {
           {initial}
         </Link>
       </section>
-      <section className="recommendation-hero">
-        <div className="hero-content">
-          <span className="hero-kicker">JUST FOR {displayName.toUpperCase()} ✦</span>
-          <h2>
-            Big ideas.<br />
-            Tiny wheels.
-          </h2>
-          <p>
-            {interests.length
-              ? `Because ${displayName} loves ${interestText}, this hands-on STEM workshop feels just right.`
-              : `A hands-on STEM workshop we think ${displayName} will enjoy.`}
-          </p>
-          <Link className="light-button" href="/classes/build-a-car">
-            See why we picked this <span>→</span>
-          </Link>
+      {featured ? (
+        <section className="recommendation-hero">
+          <div className="hero-content">
+            <span className="hero-kicker">JUST FOR {displayName.toUpperCase()} ✦</span>
+            <h2>{featured.title}</h2>
+            <p>
+              {interests.length
+                ? `Because ${displayName} loves ${interestText}, ${featured.category.toLowerCase()} feels like a lovely match.`
+                : `A nearby ${featured.category.toLowerCase()} class we think ${displayName} will enjoy.`}
+            </p>
+            <Link className="light-button" href={`/classes/${featured.slug}`}>
+              See why we picked this <span>→</span>
+            </Link>
+          </div>
+          <img src={featured.image} alt={`${featured.title} class`} />
+        </section>
+      ) : (
+        <section className="recommendation-hero recommendation-loading">
+          <div className="hero-content">
+            <span className="hero-kicker">FINDING A GREAT MATCH ✦</span>
+            <h2>Fresh ideas are on their way.</h2>
+            <Link className="light-button" href="/discover">
+              Browse all classes →
+            </Link>
+          </div>
+        </section>
+      )}
+      <section className="section-block home-live-pick">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow purple">THIS WEEKEND</span>
+            <h2>Ready when you are</h2>
+          </div>
+          <div className="home-pick-tools">
+            <span className={`api-source ${live ? 'live' : 'offline'}`}>
+              {live ? 'LIVE API' : 'OFFLINE'}
+            </span>
+            <Link href="/recommendations">View timeline</Link>
+          </div>
         </div>
-        <img src={classes[0].image} alt="Child enjoying a hands-on learning activity" />
+        {picks[1] ? (
+          <ClassCard item={picks[1]} compact />
+        ) : (
+          <p className="section-hint">New weekend classes will appear here after approval.</p>
+        )}
       </section>
     </>
   );

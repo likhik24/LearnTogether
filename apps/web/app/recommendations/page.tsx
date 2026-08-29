@@ -2,74 +2,181 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { classes } from '../data';
-import { getCustomerClient } from '../../lib/customer-session';
+import { createSchedulingClient } from '../../lib/api';
+import { toClassCard } from '../../lib/class-data';
+import { getCustomerClient, getPrimaryChild } from '../../lib/customer-session';
+import type { ClassCardData } from '../data';
 import { AppHeader, BottomNav, Icon } from '../ui';
-import { ChildName } from '../child-name';
 
 const tabs = ['For You', 'Today', 'Weekend', 'Saved'] as const;
 type TimelineTab = (typeof tabs)[number];
-
-const timelineItems = [
-  { item: classes[1], time: '10:00 AM', duration: '50 min', group: 'Today' },
-  { item: classes[0], time: '10:30 AM', duration: '60 min', group: 'Weekend', recommended: true },
-  { item: classes[2], time: '11:30 AM', duration: '45 min', group: 'Weekend' },
-  { item: classes[3], time: '4:00 PM', duration: '45 min', group: 'Weekend' },
-];
+const origin = { lat: 17.4485, lng: 78.3915 };
 
 export default function RecommendationsPage() {
   const [activeTab, setActiveTab] = useState<TimelineTab>('For You');
-  const [savedSlugs, setSavedSlugs] = useState<string[]>([]);
+  const [items, setItems] = useState<ClassCardData[]>([]);
+  const [savedRefs, setSavedRefs] = useState<string[]>([]);
+  const [childName, setChildName] = useState('your child');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const localSaved = () => classes.filter((item) => window.localStorage.getItem(`learn-together-saved-${item.slug}`) === 'true').map((item) => item.slug);
-    const client = getCustomerClient();
-    if (client) {
-      client.listSavedClasses().then((items) => setSavedSlugs(items.map((item) => item.classRef))).catch(() => setSavedSlugs(localSaved()));
-      return;
-    }
-    setSavedSlugs(localSaved());
+    let active = true;
+    const customer = getCustomerClient();
+    void Promise.all([
+      createSchedulingClient().discoverClasses({ ...origin, radiusMeters: 5_000, days: 21 }),
+      getPrimaryChild(),
+      customer ? customer.listSavedClasses().catch(() => []) : Promise.resolve([]),
+    ])
+      .then(([offerings, child, saved]) => {
+        if (!active) return;
+        const interests = (child?.interests ?? []).map((interest) => interest.toLowerCase());
+        const ranked = offerings.map(toClassCard).sort((a, b) => {
+          const score = (item: ClassCardData) =>
+            interests.some((interest) =>
+              `${item.category} ${item.title}`.toLowerCase().includes(interest),
+            )
+              ? 0
+              : 1;
+          return score(a) - score(b);
+        });
+        setItems(ranked);
+        setChildName(child?.name ?? 'your child');
+        setSavedRefs(saved.map((savedItem) => savedItem.classRef));
+      })
+      .catch(async () => {
+        if (!active) return;
+        const child = await getPrimaryChild();
+        setChildName(child?.name ?? 'your child');
+        setItems([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const events = useMemo(() => {
-    if (activeTab === 'For You') return timelineItems.slice(0, 3);
-    if (activeTab === 'Saved') return timelineItems.filter(({ item }) => savedSlugs.includes(item.slug));
-    return timelineItems.filter((entry) => entry.group === activeTab);
-  }, [activeTab, savedSlugs]);
+    if (activeTab === 'For You') return items.slice(0, 6);
+    if (activeTab === 'Saved')
+      return items.filter(
+        (item) => savedRefs.includes(item.backendId ?? '') || savedRefs.includes(item.slug),
+      );
+    return items.filter((item) => item.availability.includes(activeTab));
+  }, [activeTab, items, savedRefs]);
+
+  const leadDate = events[0]?.occurrenceStart ? new Date(events[0].occurrenceStart) : new Date();
 
   return (
     <main className="page-canvas">
       <div className="phone-shell timeline-page">
         <AppHeader greeting={false} />
         <section className="timeline-intro">
-          <span className="eyebrow purple">PERSONALISED FOR <ChildName uppercase /></span>
-          <h1>A little plan for<br />a brilliant day.</h1>
-          <p>Thoughtful options, ordered around your family’s schedule.</p>
+          <span className="eyebrow purple">PERSONALISED FOR {childName.toUpperCase()}</span>
+          <h1>
+            A little plan for
+            <br />a brilliant day.
+          </h1>
+          <p>Live availability, ordered around your family’s schedule.</p>
         </section>
         <div className="timeline-tabs" aria-label="Recommendation timeline filters">
-          {tabs.map((tab) => <button type="button" aria-pressed={activeTab === tab} className={activeTab === tab ? 'active' : ''} key={tab} onClick={() => setActiveTab(tab)}>{tab}</button>)}
+          {tabs.map((tab) => (
+            <button
+              type="button"
+              aria-pressed={activeTab === tab}
+              className={activeTab === tab ? 'active' : ''}
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
         <div className="timeline-date-row">
-          <div><span>SAT</span><strong>17</strong><small>MAY</small></div>
-          <p><strong>{activeTab === 'Today' ? 'Today’s ideas' : 'Saturday picks'}</strong><span>{events.length} classes that fit</span></p>
+          <div>
+            <span>{leadDate.toLocaleDateString('en-IN', { weekday: 'short' }).toUpperCase()}</span>
+            <strong>{leadDate.getDate()}</strong>
+            <small>{leadDate.toLocaleDateString('en-IN', { month: 'short' }).toUpperCase()}</small>
+          </div>
+          <p>
+            <strong>
+              {activeTab === 'Today'
+                ? 'Today’s ideas'
+                : activeTab === 'Saved'
+                  ? 'Saved for later'
+                  : 'Upcoming picks'}
+            </strong>
+            <span>
+              {loading ? 'Syncing live availability…' : `${events.length} classes that fit`}
+            </span>
+          </p>
         </div>
         {events.length > 0 ? (
           <section className="class-timeline" aria-label={`${activeTab} class timeline`}>
-            {events.map(({ item, time, duration, recommended }) => (
-              <div className={recommended ? 'timeline-event recommended' : 'timeline-event'} key={item.slug}>
-                <time>{time}</time>
-                <span className="timeline-node" />
-                <Link href={`/classes/${item.slug}`}>
-                  {recommended && <span className="recommendation-label">✦ TOP MATCH</span>}
-                  <div className="timeline-card-top"><div><h2>{item.title}</h2><p>{item.age} • {duration}</p></div><img src={item.image} alt="" /></div>
-                  {recommended && <p className="timeline-reason">Because <ChildName />’s interests match this class.</p>}
-                  <div className="timeline-meta"><span><Icon name="location" size={14} /> {item.distance}</span><strong>₹{item.price} Trial →</strong></div>
-                </Link>
-              </div>
-            ))}
+            {events.map((item, index) => {
+              const start = item.occurrenceStart ? new Date(item.occurrenceStart) : null;
+              return (
+                <div
+                  className={
+                    index === 0 && activeTab === 'For You'
+                      ? 'timeline-event recommended'
+                      : 'timeline-event'
+                  }
+                  key={item.slug}
+                >
+                  <time>
+                    {start
+                      ? start.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
+                      : 'TBA'}
+                  </time>
+                  <span className="timeline-node" />
+                  <Link href={`/classes/${item.slug}`}>
+                    {index === 0 && activeTab === 'For You' && (
+                      <span className="recommendation-label">✦ TOP MATCH</span>
+                    )}
+                    <div className="timeline-card-top">
+                      <div>
+                        <h2>{item.title}</h2>
+                        <p>
+                          {item.age} • {item.durationMinutes ?? 60} min
+                        </p>
+                      </div>
+                      <img src={item.image} alt="" />
+                    </div>
+                    {index === 0 && activeTab === 'For You' && (
+                      <p className="timeline-reason">
+                        Because {childName}’s interests match this class.
+                      </p>
+                    )}
+                    <div className="timeline-meta">
+                      <span>
+                        <Icon name="location" size={14} /> {item.distance}
+                      </span>
+                      <strong>₹{item.price} Trial →</strong>
+                    </div>
+                  </Link>
+                </div>
+              );
+            })}
           </section>
         ) : (
-          <div className="empty-state timeline-empty"><span>♡</span><h3>No saved classes yet</h3><p>Tap the heart on a class to keep it here.</p><Link href="/discover">Explore classes</Link></div>
+          <div className="empty-state timeline-empty">
+            <span>♡</span>
+            <h3>
+              {loading
+                ? 'Finding live classes…'
+                : activeTab === 'Saved'
+                  ? 'No saved classes yet'
+                  : 'No classes fit this view yet'}
+            </h3>
+            <p>
+              {loading
+                ? 'This should only take a moment.'
+                : 'Explore live classes and save the ones you love.'}
+            </p>
+            <Link href="/discover">Explore classes</Link>
+          </div>
         )}
         <BottomNav />
       </div>

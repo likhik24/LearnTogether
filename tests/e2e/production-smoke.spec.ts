@@ -59,6 +59,12 @@ test.describe.serial('live production journeys', () => {
     await page.getByLabel('Password').fill(password);
     await page.getByRole('button', { name: 'Create account & sync' }).click();
     await expect(page.getByText('API CONNECTED')).toBeVisible();
+    expect(
+      await page.evaluate(() => window.localStorage.getItem('learn-together-access-token')),
+    ).toBeNull();
+    const sessionCookies = await page.context().cookies();
+    expect(sessionCookies.find((cookie) => cookie.name === 'lt_access')?.httpOnly).toBeTruthy();
+    expect(sessionCookies.find((cookie) => cookie.name === 'lt_refresh')?.httpOnly).toBeTruthy();
 
     await page.goto('/children');
     await page.getByLabel('Name').fill(childName);
@@ -148,10 +154,11 @@ test.describe.serial('live production journeys', () => {
     await page
       .getByLabel('What will families learn?')
       .fill('A production smoke-test robotics class.');
+    await page.getByLabel('Venue name').fill('Hitech City Community Studio');
     await page.getByPlaceholder('painting, craft, creative, beginner').fill('robotics, smoke-test');
-    await page.getByRole('button', { name: 'Publish class schedule' }).click();
+    await page.getByRole('button', { name: 'Submit class for approval' }).click();
     await expect(
-      page.getByText('Class published. It will appear in discovery with your keywords.'),
+      page.getByText('Class submitted. It will appear in discovery after moderation.'),
     ).toBeVisible();
     await expect(page.getByText(className, { exact: true })).toBeVisible();
 
@@ -167,9 +174,7 @@ test.describe.serial('live production journeys', () => {
       .getByLabel(/Share what draws you/)
       .fill('I want children to learn through practical, hands-on projects.');
     await page.getByRole('button', { name: 'Save provider profile' }).click();
-    await expect(
-      page.getByText('Profile saved. Our team will review and reach out.'),
-    ).toBeVisible();
+    await expect(page.getByText('Profile changes saved.')).toBeVisible();
 
     await page.locator('input[type="file"]').setInputFiles({
       name: `smoke-portfolio-${runId}.pdf`,
@@ -177,6 +182,8 @@ test.describe.serial('live production journeys', () => {
       buffer: Buffer.from('%PDF-1.4\n% Learn & Build production smoke test\n'),
     });
     await expect(page.getByText(`smoke-portfolio-${runId}.pdf`)).toBeVisible();
+    await page.getByRole('button', { name: 'Submit profile for review' }).click();
+    await expect(page.getByText(/Verification status: submitted/i)).toBeVisible();
     await page.screenshot({ path: `${screenshotDir}/provider-profile.png`, fullPage: true });
 
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();

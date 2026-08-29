@@ -13,6 +13,7 @@ const ORIGINS = {
 
 const nextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
   transpilePackages: ['@learn-and-build/api-client', '@learn-and-build/types'],
   // Single-origin proxy: the browser only ever talks to this app's origin,
   // so one public tunnel (e.g. Cloudflare) exposes the whole platform.
@@ -29,6 +30,38 @@ const nextConfig = {
         destination: `${ORIGINS.scheduling}/:path*`,
       },
       { source: '/api/voice/:path*', destination: `${ORIGINS.voice}/:path*` },
+    ];
+  },
+  async headers() {
+    const csp = [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://api.mapbox.com https://*.mapbox.com",
+      "worker-src 'self' blob:",
+    ].join('; ');
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: csp },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(self)' },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
+        ],
+      },
     ];
   },
 };

@@ -1,9 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'node:crypto';
-import type { PresignedUploadResponse } from '@learn-and-build/types';
+import type { PresignedImageUploadResponse, PresignedUploadResponse } from '@learn-and-build/types';
+import type { Readable } from 'node:stream';
 
 /**
  * Issues presigned S3 PUT URLs so clients upload documents directly to S3
@@ -31,6 +37,11 @@ export class S3Service {
     return `teachers/${userId}/${randomUUID()}-${safeName}`;
   }
 
+  buildImageKey(userId: string, fileName: string): string {
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    return `teachers/${userId}/class-images/${randomUUID()}-${safeName}`;
+  }
+
   async createPresignedUpload(
     userId: string,
     fileName: string,
@@ -46,5 +57,55 @@ export class S3Service {
       expiresIn: this.expiresIn,
     });
     return { uploadUrl, storageKey, expiresInSeconds: this.expiresIn };
+  }
+
+  async createClassImageUpload(
+    userId: string,
+    fileName: string,
+    contentType: string,
+  ): Promise<PresignedImageUploadResponse> {
+    const storageKey = this.buildImageKey(userId, fileName);
+    const uploadUrl = await getSignedUrl(
+      this.client,
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: storageKey,
+        ContentType: contentType,
+      }),
+      { expiresIn: this.expiresIn },
+    );
+    const encoded = Buffer.from(storageKey).toString('base64url');
+    return {
+      uploadUrl,
+      storageKey,
+      publicUrl: `/api/teacher/class-images/${encoded}`,
+      expiresInSeconds: this.expiresIn,
+    };
+  }
+
+  async getObject(key: string): Promise<{ body?: Readable; contentType?: string }> {
+    const result = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      }),
+    );
+    return {
+      body: result.Body as Readable | undefined,
+      contentType: result.ContentType,
+    };
+  }
+
+  isOwnedDocumentKey(userId: string, key: string): boolean {
+    return key.startsWith(`teachers/${userId}/`) && !key.includes('/class-images/');
+  }
+
+  async objectExists(key: string): Promise<boolean> {
+    try {
+      await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
