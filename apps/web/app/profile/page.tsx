@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import type { PublicUser } from '@learn-and-build/types';
+import { ApiError } from '@learn-and-build/api-client';
 import { createAuthClient } from '../../lib/api';
 import {
   clearCustomerSession,
-  readCustomerUser,
+  hydrateCustomerSession,
   saveCustomerSession,
   signOutCustomerSession,
 } from '../../lib/customer-session';
@@ -18,42 +19,54 @@ export default function ProfilePage() {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('Priya');
+  const [displayName, setDisplayName] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-    const existing = readCustomerUser();
-    setUser(existing);
+    let active = true;
     const params = new URLSearchParams(window.location.search);
     const verificationToken = params.get('verify_token');
     const passwordToken = params.get('reset_token');
     if (passwordToken) {
       setResetToken(passwordToken);
       setMode('reset');
+      setSessionReady(true);
     }
     if (verificationToken) {
       setLoading(true);
       createAuthClient()
         .confirmEmailVerification(verificationToken)
         .then(async () => {
+          if (!active) return;
           setMessage('Your email address is verified.');
-          if (existing) {
-            const refreshed = await createAuthClient().me();
-            saveCustomerSession('', refreshed);
-            setUser(refreshed);
-          }
+          const refreshed = await hydrateCustomerSession();
+          if (active) setUser(refreshed);
         })
-        .catch((caught) =>
-          setError(caught instanceof Error ? caught.message : 'Could not verify email'),
-        )
-        .finally(() => setLoading(false));
+        .catch((caught) => {
+          if (active) setError(authErrorMessage(caught, 'Could not verify email'));
+        })
+        .finally(() => {
+          if (!active) return;
+          setLoading(false);
+          setSessionReady(true);
+        });
+    } else if (!passwordToken) {
+      void hydrateCustomerSession().then((current) => {
+        if (!active) return;
+        setUser(current);
+        setSessionReady(true);
+      });
     }
     if (verificationToken || passwordToken) {
       window.history.replaceState(null, '', window.location.pathname);
     }
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function submit(event: React.FormEvent) {
@@ -78,12 +91,16 @@ export default function ProfilePage() {
       }
       const response =
         mode === 'login'
-          ? await createAuthClient().login(email, password)
-          : await createAuthClient().register({ email, password, displayName });
+          ? await createAuthClient().login(email.trim().toLowerCase(), password)
+          : await createAuthClient().register({
+              email: email.trim().toLowerCase(),
+              password,
+              displayName: displayName.trim(),
+            });
       saveCustomerSession(response.accessToken, response.user);
       setUser(response.user);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not complete the request');
+      setError(authErrorMessage(caught, 'Could not complete the request', mode === 'login'));
     } finally {
       setLoading(false);
     }
@@ -123,7 +140,11 @@ export default function ProfilePage() {
         </p>
         {message && <p className="form-success account-feedback">{message}</p>}
         {error && <p className="form-error account-feedback">{error}</p>}
-        {user && mode !== 'reset' ? (
+        {!sessionReady && mode !== 'reset' ? (
+          <p className="section-hint" role="status">
+            Checking your secure session…
+          </p>
+        ) : user && mode !== 'reset' ? (
           <section className="account-card">
             <span className="account-avatar">{user.displayName.charAt(0).toUpperCase()}</span>
             <div>
@@ -169,6 +190,8 @@ export default function ProfilePage() {
                 <input
                   value={displayName}
                   onChange={(event) => setDisplayName(event.target.value)}
+                  autoComplete="name"
+                  placeholder="Your full name"
                   required
                 />
               </label>
@@ -180,6 +203,8 @@ export default function ProfilePage() {
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="email"
+                  inputMode="email"
                   required
                 />
               </label>
@@ -192,6 +217,7 @@ export default function ProfilePage() {
                   minLength={8}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   required
                 />
               </label>
@@ -223,4 +249,16 @@ export default function ProfilePage() {
       </div>
     </main>
   );
+}
+
+function authErrorMessage(caught: unknown, fallback: string, credentials = false): string {
+  if (caught instanceof ApiError) {
+    if (caught.status === 401 && credentials) return 'Email or password is incorrect.';
+    if (caught.status === 409) return 'An account already exists for this email. Sign in instead.';
+    if (caught.status === 429) return 'Too many attempts. Please wait a minute and try again.';
+    if (caught.status >= 500)
+      return 'The account service is temporarily unavailable. Try again shortly.';
+    return caught.message;
+  }
+  return caught instanceof Error ? caught.message : fallback;
 }

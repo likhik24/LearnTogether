@@ -6,7 +6,7 @@ import { createSchedulingClient } from '../lib/api';
 import { toClassCard } from '../lib/class-data';
 import { getPrimaryChild } from '../lib/customer-session';
 import type { ClassCardData } from './data';
-import { ClassCard } from './ui';
+import { ClassCard, Icon } from './ui';
 
 const origin = { lat: 17.4485, lng: 78.3915 };
 
@@ -14,7 +14,6 @@ export function HomeHero() {
   const [name, setName] = useState<string | null>(null);
   const [interests, setInterests] = useState<string[]>([]);
   const [picks, setPicks] = useState<ClassCardData[]>([]);
-  const [live, setLive] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -37,7 +36,6 @@ export function HomeHero() {
           return score(a) - score(b);
         });
         setPicks(mapped);
-        setLive(true);
       })
       .catch(async () => {
         const child = await getPrimaryChild();
@@ -52,7 +50,7 @@ export function HomeHero() {
   }, []);
 
   const displayName = name ?? 'your child';
-  const initial = (name ?? 'Y').charAt(0).toUpperCase();
+  const initial = name?.charAt(0).toUpperCase();
   const featured = picks[0];
   const interestText = interests.slice(0, 2).join(' and ').toLowerCase();
 
@@ -72,7 +70,7 @@ export function HomeHero() {
           href="/children"
           aria-label={`Open ${displayName}’s profile`}
         >
-          {initial}
+          {initial ?? <Icon name="child" size={20} />}
         </Link>
       </section>
       {featured ? (
@@ -109,9 +107,6 @@ export function HomeHero() {
             <h2>Ready when you are</h2>
           </div>
           <div className="home-pick-tools">
-            <span className={`api-source ${live ? 'live' : 'offline'}`}>
-              {live ? 'LIVE API' : 'OFFLINE'}
-            </span>
             <Link href="/recommendations">View timeline</Link>
           </div>
         </div>

@@ -12,7 +12,7 @@ export class UsersService {
   ) {}
 
   findByEmail(email: string): Promise<User | null> {
-    return this.users.findOne({ where: { email: email.toLowerCase() } });
+    return this.users.findOne({ where: { email: normalizeEmail(email) } });
   }
 
   findByProvider(provider: AuthProvider, providerSubject: string): Promise<User | null> {
@@ -35,9 +35,9 @@ export class UsersService {
     emailVerified?: boolean;
   }): Promise<User> {
     const user = this.users.create({
-      email: input.email.toLowerCase(),
+      email: normalizeEmail(input.email),
       passwordHash: input.passwordHash,
-      displayName: input.displayName,
+      displayName: input.displayName.trim(),
       role: input.role ?? Role.USER,
       provider: AuthProvider.LOCAL,
       emailVerifiedAt: input.emailVerified ? new Date() : null,
@@ -70,8 +70,8 @@ export class UsersService {
     }
 
     const user = this.users.create({
-      email: input.email.toLowerCase(),
-      displayName: input.displayName,
+      email: normalizeEmail(input.email),
+      displayName: input.displayName.trim(),
       role: Role.USER,
       provider: input.provider,
       providerSubject: input.providerSubject,
@@ -103,4 +103,8 @@ export class UsersService {
     user.passwordHash = passwordHash;
     return this.users.save(user);
   }
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
 }

@@ -28,6 +28,36 @@ services:
       timeout: 5s
       retries: 10
 
+  migrate:
+    image: postgres:16-alpine
+    restart: 'no'
+    networks:
+      - app
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: learnbuild
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      PGDATABASE: learnbuild
+    volumes:
+      - ./migrations:/migrations:ro
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        base_tables="$$(psql -Atc "SELECT count(*) FROM pg_class WHERE oid IN (to_regclass('public.users'), to_regclass('public.class_offerings'))")"
+        if [ "$$base_tables" != "2" ]; then
+          echo "Base schema is not present; DB_SYNCHRONIZE bootstrap will create the current schema."
+          exit 0
+        fi
+        for migration in /migrations/*.sql; do
+          echo "Applying $$(basename "$$migration")"
+          psql -v ON_ERROR_STOP=1 -f "$$migration"
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   redis:
     <<: *app-defaults
     image: redis:7-alpine
@@ -58,7 +88,7 @@ services:
     volumes:
       - opensearch_data:/usr/share/opensearch/data
     healthcheck:
-      test: [CMD-SHELL, curl -sf http://localhost:9200/_cluster/health || exit 1]
+      test: [CMD-SHELL, "curl -sf http://localhost:9200/_cluster/health || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 15
@@ -72,11 +102,13 @@ services:
     environment:
       <<: *database-environment
       PORT: 3004
-      SEED_DEMO_CLASSES: ${SEED_DEMO_CLASSES:-true}
+      SEED_DEMO_CLASSES: ${SEED_DEMO_CLASSES:-false}
       CORS_ORIGIN: https://learnandbuild.org
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     healthcheck:
@@ -119,6 +151,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       scheduling:
@@ -152,6 +186,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       auth:

@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { CustomerNotificationDto } from '@learn-and-build/types';
-import { getCustomerClient } from '../lib/customer-session';
+import type { CustomerNotificationDto, PublicUser } from '@learn-and-build/types';
+import { getCustomerClient, hydrateCustomerSession, subscribeCustomerSession } from '../lib/customer-session';
 import type { ClassCardData } from './data';
 
 type IconName =
@@ -41,16 +41,42 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
   const [location, setLocation] = useState('Hitech City, Hyderabad');
   const [locationOpen, setLocationOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [unread, setUnread] = useState(true);
+  const [user, setUser] = useState<PublicUser | null>(null);
+  const [greetingText, setGreetingText] = useState('Welcome');
+  const [unread, setUnread] = useState(false);
   const [notifications, setNotifications] = useState<CustomerNotificationDto[] | null>(null);
+  const [notificationsFailed, setNotificationsFailed] = useState(false);
 
   useEffect(() => {
     const savedLocation = window.localStorage.getItem('learn-together-location');
     if (savedLocation) setLocation(savedLocation);
-    const localUnread = window.localStorage.getItem('learn-together-notifications-read') !== 'true';
-    setUnread(localUnread);
-    const client = getCustomerClient();
-    if (client) client.listNotifications().then((items) => { setNotifications(items); setUnread(items.some((item) => !item.readAt)); }).catch(() => setNotifications(null));
+    const hour = new Date().getHours();
+    setGreetingText(hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening');
+    let active = true;
+    const applyUser = async (nextUser: PublicUser | null) => {
+      if (!active) return;
+      setUser(nextUser);
+      setNotifications(null);
+      setNotificationsFailed(false);
+      setUnread(false);
+      if (!nextUser) return;
+      const client = getCustomerClient();
+      if (!client) return;
+      try {
+        const items = await client.listNotifications();
+        if (!active) return;
+        setNotifications(items);
+        setUnread(items.some((item) => !item.readAt));
+      } catch {
+        if (active) setNotificationsFailed(true);
+      }
+    };
+    const unsubscribe = subscribeCustomerSession((nextUser) => void applyUser(nextUser));
+    void hydrateCustomerSession().then(applyUser);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   function chooseLocation(nextLocation: string) {
@@ -73,7 +99,7 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
     <>
       <header className="app-header">
         <div>
-          {greeting && <span className="eyebrow">Good morning, Priya</span>}
+          {greeting && <span className="eyebrow">{greetingText}{user ? `, ${user.displayName.trim().split(/\s+/)[0]}` : ''}</span>}
           <button className="location-button" type="button" aria-label="Change location" onClick={() => setLocationOpen(true)}>
             <Icon name="location" size={16} />
             <span>{location}</span>
@@ -90,17 +116,15 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
           <section className="app-sheet notification-sheet">
             <div className="sheet-heading"><div><span className="eyebrow purple">UPDATES</span><h2>Notifications</h2></div><button aria-label="Close" onClick={() => setNotificationsOpen(false)}>×</button></div>
             <div className="notification-list">
-              {notifications ? notifications.map((item) => (
+              {notifications?.map((item) => (
                 <article className={!item.readAt ? 'unread' : ''} key={item.id}><span>{item.kind === 'profile' ? 'A' : '✦'}</span><div><strong>{item.title}</strong><p>{item.body}</p><small>{new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' }).format(new Date(item.createdAt))}</small></div></article>
-              )) : (
-                <>
-                  <article className={unread ? 'unread' : ''}><span>✦</span><div><strong>A new class matches your child’s interests</strong><p>LEGO Mechanics Fun is available this weekend.</p><small>12 min ago</small></div></article>
-                  <article className={unread ? 'unread' : ''}><span>✓</span><div><strong>Rhythm & Rhyme confirmed</strong><p>Your Saturday 11:00 AM spot is ready.</p><small>Yesterday</small></div></article>
-                </>
-              )}
+              ))}
+              {!user && <p className="notification-empty">Sign in to see your updates.</p>}
+              {user && notifications === null && !notificationsFailed && <p className="notification-empty">Loading your updates…</p>}
+              {user && notificationsFailed && <p className="notification-empty">We couldn’t load updates. Please try again.</p>}
               {notifications?.length === 0 && <p className="notification-empty">No notifications yet. New profile and booking updates will appear here.</p>}
             </div>
-            <button className="secondary-wide" onClick={() => void markNotificationsRead()} disabled={!unread}>{unread ? 'Mark all as read' : 'You’re all caught up'}</button>
+            {user && <button className="secondary-wide" onClick={() => void markNotificationsRead()} disabled={!unread}>{unread ? 'Mark all as read' : 'You’re all caught up'}</button>}
           </section>
         </div>
       )}

@@ -39,15 +39,16 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto, metadata: SessionMetadata = {}): Promise<SessionResult> {
-    const existing = await this.users.findByEmail(dto.email);
+    const email = normalizeEmail(dto.email);
+    const existing = await this.users.findByEmail(email);
     if (existing) throw new ConflictException('Email already registered');
 
     const role = dto.role === Role.TEACHER ? Role.TEACHER : Role.USER;
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const user = await this.users.create({
-      email: dto.email,
+      email,
       passwordHash,
-      displayName: dto.displayName,
+      displayName: dto.displayName.trim(),
       role,
     });
     const verificationToken = await this.createAccountToken(
@@ -62,7 +63,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, metadata: SessionMetadata = {}): Promise<SessionResult> {
-    const user = await this.users.findByEmail(dto.email);
+    const user = await this.users.findByEmail(normalizeEmail(dto.email));
     if (!user?.passwordHash || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -190,4 +191,8 @@ export class AuthService {
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
 }

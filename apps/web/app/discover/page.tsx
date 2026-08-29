@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createSchedulingClient, createSearchClient } from '../../lib/api';
 import { getCustomerClient } from '../../lib/customer-session';
 import { toClassCard } from '../../lib/class-data';
-import { categories, classes, type ClassCardData } from '../data';
+import { categories, type ClassCardData } from '../data';
 import { AppHeader, BottomNav, ClassCard, Icon } from '../ui';
 import { RealDiscoveryMap } from './real-discovery-map';
 
@@ -19,10 +19,10 @@ export default function DiscoverPage() {
   const [activeFilter, setActiveFilter] = useState('All');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('Categories');
-  const [allClasses, setAllClasses] = useState<ClassCardData[]>(classes);
-  const [selectedSlug, setSelectedSlug] = useState(classes[0].slug);
+  const [allClasses, setAllClasses] = useState<ClassCardData[]>([]);
+  const [selectedSlug, setSelectedSlug] = useState('');
   const [recenterKey, setRecenterKey] = useState(0);
-  const [dataStatus, setDataStatus] = useState<'loading' | 'live' | 'offline'>('loading');
+  const [dataStatus, setDataStatus] = useState<'loading' | 'live' | 'error'>('loading');
   const [childName, setChildName] = useState<string | null>(null);
   const [childInterests, setChildInterests] = useState<string[]>([]);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -126,8 +126,9 @@ export default function DiscoverPage() {
         })
         .catch(() => {
           if (cancelled) return;
-          setAllClasses(classes);
-          setDataStatus('offline');
+          setAllClasses([]);
+          setSelectedSlug('');
+          setDataStatus('error');
         });
     }, 220);
     return () => {
@@ -210,14 +211,13 @@ export default function DiscoverPage() {
               <div>
                 <h2>Browse by interest</h2>
               </div>
-              <span className={`api-source ${dataStatus}`}>
-                {dataStatus === 'live'
-                  ? 'LIVE API'
-                  : dataStatus === 'loading'
-                    ? 'SYNCING'
-                    : 'OFFLINE'}
-              </span>
             </div>
+            {dataStatus === 'loading' && <p className="section-hint">Loading nearby classes…</p>}
+            {dataStatus === 'error' && (
+              <p className="form-error" role="alert">
+                Classes are temporarily unavailable. Please refresh and try again.
+              </p>
+            )}
             <div className="category-grid">
               {categories.map((category) => (
                 <button
@@ -307,11 +307,7 @@ export default function DiscoverPage() {
             <div className="section-heading">
               <div>
                 <span className="eyebrow coral">
-                  {dataStatus === 'live'
-                    ? 'LIVE MAP'
-                    : dataStatus === 'loading'
-                      ? 'MAP • SYNCING'
-                      : 'MAP • OFFLINE DATA'}
+                  {dataStatus === 'loading' ? 'LOADING NEARBY CLASSES' : 'NEAR YOU'}
                 </span>
                 <h2>{visibleClasses.length} classes around you</h2>
               </div>
