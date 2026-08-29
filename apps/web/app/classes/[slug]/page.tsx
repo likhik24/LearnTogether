@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { classes } from '../../data';
 import { BookingBar, ClassLocationMap, DetailTopActions, ReviewsButton } from '../../detail-actions';
-import { Icon } from '../../ui';
+import { BottomNav, Icon } from '../../ui';
 import { ChildName, ChildInterests } from '../../child-name';
 
 export function generateStaticParams() {
@@ -67,6 +67,7 @@ export default function ClassDetailsPage({ params }: { params: { slug: string } 
           </section>
         </div>
         <BookingBar classRef={item.slug} title={item.title} price={item.price} spots={item.spots} />
+        <BottomNav />
       </article>
     </main>
   );
