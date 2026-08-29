@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { PublicUser, TeacherProfileDto } from '@learn-and-build/types';
+import {
+  VerificationStatus,
+  type PublicUser,
+  type TeacherProfileDto,
+} from '@learn-and-build/types';
 import {
   AvailabilityDay,
   ChildAgeGroup,
@@ -22,10 +26,9 @@ import {
 } from '@learn-and-build/api-client';
 import { createAuthClient, createTeacherClient } from '../../lib/api';
 import {
-  clearCustomerSession,
-  CUSTOMER_TOKEN_KEY,
   readCustomerUser,
   saveCustomerSession,
+  signOutCustomerSession,
 } from '../../lib/customer-session';
 import { AppHeader, BottomNav, Icon } from '../ui';
 
@@ -150,9 +153,7 @@ const SKILL_OPTIONS = [
 /* -------- small helpers -------- */
 
 function toggle<T>(list: T[], value: T): T[] {
-  return list.includes(value)
-    ? list.filter((item) => item !== value)
-    : [...list, value];
+  return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 }
 
 type FormState = {
@@ -249,6 +250,9 @@ export default function ProviderPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   const [documents, setDocuments] = useState<TeacherDocumentDto[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -265,13 +269,14 @@ export default function ProviderPage() {
         email: current.email || existing.email,
       }));
     }
-    const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
-    if (token) {
-      createTeacherClient(token)
+    if (existing) {
+      createTeacherClient()
         .getMyTeacherProfile()
         .then((profile) => {
           setForm(formFromProfile(profile));
           setDocuments(profile.documents ?? []);
+          setVerificationStatus(profile.verificationStatus);
+          setRejectionReason(profile.rejectionReason);
         })
         .catch(() => {
           /* No profile yet — start from an empty form. */
@@ -286,8 +291,7 @@ export default function ProviderPage() {
   const activeSubcategories = useMemo(() => {
     if (!form.category) return [];
     return (
-      PROVIDER_CATEGORY_TAXONOMY.find((c) => c.category === form.category)
-        ?.subcategories ?? []
+      PROVIDER_CATEGORY_TAXONOMY.find((c) => c.category === form.category)?.subcategories ?? []
     );
   }, [form.category]);
 
@@ -315,28 +319,28 @@ export default function ProviderPage() {
       }));
       // Load any existing profile for this account.
       try {
-        const profile = await createTeacherClient(
-          response.accessToken,
-        ).getMyTeacherProfile();
+        const profile = await createTeacherClient().getMyTeacherProfile();
         setForm(formFromProfile(profile));
         setDocuments(profile.documents ?? []);
+        setVerificationStatus(profile.verificationStatus);
+        setRejectionReason(profile.rejectionReason);
       } catch {
         /* first-time provider, no profile yet */
       }
     } catch (caught) {
-      setAuthError(
-        caught instanceof Error ? caught.message : 'Could not sign in',
-      );
+      setAuthError(caught instanceof Error ? caught.message : 'Could not sign in');
     } finally {
       setAuthLoading(false);
     }
   }
 
-  function signOut() {
-    clearCustomerSession();
+  async function signOut() {
+    await signOutCustomerSession();
     setUser(null);
     setForm(EMPTY_FORM);
     setDocuments([]);
+    setVerificationStatus(null);
+    setRejectionReason(null);
     setSaved(false);
   }
 
@@ -349,23 +353,19 @@ export default function ProviderPage() {
       setUploadError('Please upload a PDF file.');
       return;
     }
-    const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
-    if (!token) {
+    if (!readCustomerUser()) {
       setUploadError('Your session expired. Please sign in again.');
       return;
     }
     setUploading(true);
     setUploadError(null);
     try {
-      const profile = await createTeacherClient(token).uploadTeacherDocument(
-        file,
-        DocumentType.OTHER,
-      );
+      const profile = await createTeacherClient().uploadTeacherDocument(file, DocumentType.OTHER);
       setDocuments(profile.documents ?? []);
+      setVerificationStatus(profile.verificationStatus);
+      setRejectionReason(profile.rejectionReason);
     } catch (caught) {
-      setUploadError(
-        caught instanceof Error ? caught.message : 'Could not upload the file',
-      );
+      setUploadError(caught instanceof Error ? caught.message : 'Could not upload the file');
     } finally {
       setUploading(false);
     }
@@ -376,8 +376,7 @@ export default function ProviderPage() {
     setSaving(true);
     setSaveError(null);
     setSaved(false);
-    const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
-    if (!token) {
+    if (!readCustomerUser()) {
       setSaveError('Your session expired. Please sign in again.');
       setSaving(false);
       return;
@@ -409,14 +408,31 @@ export default function ProviderPage() {
       whyJoin: form.whyJoin.trim() || undefined,
     };
     try {
-      await createTeacherClient(token).upsertMyTeacherProfile(payload);
+      const profile = await createTeacherClient().upsertMyTeacherProfile(payload);
+      setVerificationStatus(profile.verificationStatus);
+      setRejectionReason(profile.rejectionReason);
+      setSaved(true);
+    } catch (caught) {
+      setSaveError(caught instanceof Error ? caught.message : 'Could not save your profile');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitForReview() {
+    setSubmittingReview(true);
+    setSaveError(null);
+    try {
+      const profile = await createTeacherClient().submitTeacherProfile();
+      setVerificationStatus(profile.verificationStatus);
+      setRejectionReason(profile.rejectionReason);
       setSaved(true);
     } catch (caught) {
       setSaveError(
-        caught instanceof Error ? caught.message : 'Could not save your profile',
+        caught instanceof Error ? caught.message : 'Could not submit your profile for review',
       );
     } finally {
-      setSaving(false);
+      setSubmittingReview(false);
     }
   }
 
@@ -425,11 +441,7 @@ export default function ProviderPage() {
       <div className="phone-shell provider-page">
         <AppHeader greeting={false} />
         <span className="eyebrow purple">BECOME A PROVIDER</span>
-        <h1>
-          {user
-            ? `Welcome, ${user.displayName}.`
-            : 'Share your craft with young learners.'}
-        </h1>
+        <h1>{user ? `Welcome, ${user.displayName}.` : 'Share your craft with young learners.'}</h1>
         <p>
           {user
             ? 'Tell us what you teach and when you’re available. Your answers help us match you with the right families.'
@@ -496,17 +508,47 @@ export default function ProviderPage() {
           <form className="provider-form" onSubmit={saveProfile}>
             {/* Section 1 — About you */}
             <ProviderSection eyebrow="SECTION 1" title="About you">
-              <TextField label="Full name" required value={form.fullName} onChange={(v) => set('fullName', v)} />
-              <TextField label="Phone / WhatsApp number" required value={form.phone} onChange={(v) => set('phone', v)} />
-              <TextField label="Email address" required type="email" value={form.email} onChange={(v) => set('email', v)} />
+              <TextField
+                label="Full name"
+                required
+                value={form.fullName}
+                onChange={(v) => set('fullName', v)}
+              />
+              <TextField
+                label="Phone / WhatsApp number"
+                required
+                value={form.phone}
+                onChange={(v) => set('phone', v)}
+              />
+              <TextField
+                label="Email address"
+                required
+                type="email"
+                value={form.email}
+                onChange={(v) => set('email', v)}
+              />
               <ChoiceGroup
                 label="Your age"
-                options={Object.values(ProviderAgeBand).map((v) => ({ value: v, label: AGE_BAND_LABELS[v] }))}
+                options={Object.values(ProviderAgeBand).map((v) => ({
+                  value: v,
+                  label: AGE_BAND_LABELS[v],
+                }))}
                 value={form.ageBand}
                 onChange={(v) => set('ageBand', v as ProviderAgeBand)}
               />
-              <TextField label="Which area/locality do you live in?" required placeholder="Nanakramguda, Kondapur, Gachibowli, Jubilee Hills" value={form.locality} onChange={(v) => set('locality', v)} />
-              <TextField label="Your city" required value={form.city} onChange={(v) => set('city', v)} />
+              <TextField
+                label="Which area/locality do you live in?"
+                required
+                placeholder="Nanakramguda, Kondapur, Gachibowli, Jubilee Hills"
+                value={form.locality}
+                onChange={(v) => set('locality', v)}
+              />
+              <TextField
+                label="Your city"
+                required
+                value={form.city}
+                onChange={(v) => set('city', v)}
+              />
             </ProviderSection>
 
             {/* Section 2 — What would you love to share? */}
@@ -514,9 +556,18 @@ export default function ProviderPage() {
               <ChoiceGroup
                 label="Primary category"
                 hint="Maps your profile to how families browse on Discover."
-                options={PROVIDER_CATEGORY_TAXONOMY.map((c) => ({ value: c.category, label: c.label }))}
+                options={PROVIDER_CATEGORY_TAXONOMY.map((c) => ({
+                  value: c.category,
+                  label: c.label,
+                }))}
                 value={form.category}
-                onChange={(v) => setForm((prev) => ({ ...prev, category: v as ProviderCategory, subcategories: [] }))}
+                onChange={(v) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    category: v as ProviderCategory,
+                    subcategories: [],
+                  }))
+                }
               />
               {activeSubcategories.length > 0 && (
                 <CheckGroup
@@ -542,7 +593,10 @@ export default function ProviderPage() {
               />
               <ChoiceGroup
                 label="How many years have you been practising this skill?"
-                options={Object.values(ProviderExperience).map((v) => ({ value: v, label: EXPERIENCE_LABELS[v] }))}
+                options={Object.values(ProviderExperience).map((v) => ({
+                  value: v,
+                  label: EXPERIENCE_LABELS[v],
+                }))}
                 value={form.yearsExperience}
                 onChange={(v) => set('yearsExperience', v as ProviderExperience)}
               />
@@ -583,7 +637,10 @@ export default function ProviderPage() {
               </div>
               <ChoiceGroup
                 label="Have you taught or worked with children before?"
-                options={Object.values(ChildrenExperience).map((v) => ({ value: v, label: CHILDREN_EXPERIENCE_LABELS[v] }))}
+                options={Object.values(ChildrenExperience).map((v) => ({
+                  value: v,
+                  label: CHILDREN_EXPERIENCE_LABELS[v],
+                }))}
                 value={form.childrenExperience}
                 onChange={(v) => set('childrenExperience', v as ChildrenExperience)}
               />
@@ -598,25 +655,43 @@ export default function ProviderPage() {
             <ProviderSection eyebrow="SECTION 4" title="What would you like to teach?">
               <CheckGroup
                 label="Which child age groups would you be comfortable working with?"
-                options={Object.values(ChildAgeGroup).map((v) => ({ value: v, label: CHILD_AGE_GROUP_LABELS[v] }))}
+                options={Object.values(ChildAgeGroup).map((v) => ({
+                  value: v,
+                  label: CHILD_AGE_GROUP_LABELS[v],
+                }))}
                 values={form.childAgeGroups}
-                onToggle={(v) => set('childAgeGroups', toggle(form.childAgeGroups, v as ChildAgeGroup))}
+                onToggle={(v) =>
+                  set('childAgeGroups', toggle(form.childAgeGroups, v as ChildAgeGroup))
+                }
               />
               <CheckGroup
                 label="How would you prefer to teach?"
-                options={Object.values(TeachingFormat).map((v) => ({ value: v, label: TEACHING_FORMAT_LABELS[v] }))}
+                options={Object.values(TeachingFormat).map((v) => ({
+                  value: v,
+                  label: TEACHING_FORMAT_LABELS[v],
+                }))}
                 values={form.teachingFormats}
-                onToggle={(v) => set('teachingFormats', toggle(form.teachingFormats, v as TeachingFormat))}
+                onToggle={(v) =>
+                  set('teachingFormats', toggle(form.teachingFormats, v as TeachingFormat))
+                }
               />
               <CheckGroup
                 label="Where would you be comfortable conducting a class?"
-                options={Object.values(ClassVenuePreference).map((v) => ({ value: v, label: VENUE_LABELS[v] }))}
+                options={Object.values(ClassVenuePreference).map((v) => ({
+                  value: v,
+                  label: VENUE_LABELS[v],
+                }))}
                 values={form.venuePreferences}
-                onToggle={(v) => set('venuePreferences', toggle(form.venuePreferences, v as ClassVenuePreference))}
+                onToggle={(v) =>
+                  set('venuePreferences', toggle(form.venuePreferences, v as ClassVenuePreference))
+                }
               />
               <ChoiceGroup
                 label="How far are you comfortable travelling to conduct a class?"
-                options={Object.values(TravelRadius).map((v) => ({ value: v, label: TRAVEL_LABELS[v] }))}
+                options={Object.values(TravelRadius).map((v) => ({
+                  value: v,
+                  label: TRAVEL_LABELS[v],
+                }))}
                 value={form.travelRadius}
                 onChange={(v) => set('travelRadius', v as TravelRadius)}
               />
@@ -626,9 +701,14 @@ export default function ProviderPage() {
             <ProviderSection eyebrow="SECTION 5" title="Your availability">
               <CheckGroup
                 label="Which days are you generally available?"
-                options={Object.values(AvailabilityDay).map((v) => ({ value: v, label: DAY_LABELS[v] }))}
+                options={Object.values(AvailabilityDay).map((v) => ({
+                  value: v,
+                  label: DAY_LABELS[v],
+                }))}
                 values={form.availableDays}
-                onToggle={(v) => set('availableDays', toggle(form.availableDays, v as AvailabilityDay))}
+                onToggle={(v) =>
+                  set('availableDays', toggle(form.availableDays, v as AvailabilityDay))
+                }
               />
               <CheckGroup
                 label="What time slots usually work for you?"
@@ -644,14 +724,20 @@ export default function ProviderPage() {
               />
               <ChoiceGroup
                 label="How often would you ideally like to conduct sessions?"
-                options={Object.values(SessionFrequency).map((v) => ({ value: v, label: FREQUENCY_LABELS[v] }))}
+                options={Object.values(SessionFrequency).map((v) => ({
+                  value: v,
+                  label: FREQUENCY_LABELS[v],
+                }))}
                 value={form.sessionFrequency}
                 onChange={(v) => set('sessionFrequency', v as SessionFrequency)}
               />
             </ProviderSection>
 
             {/* Final */}
-            <ProviderSection eyebrow="ONE LAST THING" title="Why would you like to be part of Learn & Build? 🌱">
+            <ProviderSection
+              eyebrow="ONE LAST THING"
+              title="Why would you like to be part of Learn & Build? 🌱"
+            >
               <TextArea
                 label="Share what draws you to teaching with us"
                 required
@@ -661,14 +747,36 @@ export default function ProviderPage() {
             </ProviderSection>
 
             {saveError && <p className="form-error">{saveError}</p>}
+            {verificationStatus && (
+              <p className="provider-status-line">
+                Verification status: <strong>{verificationStatus.replaceAll('_', ' ')}</strong>
+              </p>
+            )}
+            {verificationStatus === VerificationStatus.REJECTED && rejectionReason && (
+              <p className="form-error">Moderator note: {rejectionReason}</p>
+            )}
             {saved && (
               <p className="provider-saved">
-                <Icon name="check" size={14} /> Profile saved. Our team will review and reach out.
+                <Icon name="check" size={14} /> Profile changes saved.
               </p>
             )}
             <button className="primary-wide" type="submit" disabled={saving}>
               {saving ? 'Saving…' : 'Save provider profile'}
             </button>
+            {(verificationStatus === VerificationStatus.PENDING ||
+              verificationStatus === VerificationStatus.REJECTED) && (
+              <button
+                className="secondary-wide"
+                type="button"
+                onClick={submitForReview}
+                disabled={submittingReview || documents.length === 0}
+              >
+                {submittingReview ? 'Submitting…' : 'Submit profile for review'}
+              </button>
+            )}
+            {verificationStatus === VerificationStatus.PENDING && documents.length === 0 && (
+              <p className="section-hint">Upload at least one PDF before submitting for review.</p>
+            )}
             <button className="secondary-wide" type="button" onClick={signOut}>
               Sign out
             </button>

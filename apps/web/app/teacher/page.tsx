@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import {
+  ClassOfferingStatus,
   InstructorGender,
+  PROVIDER_CATEGORY_TAXONOMY,
   Role,
   type ClassOfferingDto,
   type PublicUser,
 } from '@learn-and-build/types';
-import { createAuthClient } from '../../lib/api';
+import { createAuthClient, createTeacherClient } from '../../lib/api';
 import {
   getCustomerSchedulingClient,
   readCustomerUser,
@@ -16,7 +18,7 @@ import {
 import { AppHeader, BottomNav } from '../ui';
 
 type ScheduleRow = { weekday: number; start: string };
-const categoryOptions = ['Art', 'Music', 'LEGO'];
+const categoryOptions = PROVIDER_CATEGORY_TAXONOMY.map((item) => item.label);
 const weekdays = [
   { value: 6, label: 'Saturday' },
   { value: 7, label: 'Sunday' },
@@ -34,14 +36,21 @@ export default function TeacherPage() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [activity, setActivity] = useState('');
-  const [category, setCategory] = useState('Art');
+  const [category, setCategory] = useState(categoryOptions[0]);
   const [description, setDescription] = useState('');
+  const [ageMin, setAgeMin] = useState('3');
+  const [ageMax, setAgeMax] = useState('6');
+  const [price, setPrice] = useState('499');
   const [duration, setDuration] = useState('60');
   const [seats, setSeats] = useState('8');
+  const [venueName, setVenueName] = useState('');
+  const [latitude, setLatitude] = useState('17.4485');
+  const [longitude, setLongitude] = useState('78.3915');
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageUploading, setImageUploading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [keywords, setKeywords] = useState('');
-  const [rows, setRows] = useState<ScheduleRow[]>([
-    { weekday: 6, start: '10:00' },
-  ]);
+  const [rows, setRows] = useState<ScheduleRow[]>([{ weekday: 6, start: '10:00' }]);
   const [classes, setClasses] = useState<ClassOfferingDto[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -98,7 +107,7 @@ export default function TeacherPage() {
     setError(null);
     setMessage(null);
     try {
-      await client.createClass({
+      const input = {
         activity,
         category,
         description: [
@@ -113,12 +122,13 @@ export default function TeacherPage() {
         ]
           .filter(Boolean)
           .join('\n\n'),
-        ageMin: 3,
-        ageMax: 12,
-        priceMinor: 0,
+        ageMin: Number(ageMin),
+        ageMax: Number(ageMax),
+        priceMinor: Math.round(Number(price) * 100),
         currency: 'INR',
-        imageUrl: undefined,
+        imageUrl: imageUrl || undefined,
         tone: 'mint',
+        venueName: venueName || undefined,
         instructorGender: InstructorGender.ANY,
         durationMinutes: Number(duration),
         seats: Number(seats),
@@ -126,16 +136,98 @@ export default function TeacherPage() {
           weekday: row.weekday,
           startMinute: minutesFromTime(row.start),
         })),
-      });
-      setMessage('Class published. It will appear in discovery with your keywords.');
-      setActivity('');
-      setDescription('');
-      setKeywords('');
+        location:
+          latitude && longitude ? { lat: Number(latitude), lng: Number(longitude) } : undefined,
+      };
+      if (Number(ageMin) > Number(ageMax))
+        throw new Error('Minimum age cannot exceed maximum age.');
+      if (editingId) await client.updateClass(editingId, input);
+      else await client.createClass(input);
+      setMessage(
+        editingId
+          ? 'Class updated and returned to moderation.'
+          : 'Class submitted. It will appear in discovery after moderation.',
+      );
+      resetEditor();
       await loadClasses();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not publish class');
+      setError(caught instanceof Error ? caught.message : 'Could not save class');
     } finally {
       setBusy(false);
+    }
+  }
+
+  function resetEditor() {
+    setEditingId(null);
+    setActivity('');
+    setCategory(categoryOptions[0]);
+    setDescription('');
+    setAgeMin('3');
+    setAgeMax('6');
+    setPrice('499');
+    setDuration('60');
+    setSeats('8');
+    setKeywords('');
+    setImageUrl('');
+    setVenueName('');
+    setLatitude('17.4485');
+    setLongitude('78.3915');
+    setRows([{ weekday: 6, start: '10:00' }]);
+  }
+
+  function editClass(item: ClassOfferingDto) {
+    setEditingId(item.id);
+    setActivity(item.activity);
+    setCategory(item.category);
+    const [copy, keywordLine] = (item.description ?? '').split(/\n\nKeywords: /);
+    setDescription(copy ?? '');
+    setKeywords(keywordLine ?? '');
+    setAgeMin(String(item.ageMin));
+    setAgeMax(String(item.ageMax));
+    setPrice(String(item.priceMinor / 100));
+    setDuration(String(item.durationMinutes));
+    setSeats(String(item.seats));
+    setVenueName(item.venueName ?? '');
+    setLatitude(item.location ? String(item.location.lat) : '');
+    setLongitude(item.location ? String(item.location.lng) : '');
+    setImageUrl(item.imageUrl ?? '');
+    setRows(
+      item.timings.map((timing) => ({
+        weekday: timing.weekday,
+        start: `${String(Math.floor(timing.startMinute / 60)).padStart(2, '0')}:${String(timing.startMinute % 60).padStart(2, '0')}`,
+      })),
+    );
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function changeStatus(id: string, status: ClassOfferingStatus) {
+    const client = getCustomerSchedulingClient();
+    if (!client) return;
+    setError(null);
+    try {
+      await client.setClassStatus(id, status);
+      await loadClasses();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not update class status');
+    }
+  }
+
+  async function uploadImage(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Please choose a JPG, PNG, or WebP image.');
+      return;
+    }
+    setImageUploading(true);
+    setError(null);
+    try {
+      setImageUrl(await createTeacherClient().uploadClassImage(file));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not upload class image');
+    } finally {
+      setImageUploading(false);
     }
   }
 
@@ -241,6 +333,39 @@ export default function TeacherPage() {
                 </label>
                 <div className="form-grid">
                   <label>
+                    Minimum age
+                    <input
+                      type="number"
+                      min="1"
+                      max="18"
+                      value={ageMin}
+                      onChange={(event) => setAgeMin(event.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Maximum age
+                    <input
+                      type="number"
+                      min="1"
+                      max="18"
+                      value={ageMax}
+                      onChange={(event) => setAgeMax(event.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Trial price (₹)
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={price}
+                      onChange={(event) => setPrice(event.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
                     Minutes
                     <input
                       type="number"
@@ -261,6 +386,60 @@ export default function TeacherPage() {
                     />
                   </label>
                 </div>
+                <label>
+                  Venue name
+                  <input
+                    value={venueName}
+                    onChange={(event) => setVenueName(event.target.value)}
+                    placeholder="Studio name or neighbourhood"
+                    required
+                  />
+                </label>
+                <div className="form-grid">
+                  <label>
+                    Latitude
+                    <input
+                      type="number"
+                      min="-90"
+                      max="90"
+                      step="any"
+                      value={latitude}
+                      onChange={(event) => setLatitude(event.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Longitude
+                    <input
+                      type="number"
+                      min="-180"
+                      max="180"
+                      step="any"
+                      value={longitude}
+                      onChange={(event) => setLongitude(event.target.value)}
+                      required
+                    />
+                  </label>
+                </div>
+                <label className="class-image-upload">
+                  Class cover image
+                  <span>
+                    {imageUploading
+                      ? 'Uploading…'
+                      : imageUrl
+                        ? 'Replace image'
+                        : 'Choose JPG, PNG, or WebP'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={uploadImage}
+                    disabled={imageUploading}
+                  />
+                </label>
+                {imageUrl && (
+                  <img className="class-image-preview" src={imageUrl} alt="Class cover preview" />
+                )}
               </div>
               <div className="provider-section">
                 <div className="section-heading">
@@ -309,12 +488,7 @@ export default function TeacherPage() {
                 <button
                   type="button"
                   className="add-row"
-                  onClick={() =>
-                    setRows((current) => [
-                      ...current,
-                      { weekday: 7, start: '10:00' },
-                    ])
-                  }
+                  onClick={() => setRows((current) => [...current, { weekday: 7, start: '10:00' }])}
                 >
                   + Add another weekend slot
                 </button>
@@ -345,25 +519,70 @@ export default function TeacherPage() {
               {error && <p className="form-error">{error}</p>}
               {message && <p className="form-success">{message}</p>}
               <button className="primary-wide" disabled={busy}>
-                {busy ? 'Publishing…' : 'Publish class schedule'}
+                {busy ? 'Saving…' : editingId ? 'Save class changes' : 'Submit class for approval'}
               </button>
+              {editingId && (
+                <button className="secondary-wide" type="button" onClick={resetEditor}>
+                  Cancel editing
+                </button>
+              )}
             </form>
             <section className="provider-list">
               <div className="section-heading">
-                <h2>Your published classes</h2>
+                <h2>Your classes</h2>
                 <span>{classes.length}</span>
               </div>
               {classes.map((item) => (
                 <article key={item.id}>
-                  <strong>{item.activity}</strong>
-                  <small>
-                    {item.category} · {item.timings.length} recurring slot
-                    {item.timings.length === 1 ? '' : 's'}
-                  </small>
+                  <div className="provider-class-copy">
+                    <strong>{item.activity}</strong>
+                    <small>
+                      {item.category} · ages {item.ageMin}–{item.ageMax} · ₹{item.priceMinor / 100}{' '}
+                      · {item.timings.length} recurring slot{item.timings.length === 1 ? '' : 's'}
+                    </small>
+                    <div className="provider-statuses">
+                      <span data-status={item.status}>{item.status}</span>
+                      <span data-status={item.moderationStatus}>{item.moderationStatus}</span>
+                    </div>
+                    {item.moderationReason && (
+                      <small className="moderation-reason">
+                        Moderator note: {item.moderationReason}
+                      </small>
+                    )}
+                  </div>
+                  <div className="provider-class-actions">
+                    <button type="button" onClick={() => editClass(item)}>
+                      Edit
+                    </button>
+                    {item.status === ClassOfferingStatus.ACTIVE ? (
+                      <button
+                        type="button"
+                        onClick={() => changeStatus(item.id, ClassOfferingStatus.PAUSED)}
+                      >
+                        Pause
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => changeStatus(item.id, ClassOfferingStatus.ACTIVE)}
+                      >
+                        Resume
+                      </button>
+                    )}
+                    {item.status !== ClassOfferingStatus.UNPUBLISHED && (
+                      <button
+                        className="danger"
+                        type="button"
+                        onClick={() => changeStatus(item.id, ClassOfferingStatus.UNPUBLISHED)}
+                      >
+                        Unpublish
+                      </button>
+                    )}
+                  </div>
                 </article>
               ))}
               {!classes.length && (
-                <p className="section-hint">Your published classes will appear here.</p>
+                <p className="section-hint">Your submitted classes will appear here.</p>
               )}
             </section>
           </>

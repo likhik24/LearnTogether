@@ -7,13 +7,16 @@ import { TeachersController } from './teachers.controller';
 import { DirectoryController } from './directory.controller';
 import { VerificationController } from './verification.controller';
 import { S3Service } from '../storage/s3.service';
+import { TeacherModerationAudit } from './entities/teacher-moderation-audit.entity';
+import { PublicImagesController } from './public-images.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([TeacherProfile, TeacherDocument])],
+  imports: [TypeOrmModule.forFeature([TeacherProfile, TeacherDocument, TeacherModerationAudit])],
   controllers: [
     TeachersController,
     DirectoryController,
     VerificationController,
+    PublicImagesController,
   ],
   providers: [TeachersService, S3Service],
   exports: [TeachersService],

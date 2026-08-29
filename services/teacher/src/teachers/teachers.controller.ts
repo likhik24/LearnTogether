@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Put,
-  UseGuards,
-} from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import {
   JwtAuthGuard,
   RolesGuard,
@@ -15,6 +8,7 @@ import {
   type AuthPrincipal,
 } from '@learn-and-build/nest-auth';
 import type {
+  PresignedImageUploadResponse,
   PresignedUploadResponse,
   TeacherProfileDto,
 } from '@learn-and-build/types';
@@ -23,6 +17,7 @@ import { S3Service } from '../storage/s3.service';
 import { UpsertProfileDto } from './dto/upsert-profile.dto';
 import { PresignUploadDto } from './dto/presign-upload.dto';
 import { ConfirmDocumentDto } from './dto/confirm-document.dto';
+import { PresignClassImageDto } from './dto/presign-class-image.dto';
 
 /** Teacher self-service. Requires a valid JWT and the TEACHER role. */
 @Controller('teachers')
@@ -35,9 +30,7 @@ export class TeachersController {
   ) {}
 
   @Get('me')
-  async myProfile(
-    @CurrentUser() user: AuthPrincipal,
-  ): Promise<TeacherProfileDto> {
+  async myProfile(@CurrentUser() user: AuthPrincipal): Promise<TeacherProfileDto> {
     const profile = await this.teachers.getByUserIdOrThrow(user.sub);
     return profile.toDto();
   }
@@ -64,14 +57,26 @@ export class TeachersController {
     @CurrentUser() user: AuthPrincipal,
     @Body() dto: ConfirmDocumentDto,
   ): Promise<TeacherProfileDto> {
+    if (!this.s3.isOwnedDocumentKey(user.sub, dto.storageKey)) {
+      throw new BadRequestException('Document key does not belong to this provider');
+    }
+    if (!(await this.s3.objectExists(dto.storageKey))) {
+      throw new BadRequestException('Uploaded document was not found');
+    }
     const profile = await this.teachers.addDocument(user.sub, dto);
     return profile.toDto();
   }
 
-  @Post('me/submit')
-  async submit(
+  @Post('me/class-images/presign')
+  presignClassImage(
     @CurrentUser() user: AuthPrincipal,
-  ): Promise<TeacherProfileDto> {
+    @Body() dto: PresignClassImageDto,
+  ): Promise<PresignedImageUploadResponse> {
+    return this.s3.createClassImageUpload(user.sub, dto.fileName, dto.contentType);
+  }
+
+  @Post('me/submit')
+  async submit(@CurrentUser() user: AuthPrincipal): Promise<TeacherProfileDto> {
     const profile = await this.teachers.submitForReview(user.sub);
     return profile.toDto();
   }

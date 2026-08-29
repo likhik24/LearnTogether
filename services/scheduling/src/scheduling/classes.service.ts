@@ -7,6 +7,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, DataSource, Repository } from 'typeorm';
 import {
+  ClassModerationStatus,
+  ClassOfferingStatus,
   ReservationStatus,
   type ClassOccurrence,
   type DiscoverClassDto,
@@ -16,6 +18,8 @@ import { ClassOffering } from './class-offering.entity';
 import { ClassReservation } from './class-reservation.entity';
 import { CreateClassDto } from './dto/create-class.dto';
 import { ReserveClassDto } from './dto/reserve-class.dto';
+import { UpdateClassDto } from './dto/update-class.dto';
+import { ClassModerationAudit } from './moderation-audit.entity';
 import { assertValidTimings, generateOccurrences } from './timing';
 
 interface DiscoverQuery {
@@ -32,6 +36,8 @@ export class ClassesService {
     private readonly classes: Repository<ClassOffering>,
     @InjectRepository(ClassReservation)
     private readonly reservations: Repository<ClassReservation>,
+    @InjectRepository(ClassModerationAudit)
+    private readonly audits: Repository<ClassModerationAudit>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -39,9 +45,7 @@ export class ClassesService {
     try {
       assertValidTimings(dto.timings, dto.durationMinutes);
     } catch (err) {
-      throw new BadRequestException(
-        err instanceof Error ? err.message : 'Invalid timings',
-      );
+      throw new BadRequestException(err instanceof Error ? err.message : 'Invalid timings');
     }
 
     const offering = this.classes.create({
@@ -63,6 +67,9 @@ export class ClassesService {
       durationMinutes: dto.durationMinutes,
       seats: dto.seats,
       timings: dto.timings,
+      status: ClassOfferingStatus.ACTIVE,
+      moderationStatus: ClassModerationStatus.PENDING,
+      moderationReason: null,
       location: dto.location
         ? { type: 'Point', coordinates: [dto.location.lng, dto.location.lat] }
         : null,
@@ -92,36 +99,151 @@ export class ClassesService {
   }
 
   async getBySlugOrThrow(slug: string): Promise<ClassOffering> {
-    const offering = await this.findBySlug(slug);
+    const offering = (await this.findBySlug(slug)) ?? (await this.findById(slug));
     if (!offering) throw new NotFoundException(`Class ${slug} not found`);
     return offering;
+  }
+
+  async getPublicBySlugOrThrow(slug: string): Promise<ClassOffering> {
+    const offering = await this.getBySlugOrThrow(slug);
+    if (
+      offering.status !== ClassOfferingStatus.ACTIVE ||
+      offering.moderationStatus !== ClassModerationStatus.APPROVED
+    ) {
+      throw new NotFoundException(`Class ${slug} not found`);
+    }
+    return offering;
+  }
+
+  async updateOwned(teacherId: string, id: string, dto: UpdateClassDto): Promise<ClassOffering> {
+    const offering = await this.getOwnedOrThrow(teacherId, id);
+    const timings = dto.timings ?? offering.timings;
+    const duration = dto.durationMinutes ?? offering.durationMinutes;
+    try {
+      assertValidTimings(timings, duration);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Invalid timings');
+    }
+    const mutable: Array<keyof UpdateClassDto> = [
+      'slug',
+      'activity',
+      'description',
+      'category',
+      'ageMin',
+      'ageMax',
+      'priceMinor',
+      'currency',
+      'imageUrl',
+      'tone',
+      'venueName',
+      'instructorGender',
+      'durationMinutes',
+      'seats',
+      'timings',
+      'location',
+    ];
+    for (const key of mutable) {
+      if (dto[key] === undefined) continue;
+      if (key === 'location') {
+        offering.location = dto.location
+          ? { type: 'Point', coordinates: [dto.location.lng, dto.location.lat] }
+          : null;
+      } else {
+        Object.assign(offering, { [key]: dto[key] });
+      }
+    }
+    offering.moderationStatus = ClassModerationStatus.PENDING;
+    offering.moderationReason = null;
+    return this.classes.save(offering);
+  }
+
+  async setOwnedStatus(
+    teacherId: string,
+    id: string,
+    status: ClassOfferingStatus,
+  ): Promise<ClassOffering> {
+    const offering = await this.getOwnedOrThrow(teacherId, id);
+    offering.status = status;
+    return this.classes.save(offering);
+  }
+
+  listForModeration(status?: ClassModerationStatus): Promise<ClassOffering[]> {
+    return this.classes.find({
+      where: status ? { moderationStatus: status } : {},
+      order: { updatedAt: 'DESC' },
+    });
+  }
+
+  async moderate(
+    actorId: string,
+    id: string,
+    status: ClassModerationStatus.APPROVED | ClassModerationStatus.REJECTED,
+    reason?: string,
+  ): Promise<ClassOffering> {
+    const offering = await this.getOrThrow(id);
+    offering.moderationStatus = status;
+    offering.moderationReason = reason?.trim() || null;
+    const saved = await this.classes.save(offering);
+    await this.audits.save(
+      this.audits.create({
+        classId: id,
+        actorId,
+        action: status,
+        note: offering.moderationReason,
+      }),
+    );
+    return saved;
+  }
+
+  async moderationHistory() {
+    return (await this.audits.find({ order: { createdAt: 'DESC' }, take: 100 })).map((audit) =>
+      audit.toDto(),
+    );
   }
 
   /** Upcoming occurrences with confirmed reservations subtracted. */
   async availability(id: string, days: number): Promise<ClassOccurrence[]> {
     const offering = await this.getOrThrow(id);
+    if (
+      offering.status !== ClassOfferingStatus.ACTIVE ||
+      offering.moderationStatus !== ClassModerationStatus.APPROVED
+    ) {
+      throw new NotFoundException(`Class ${id} not found`);
+    }
     return this.availabilityFor(offering, days);
   }
 
   async discover(params: DiscoverQuery): Promise<DiscoverClassDto[]> {
-    const offerings = await this.classes.find({ order: { createdAt: 'ASC' } });
+    const offerings = await this.classes.find({
+      where: {
+        status: ClassOfferingStatus.ACTIVE,
+        moderationStatus: ClassModerationStatus.APPROVED,
+      },
+      order: { createdAt: 'ASC' },
+    });
     const normalized = params.query?.trim().toLowerCase() ?? '';
     const radius = params.radiusMeters ?? 5000;
-    const results = await Promise.all(offerings.map(async (offering): Promise<DiscoverClassDto | null> => {
-      const dto = offering.toDto();
-      const haystack = `${dto.activity} ${dto.description ?? ''} ${dto.category}`.toLowerCase();
-      if (normalized && !haystack.includes(normalized)) return null;
-      const distanceMeters = params.origin && dto.location
-        ? haversineMeters(params.origin, dto.location)
-        : null;
-      if (distanceMeters !== null && distanceMeters > radius) return null;
-      const occurrences = await this.availabilityFor(offering, params.days ?? 21);
-      const nextOccurrence: ClassOccurrence | null = occurrences.find((item) => item.seatsAvailable > 0) ?? occurrences[0] ?? null;
-      return { ...dto, distanceMeters, nextOccurrence };
-    }));
+    const results = await Promise.all(
+      offerings.map(async (offering): Promise<DiscoverClassDto | null> => {
+        const dto = offering.toDto();
+        const haystack = `${dto.activity} ${dto.description ?? ''} ${dto.category}`.toLowerCase();
+        if (normalized && !haystack.includes(normalized)) return null;
+        const distanceMeters =
+          params.origin && dto.location ? haversineMeters(params.origin, dto.location) : null;
+        if (distanceMeters !== null && distanceMeters > radius) return null;
+        const occurrences = await this.availabilityFor(offering, params.days ?? 21);
+        const nextOccurrence: ClassOccurrence | null =
+          occurrences.find((item) => item.seatsAvailable > 0) ?? occurrences[0] ?? null;
+        return { ...dto, distanceMeters, nextOccurrence };
+      }),
+    );
     return results
       .filter((item): item is DiscoverClassDto => item !== null)
-      .sort((a, b) => (a.distanceMeters ?? Number.MAX_SAFE_INTEGER) - (b.distanceMeters ?? Number.MAX_SAFE_INTEGER));
+      .sort(
+        (a, b) =>
+          (a.distanceMeters ?? Number.MAX_SAFE_INTEGER) -
+          (b.distanceMeters ?? Number.MAX_SAFE_INTEGER),
+      );
   }
 
   /** Locks the offering row before calculating and writing capacity. */
@@ -129,20 +251,35 @@ export class ClassesService {
     return this.dataSource.transaction('SERIALIZABLE', async (manager) => {
       const classes = manager.getRepository(ClassOffering);
       const reservations = manager.getRepository(ClassReservation);
-      const offering = await classes.findOne({ where: { id: classId }, lock: { mode: 'pessimistic_write' } });
+      const offering = await classes.findOne({
+        where: { id: classId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!offering) throw new NotFoundException(`Class ${classId} not found`);
+      if (
+        offering.status !== ClassOfferingStatus.ACTIVE ||
+        offering.moderationStatus !== ClassModerationStatus.APPROVED
+      ) {
+        throw new ConflictException('This class is not currently accepting bookings');
+      }
 
       const occurrenceStart = new Date(dto.occurrenceStart);
-      const validOccurrence = generateOccurrences(offering.timings ?? [], offering.durationMinutes, offering.seats, { days: 90 })
-        .some((item) => item.start === occurrenceStart.toISOString());
-      if (!validOccurrence) throw new BadRequestException('The selected class occurrence is no longer available');
+      const validOccurrence = generateOccurrences(
+        offering.timings ?? [],
+        offering.durationMinutes,
+        offering.seats,
+        { days: 90 },
+      ).some((item) => item.start === occurrenceStart.toISOString());
+      if (!validOccurrence)
+        throw new BadRequestException('The selected class occurrence is no longer available');
 
       const existing = await reservations.findOne({
         where: { userId, classId, occurrenceStart, status: ReservationStatus.RESERVED },
       });
       if (existing) return existing;
 
-      const raw = await reservations.createQueryBuilder('reservation')
+      const raw = await reservations
+        .createQueryBuilder('reservation')
         .select('COALESCE(SUM(reservation.seats), 0)', 'reserved')
         .where('reservation.class_id = :classId', { classId })
         .andWhere('reservation.occurrence_start = :occurrenceStart', { occurrenceStart })
@@ -153,17 +290,23 @@ export class ClassesService {
         throw new ConflictException('Not enough seats remain for this class');
       }
 
-      return reservations.save(reservations.create({
-        classId,
-        userId,
-        occurrenceStart,
-        seats: dto.seats,
-        status: ReservationStatus.RESERVED,
-      }));
+      return reservations.save(
+        reservations.create({
+          classId,
+          userId,
+          occurrenceStart,
+          seats: dto.seats,
+          status: ReservationStatus.RESERVED,
+        }),
+      );
     });
   }
 
-  cancelReservation(userId: string, classId: string, reservationId: string): Promise<ClassReservation> {
+  cancelReservation(
+    userId: string,
+    classId: string,
+    reservationId: string,
+  ): Promise<ClassReservation> {
     return this.dataSource.transaction('SERIALIZABLE', async (manager) => {
       const reservations = manager.getRepository(ClassReservation);
       const reservation = await reservations.findOne({
@@ -195,17 +338,25 @@ export class ClassesService {
     return generateOccurrences(offering.timings ?? [], offering.durationMinutes, offering.seats, {
       from,
       days,
-      seatsAvailable: (start) => Math.max(0, offering.seats - (reservedByStart.get(start.toISOString()) ?? 0)),
+      seatsAvailable: (start) =>
+        Math.max(0, offering.seats - (reservedByStart.get(start.toISOString()) ?? 0)),
     });
+  }
+
+  private async getOwnedOrThrow(teacherId: string, id: string): Promise<ClassOffering> {
+    const offering = await this.classes.findOne({ where: { id, teacherId } });
+    if (!offering) throw new NotFoundException(`Class ${id} not found`);
+    return offering;
   }
 }
 
 function haversineMeters(a: GeoLocation, b: GeoLocation): number {
   const radius = 6_371_000;
-  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const radians = (degrees: number) => (degrees * Math.PI) / 180;
   const dLat = radians(b.lat - a.lat);
   const dLng = radians(b.lng - a.lng);
-  const value = Math.sin(dLat / 2) ** 2
-    + Math.cos(radians(a.lat)) * Math.cos(radians(b.lat)) * Math.sin(dLng / 2) ** 2;
+  const value =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(radians(a.lat)) * Math.cos(radians(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * radius * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 }

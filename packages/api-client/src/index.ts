@@ -6,6 +6,8 @@ import type {
   ChildrenExperience,
   ClassOccurrence,
   ClassOfferingDto,
+  ClassModerationStatus,
+  ClassOfferingStatus,
   ClassReservationDto,
   ClassSearchResponse,
   ClassVenuePreference,
@@ -15,8 +17,10 @@ import type {
   GeoLocation,
   HealthResponse,
   InstructorGender,
+  ModerationAuditDto,
   OidcProviderInfo,
   PresignedUploadResponse,
+  PresignedImageUploadResponse,
   ProviderAgeBand,
   ProviderCategory,
   ProviderExperience,
@@ -68,7 +72,13 @@ export interface ApiClientOptions {
   token?: string;
   /** Optional fetch implementation (defaults to global fetch). */
   fetchFn?: typeof fetch;
+  /** Same-origin refresh endpoint used by browser cookie sessions. */
+  refreshUrl?: string;
 }
+
+// A single browser refresh rotation must serve requests from every service
+// client; parallel refreshes would otherwise revoke one another.
+let sharedRefreshPromise: Promise<boolean> | undefined;
 
 export interface CreateClassInput {
   slug?: string;
@@ -102,6 +112,7 @@ export class ApiClient {
   private readonly baseUrl: string;
   private readonly fetchFn: typeof fetch;
   private token?: string;
+  private readonly refreshUrl: string;
 
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
@@ -110,13 +121,14 @@ export class ApiClient {
     const fetchImpl = options.fetchFn ?? globalThis.fetch;
     this.fetchFn = fetchImpl.bind(globalThis);
     this.token = options.token;
+    this.refreshUrl = options.refreshUrl ?? '/api/auth/auth/refresh';
   }
 
   setToken(token: string | undefined): void {
     this.token = token;
   }
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  private async request<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set('content-type', 'application/json');
     if (this.token) {
@@ -125,13 +137,40 @@ export class ApiClient {
     const res = await this.fetchFn(`${this.baseUrl}${path}`, {
       ...init,
       headers,
+      credentials: 'include',
     });
+    if (
+      res.status === 401 &&
+      retry &&
+      !this.token &&
+      typeof (globalThis as { document?: unknown }).document !== 'undefined' &&
+      !path.includes('/login') &&
+      !path.includes('/register') &&
+      !path.includes('/refresh')
+    ) {
+      const refreshed = await this.refreshSession();
+      if (refreshed) return this.request<T>(path, init, false);
+    }
     if (!res.ok) {
       const body = await res.text();
       throw new Error(`Request ${path} failed (${res.status}): ${body}`);
     }
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
+  }
+
+  private refreshSession(): Promise<boolean> {
+    sharedRefreshPromise ??= this.fetchFn(this.refreshUrl, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+    })
+      .then((response) => response.ok)
+      .catch(() => false)
+      .finally(() => {
+        sharedRefreshPromise = undefined;
+      });
+    return sharedRefreshPromise;
   }
 
   health(): Promise<HealthResponse> {
@@ -161,6 +200,47 @@ export class ApiClient {
     return this.request<PublicUser>('/auth/me');
   }
 
+  logout(): Promise<void> {
+    return this.request<void>('/auth/logout', { method: 'POST' }, false);
+  }
+
+  resendEmailVerification(): Promise<void> {
+    return this.request<void>('/auth/email-verification/resend', { method: 'POST' });
+  }
+
+  confirmEmailVerification(token: string): Promise<void> {
+    return this.request<void>(
+      '/auth/email-verification/confirm',
+      {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+      },
+      false,
+    );
+  }
+
+  requestPasswordReset(email: string): Promise<void> {
+    return this.request<void>(
+      '/auth/password-reset/request',
+      {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      },
+      false,
+    );
+  }
+
+  confirmPasswordReset(token: string, password: string): Promise<void> {
+    return this.request<void>(
+      '/auth/password-reset/confirm',
+      {
+        method: 'POST',
+        body: JSON.stringify({ token, password }),
+      },
+      false,
+    );
+  }
+
   /** The signed-in teacher's own profile (teacher service). */
   getMyTeacherProfile(): Promise<TeacherProfileDto> {
     return this.request<TeacherProfileDto>('/teachers/me');
@@ -172,6 +252,10 @@ export class ApiClient {
       method: 'PUT',
       body: JSON.stringify(input),
     });
+  }
+
+  submitTeacherProfile(): Promise<TeacherProfileDto> {
+    return this.request<TeacherProfileDto>('/teachers/me/submit', { method: 'POST' });
   }
 
   /** Step 1: request a presigned S3 URL to upload a document directly. */
@@ -225,6 +309,24 @@ export class ApiClient {
       fileName: file.name,
       type,
     });
+  }
+
+  async uploadClassImage(file: File): Promise<string> {
+    const contentType = file.type || 'image/jpeg';
+    const presigned = await this.request<PresignedImageUploadResponse>(
+      '/teachers/me/class-images/presign',
+      {
+        method: 'POST',
+        body: JSON.stringify({ fileName: file.name, contentType }),
+      },
+    );
+    const put = await this.fetchFn(presigned.uploadUrl, {
+      method: 'PUT',
+      headers: { 'content-type': contentType },
+      body: file,
+    });
+    if (!put.ok) throw new Error(`Upload to storage failed (${put.status})`);
+    return presigned.publicUrl;
   }
 
   /** Lists configured OIDC providers (Google, AWS) for sign-in buttons. */
@@ -364,6 +466,72 @@ export class ApiClient {
     });
   }
 
+  updateClass(id: string, input: Partial<CreateClassInput>): Promise<ClassOfferingDto> {
+    return this.request<ClassOfferingDto>(`/classes/mine/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+  }
+
+  setClassStatus(id: string, status: ClassOfferingStatus): Promise<ClassOfferingDto> {
+    return this.request<ClassOfferingDto>(`/classes/mine/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  listClassesForModeration(status?: ClassModerationStatus): Promise<ClassOfferingDto[]> {
+    const suffix = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.request<ClassOfferingDto[]>(`/classes/admin/moderation${suffix}`);
+  }
+
+  approveClass(id: string, reason?: string): Promise<ClassOfferingDto> {
+    return this.request<ClassOfferingDto>(`/classes/admin/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  rejectClass(id: string, reason: string): Promise<ClassOfferingDto> {
+    return this.request<ClassOfferingDto>(`/classes/admin/${encodeURIComponent(id)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  classModerationHistory(): Promise<ModerationAuditDto[]> {
+    return this.request<ModerationAuditDto[]>('/classes/admin/moderation/history');
+  }
+
+  listTeachersForModeration(status?: string): Promise<TeacherProfileDto[]> {
+    const suffix = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.request<TeacherProfileDto[]>(`/admin/teachers${suffix}`);
+  }
+
+  startTeacherReview(id: string): Promise<TeacherProfileDto> {
+    return this.request<TeacherProfileDto>(
+      `/admin/teachers/${encodeURIComponent(id)}/start-review`,
+      { method: 'POST' },
+    );
+  }
+
+  approveTeacher(id: string): Promise<TeacherProfileDto> {
+    return this.request<TeacherProfileDto>(`/admin/teachers/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+    });
+  }
+
+  rejectTeacher(id: string, reason: string): Promise<TeacherProfileDto> {
+    return this.request<TeacherProfileDto>(`/admin/teachers/${encodeURIComponent(id)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  teacherModerationHistory(): Promise<ModerationAuditDto[]> {
+    return this.request<ModerationAuditDto[]>('/admin/teachers/history');
+  }
+
   reserveClass(id: string, occurrenceStart: string, seats = 1): Promise<ClassReservationDto> {
     return this.request<ClassReservationDto>(`/classes/${encodeURIComponent(id)}/reservations`, {
       method: 'POST',
@@ -406,19 +574,24 @@ export type {
   HealthResponse,
   OidcProviderInfo,
   PresignedUploadResponse,
+  PresignedImageUploadResponse,
   ProviderCategoryDef,
   PublicUser,
   SavedClassDto,
   TeacherDocumentDto,
   TeacherProfileDto,
+  ModerationAuditDto,
 } from '@learn-and-build/types';
 export {
   AvailabilityDay,
   ChildAgeGroup,
   ChildrenExperience,
   ClassVenuePreference,
+  ClassModerationStatus,
+  ClassOfferingStatus,
   discoverQueryForCategory,
   DocumentType,
+  InstructorGender,
   ProviderAgeBand,
   ProviderCategory,
   ProviderExperience,

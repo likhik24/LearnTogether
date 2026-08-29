@@ -7,6 +7,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import {
+  ClassModerationStatus,
+  ClassOfferingStatus,
   InstructorGender,
   type ClassOfferingDto,
   type ClassTiming,
@@ -85,6 +87,15 @@ export class ClassOffering {
   @Column({ type: 'jsonb', default: () => "'[]'" })
   timings!: ClassTiming[];
 
+  @Column({ type: 'varchar', default: ClassOfferingStatus.ACTIVE })
+  status!: ClassOfferingStatus;
+
+  @Column({ name: 'moderation_status', type: 'varchar', default: ClassModerationStatus.PENDING })
+  moderationStatus!: ClassModerationStatus;
+
+  @Column({ name: 'moderation_reason', type: 'text', nullable: true })
+  moderationReason!: string | null;
+
   @Index({ spatial: true })
   @Column({
     type: 'geography',
@@ -128,6 +139,9 @@ export class ClassOffering {
       seats: this.seats,
       location: this.geo(),
       timings: this.timings ?? [],
+      status: this.status,
+      moderationStatus: this.moderationStatus,
+      moderationReason: this.moderationReason ?? null,
       createdAt: this.createdAt?.toISOString() ?? new Date().toISOString(),
       updatedAt: this.updatedAt?.toISOString() ?? new Date().toISOString(),
     };

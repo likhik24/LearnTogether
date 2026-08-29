@@ -12,7 +12,10 @@ import type { AuthPrincipal } from '@learn-and-build/types';
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(config: ConfigService) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        cookieToken,
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ]),
       ignoreExpiration: false,
       secretOrKey: config.get<string>('JWT_SECRET', 'dev-insecure-secret'),
     });
@@ -21,4 +24,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   validate(payload: AuthPrincipal): AuthPrincipal {
     return { sub: payload.sub, email: payload.email, role: payload.role };
   }
+}
+
+function cookieToken(request: { headers?: { cookie?: string } } | undefined): string | null {
+  const header = request?.headers?.cookie;
+  if (!header) return null;
+  for (const item of header.split(';')) {
+    const [key, ...value] = item.trim().split('=');
+    if (key === 'lt_access') return decodeURIComponent(value.join('='));
+  }
+  return null;
 }

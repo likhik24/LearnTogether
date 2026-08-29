@@ -8,6 +8,7 @@ import { TeacherProfile } from './teachers/entities/teacher-profile.entity';
 import { TeacherDocument } from './teachers/entities/teacher-document.entity';
 import { TeachersModule } from './teachers/teachers.module';
 import { AuthDiscoveryModule } from './auth-discovery/auth-discovery.module';
+import { TeacherModerationAudit } from './teachers/entities/teacher-moderation-audit.entity';
 
 @Module({
   imports: [
@@ -21,7 +22,7 @@ import { AuthDiscoveryModule } from './auth-discovery/auth-discovery.module';
           'DATABASE_URL',
           'postgres://learnbuild:learnbuild@localhost:5432/learnbuild',
         ),
-        entities: [TeacherProfile, TeacherDocument],
+        entities: [TeacherProfile, TeacherDocument, TeacherModerationAudit],
         synchronize:
           config.get<string>('DB_SYNCHRONIZE') === 'true' ||
           (config.get<string>('DB_SYNCHRONIZE') == null &&

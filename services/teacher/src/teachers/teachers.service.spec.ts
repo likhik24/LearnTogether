@@ -12,6 +12,7 @@ import {
 import { TeachersService } from './teachers.service';
 import { TeacherProfile } from './entities/teacher-profile.entity';
 import { TeacherDocument } from './entities/teacher-document.entity';
+import { TeacherModerationAudit } from './entities/teacher-moderation-audit.entity';
 
 function makeProfile(overrides: Partial<TeacherProfile> = {}): TeacherProfile {
   const p = new TeacherProfile();
@@ -36,23 +37,26 @@ function makeProfile(overrides: Partial<TeacherProfile> = {}): TeacherProfile {
 describe('TeachersService verification flow', () => {
   let profiles: jest.Mocked<Pick<Repository<TeacherProfile>, 'findOne' | 'save'>>;
   let documents: jest.Mocked<Pick<Repository<TeacherDocument>, 'save' | 'create'>>;
+  let audits: jest.Mocked<Pick<Repository<TeacherModerationAudit>, 'save' | 'create'>>;
   let service: TeachersService;
 
   beforeEach(() => {
     profiles = { findOne: jest.fn(), save: jest.fn() };
     documents = { save: jest.fn(), create: jest.fn() };
+    audits = { save: jest.fn(), create: jest.fn() };
+    audits.create.mockImplementation((value) => Object.assign(new TeacherModerationAudit(), value));
+    audits.save.mockImplementation(async (value) => value as TeacherModerationAudit);
     profiles.save.mockImplementation(async (p) => p as TeacherProfile);
     service = new TeachersService(
       profiles as unknown as Repository<TeacherProfile>,
       documents as unknown as Repository<TeacherDocument>,
+      audits as unknown as Repository<TeacherModerationAudit>,
     );
   });
 
   it('blocks submission when no documents are uploaded', async () => {
     profiles.findOne.mockResolvedValue(makeProfile({ documents: [] }));
-    await expect(service.submitForReview('u-1')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(service.submitForReview('u-1')).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('moves PENDING -> SUBMITTED when a document exists', async () => {
@@ -66,7 +70,7 @@ describe('TeachersService verification flow', () => {
     profiles.findOne.mockResolvedValue(
       makeProfile({ verificationStatus: VerificationStatus.SUBMITTED }),
     );
-    const result = await service.approve('p-1');
+    const result = await service.approve('p-1', 'admin-1');
     expect(result.verificationStatus).toBe(VerificationStatus.APPROVED);
   });
 
@@ -74,34 +78,38 @@ describe('TeachersService verification flow', () => {
     profiles.findOne.mockResolvedValue(
       makeProfile({ verificationStatus: VerificationStatus.PENDING }),
     );
-    await expect(service.approve('p-1')).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(service.approve('p-1', 'admin-1')).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('records a rejection reason', async () => {
     profiles.findOne.mockResolvedValue(
       makeProfile({ verificationStatus: VerificationStatus.UNDER_REVIEW }),
     );
-    const result = await service.reject('p-1', 'Blurry ID document');
+    const result = await service.reject('p-1', 'admin-1', 'Blurry ID document');
     expect(result.verificationStatus).toBe(VerificationStatus.REJECTED);
     expect(result.rejectionReason).toBe('Blurry ID document');
+    expect(audits.save).toHaveBeenCalled();
   });
 });
 
 describe('TeachersService.upsertProfile provider onboarding', () => {
   let profiles: jest.Mocked<Pick<Repository<TeacherProfile>, 'findOne' | 'save' | 'create'>>;
   let documents: jest.Mocked<Pick<Repository<TeacherDocument>, 'save' | 'create'>>;
+  let audits: jest.Mocked<Pick<Repository<TeacherModerationAudit>, 'save' | 'create'>>;
   let service: TeachersService;
 
   beforeEach(() => {
     profiles = { findOne: jest.fn(), save: jest.fn(), create: jest.fn() };
     documents = { save: jest.fn(), create: jest.fn() };
+    audits = { save: jest.fn(), create: jest.fn() };
+    audits.create.mockImplementation((value) => Object.assign(new TeacherModerationAudit(), value));
+    audits.save.mockImplementation(async (value) => value as TeacherModerationAudit);
     profiles.create.mockImplementation((p) => Object.assign(new TeacherProfile(), p));
     profiles.save.mockImplementation(async (p) => p as TeacherProfile);
     service = new TeachersService(
       profiles as unknown as Repository<TeacherProfile>,
       documents as unknown as Repository<TeacherDocument>,
+      audits as unknown as Repository<TeacherModerationAudit>,
     );
   });
 
@@ -123,10 +131,7 @@ describe('TeachersService.upsertProfile provider onboarding', () => {
     });
     expect(result.category).toBe(ProviderCategory.MUSIC);
     expect(result.subcategories).toEqual(['Carnatic music']);
-    expect(result.availableDays).toEqual([
-      AvailabilityDay.SATURDAY,
-      AvailabilityDay.SUNDAY,
-    ]);
+    expect(result.availableDays).toEqual([AvailabilityDay.SATURDAY, AvailabilityDay.SUNDAY]);
     expect(result.travelRadius).toBe(TravelRadius.WITHIN_5KM);
     expect(result.whyJoin).toBe('I love sharing music with children.');
   });

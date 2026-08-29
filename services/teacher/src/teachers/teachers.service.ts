@@ -9,12 +9,10 @@ import { Repository } from 'typeorm';
 import { VerificationStatus } from '@learn-and-build/types';
 import { TeacherProfile } from './entities/teacher-profile.entity';
 import { TeacherDocument } from './entities/teacher-document.entity';
+import { TeacherModerationAudit } from './entities/teacher-moderation-audit.entity';
 import { UpsertProfileDto } from './dto/upsert-profile.dto';
 import { ConfirmDocumentDto } from './dto/confirm-document.dto';
-import {
-  assertTransition,
-  InvalidVerificationTransitionError,
-} from '../verification/verification';
+import { assertTransition, InvalidVerificationTransitionError } from '../verification/verification';
 
 @Injectable()
 export class TeachersService {
@@ -23,13 +21,12 @@ export class TeachersService {
     private readonly profiles: Repository<TeacherProfile>,
     @InjectRepository(TeacherDocument)
     private readonly documents: Repository<TeacherDocument>,
+    @InjectRepository(TeacherModerationAudit)
+    private readonly audits: Repository<TeacherModerationAudit>,
   ) {}
 
   /** Applies a state-machine transition, mapping invalid ones to HTTP 409. */
-  private transition(
-    from: VerificationStatus,
-    to: VerificationStatus,
-  ): VerificationStatus {
+  private transition(from: VerificationStatus, to: VerificationStatus): VerificationStatus {
     try {
       return assertTransition(from, to);
     } catch (err) {
@@ -56,10 +53,14 @@ export class TeachersService {
     return this.profiles.findOne({ where: { id } });
   }
 
-  async upsertProfile(
-    userId: string,
-    dto: UpsertProfileDto,
-  ): Promise<TeacherProfile> {
+  async getDocumentForReview(profileId: string, documentId: string): Promise<TeacherDocument> {
+    const profile = await this.findById(profileId);
+    const document = profile?.documents?.find((item) => item.id === documentId);
+    if (!document) throw new NotFoundException('Teacher document not found');
+    return document;
+  }
+
+  async upsertProfile(userId: string, dto: UpsertProfileDto): Promise<TeacherProfile> {
     let profile = await this.findByUserId(userId);
     if (!profile) {
       profile = this.profiles.create({
@@ -81,8 +82,7 @@ export class TeachersService {
 
     // Provider onboarding + availability. Only overwrite when the field is
     // provided so a section-by-section save never clears earlier answers.
-    const keep = <T>(next: T | undefined, current: T): T =>
-      next === undefined ? current : next;
+    const keep = <T>(next: T | undefined, current: T): T => (next === undefined ? current : next);
 
     profile.phone = keep(dto.phone, profile.phone ?? null);
     profile.email = keep(dto.email, profile.email ?? null);
@@ -92,58 +92,31 @@ export class TeachersService {
     profile.category = keep(dto.category, profile.category ?? null);
     profile.subcategories = keep(dto.subcategories, profile.subcategories ?? []);
     profile.skills = keep(dto.skills, profile.skills ?? []);
-    profile.skillDescription = keep(
-      dto.skillDescription,
-      profile.skillDescription ?? null,
-    );
-    profile.yearsExperience = keep(
-      dto.yearsExperience,
-      profile.yearsExperience ?? null,
-    );
+    profile.skillDescription = keep(dto.skillDescription, profile.skillDescription ?? null);
+    profile.yearsExperience = keep(dto.yearsExperience, profile.yearsExperience ?? null);
     profile.portfolio = keep(dto.portfolio, profile.portfolio ?? null);
-    profile.childrenExperience = keep(
-      dto.childrenExperience,
-      profile.childrenExperience ?? null,
-    );
+    profile.childrenExperience = keep(dto.childrenExperience, profile.childrenExperience ?? null);
     profile.childrenExperienceDetail = keep(
       dto.childrenExperienceDetail,
       profile.childrenExperienceDetail ?? null,
     );
-    profile.childAgeGroups = keep(
-      dto.childAgeGroups,
-      profile.childAgeGroups ?? [],
-    );
-    profile.teachingFormats = keep(
-      dto.teachingFormats,
-      profile.teachingFormats ?? [],
-    );
-    profile.venuePreferences = keep(
-      dto.venuePreferences,
-      profile.venuePreferences ?? [],
-    );
+    profile.childAgeGroups = keep(dto.childAgeGroups, profile.childAgeGroups ?? []);
+    profile.teachingFormats = keep(dto.teachingFormats, profile.teachingFormats ?? []);
+    profile.venuePreferences = keep(dto.venuePreferences, profile.venuePreferences ?? []);
     profile.travelRadius = keep(dto.travelRadius, profile.travelRadius ?? null);
-    profile.availableDays = keep(
-      dto.availableDays,
-      profile.availableDays ?? [],
-    );
+    profile.availableDays = keep(dto.availableDays, profile.availableDays ?? []);
     profile.timeSlots = keep(dto.timeSlots, profile.timeSlots ?? []);
     profile.preferredAvailability = keep(
       dto.preferredAvailability,
       profile.preferredAvailability ?? null,
     );
-    profile.sessionFrequency = keep(
-      dto.sessionFrequency,
-      profile.sessionFrequency ?? null,
-    );
+    profile.sessionFrequency = keep(dto.sessionFrequency, profile.sessionFrequency ?? null);
     profile.whyJoin = keep(dto.whyJoin, profile.whyJoin ?? null);
 
     return this.profiles.save(profile);
   }
 
-  async addDocument(
-    userId: string,
-    dto: ConfirmDocumentDto,
-  ): Promise<TeacherProfile> {
+  async addDocument(userId: string, dto: ConfirmDocumentDto): Promise<TeacherProfile> {
     const profile = await this.getByUserIdOrThrow(userId);
     const doc = this.documents.create({
       profile,
@@ -156,11 +129,7 @@ export class TeachersService {
   }
 
   /** Finds APPROVED teachers within radiusMeters of a point, nearest first. */
-  async findNearby(
-    lat: number,
-    lng: number,
-    radiusMeters: number,
-  ): Promise<TeacherProfile[]> {
+  async findNearby(lat: number, lng: number, radiusMeters: number): Promise<TeacherProfile[]> {
     return this.profiles
       .createQueryBuilder('t')
       .where('t.verificationStatus = :status', {
@@ -194,22 +163,18 @@ export class TeachersService {
   }
 
   /** Admin moves a submitted profile into review. */
-  async startReview(profileId: string): Promise<TeacherProfile> {
-    return this.applyTransition(profileId, VerificationStatus.UNDER_REVIEW);
+  async startReview(profileId: string, actorId: string): Promise<TeacherProfile> {
+    return this.applyTransition(profileId, VerificationStatus.UNDER_REVIEW, actorId);
   }
 
   /** Admin approves a profile. */
-  async approve(profileId: string): Promise<TeacherProfile> {
-    return this.applyTransition(profileId, VerificationStatus.APPROVED);
+  async approve(profileId: string, actorId: string): Promise<TeacherProfile> {
+    return this.applyTransition(profileId, VerificationStatus.APPROVED, actorId);
   }
 
   /** Admin rejects a profile with an optional reason. */
-  async reject(profileId: string, reason?: string): Promise<TeacherProfile> {
-    return this.applyTransition(
-      profileId,
-      VerificationStatus.REJECTED,
-      reason ?? null,
-    );
+  async reject(profileId: string, actorId: string, reason?: string): Promise<TeacherProfile> {
+    return this.applyTransition(profileId, VerificationStatus.REJECTED, actorId, reason ?? null);
   }
 
   listByStatus(status: VerificationStatus): Promise<TeacherProfile[]> {
@@ -219,22 +184,35 @@ export class TeachersService {
     });
   }
 
+  async moderationHistory() {
+    return (await this.audits.find({ order: { createdAt: 'DESC' }, take: 100 })).map((audit) =>
+      audit.toDto(),
+    );
+  }
+
   private async applyTransition(
     profileId: string,
     to: VerificationStatus,
+    actorId: string,
     rejectionReason: string | null = null,
   ): Promise<TeacherProfile> {
     const profile = await this.findById(profileId);
     if (!profile) {
       throw new NotFoundException('Teacher profile not found');
     }
-    profile.verificationStatus = this.transition(
-      profile.verificationStatus,
-      to,
-    );
+    profile.verificationStatus = this.transition(profile.verificationStatus, to);
     if (to === VerificationStatus.REJECTED) {
       profile.rejectionReason = rejectionReason;
     }
-    return this.profiles.save(profile);
+    const saved = await this.profiles.save(profile);
+    await this.audits.save(
+      this.audits.create({
+        teacherProfileId: profileId,
+        actorId,
+        action: to,
+        note: rejectionReason,
+      }),
+    );
+    return saved;
   }
 }

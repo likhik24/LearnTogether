@@ -15,10 +15,7 @@ export class UsersService {
     return this.users.findOne({ where: { email: email.toLowerCase() } });
   }
 
-  findByProvider(
-    provider: AuthProvider,
-    providerSubject: string,
-  ): Promise<User | null> {
+  findByProvider(provider: AuthProvider, providerSubject: string): Promise<User | null> {
     return this.users.findOne({ where: { provider, providerSubject } });
   }
 
@@ -35,6 +32,7 @@ export class UsersService {
     passwordHash: string;
     displayName: string;
     role?: Role;
+    emailVerified?: boolean;
   }): Promise<User> {
     const user = this.users.create({
       email: input.email.toLowerCase(),
@@ -42,6 +40,7 @@ export class UsersService {
       displayName: input.displayName,
       role: input.role ?? Role.USER,
       provider: AuthProvider.LOCAL,
+      emailVerifiedAt: input.emailVerified ? new Date() : null,
     });
     return this.users.save(user);
   }
@@ -57,10 +56,7 @@ export class UsersService {
     email: string;
     displayName: string;
   }): Promise<User> {
-    const linked = await this.findByProvider(
-      input.provider,
-      input.providerSubject,
-    );
+    const linked = await this.findByProvider(input.provider, input.providerSubject);
     if (linked) {
       return linked;
     }
@@ -69,6 +65,7 @@ export class UsersService {
     if (byEmail) {
       byEmail.provider = input.provider;
       byEmail.providerSubject = input.providerSubject;
+      byEmail.emailVerifiedAt ??= new Date();
       return this.users.save(byEmail);
     }
 
@@ -79,6 +76,7 @@ export class UsersService {
       provider: input.provider,
       providerSubject: input.providerSubject,
       passwordHash: null,
+      emailVerifiedAt: new Date(),
     });
     return this.users.save(user);
   }
@@ -89,6 +87,20 @@ export class UsersService {
       throw new NotFoundException(`User ${id} not found`);
     }
     user.role = role;
+    return this.users.save(user);
+  }
+
+  async markEmailVerified(id: string): Promise<User> {
+    const user = await this.findById(id);
+    if (!user) throw new NotFoundException(`User ${id} not found`);
+    user.emailVerifiedAt = new Date();
+    return this.users.save(user);
+  }
+
+  async updatePassword(id: string, passwordHash: string): Promise<User> {
+    const user = await this.findById(id);
+    if (!user) throw new NotFoundException(`User ${id} not found`);
+    user.passwordHash = passwordHash;
     return this.users.save(user);
   }
 }

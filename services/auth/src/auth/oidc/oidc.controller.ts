@@ -1,8 +1,9 @@
-import { Controller, Get, Param, Query, Res } from '@nestjs/common';
-import type { Response } from 'express';
+import { Controller, Get, Param, Query, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import type { OidcProviderInfo } from '@learn-and-build/types';
 import { OidcService } from './oidc.service';
 import { OidcConfigService } from './oidc-config.service';
+import { sessionMetadata, writeSessionCookies } from '../session-cookies';
 
 @Controller('auth/oidc')
 export class OidcController {
@@ -23,10 +24,7 @@ export class OidcController {
 
   /** Starts the login flow by redirecting to the provider. */
   @Get(':provider/login')
-  async login(
-    @Param('provider') provider: string,
-    @Res() res: Response,
-  ): Promise<void> {
+  async login(@Param('provider') provider: string, @Res() res: Response): Promise<void> {
     const url = await this.oidc.createAuthorizationUrl(provider);
     res.redirect(url);
   }
@@ -36,13 +34,13 @@ export class OidcController {
   async callback(
     @Param('provider') provider: string,
     @Query() query: Record<string, string>,
+    @Req() request: Request,
     @Res() res: Response,
   ): Promise<void> {
     try {
-      const result = await this.oidc.handleCallback(provider, query);
+      const result = await this.oidc.handleCallback(provider, query, sessionMetadata(request));
+      writeSessionCookies(res, result);
       const target = new URL(this.config.successRedirect);
-      // Deliver the token in the URL fragment so it never hits server logs.
-      target.hash = `access_token=${encodeURIComponent(result.accessToken)}`;
       res.redirect(target.toString());
     } catch {
       const target = new URL(this.config.successRedirect);

@@ -1,13 +1,8 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Client, generators, Issuer } from 'openid-client';
-import type { AuthTokenResponse } from '@learn-and-build/types';
 import { UsersService } from '../../users/users.service';
 import { AuthService } from '../auth.service';
+import type { SessionMetadata, SessionResult } from '../auth.service';
 import { OidcConfigService, type OidcProviderConfig } from './oidc-config.service';
 
 interface AuthTransaction {
@@ -87,7 +82,8 @@ export class OidcService {
   async handleCallback(
     slug: string,
     params: Record<string, string>,
-  ): Promise<AuthTokenResponse> {
+    metadata: SessionMetadata = {},
+  ): Promise<SessionResult> {
     const provider = this.requireProvider(slug);
     const client = await this.getClient(provider);
 
@@ -98,11 +94,11 @@ export class OidcService {
     }
     this.transactions.delete(state);
 
-    const tokenSet = await client.callback(
-      this.config.redirectUri(slug),
-      params,
-      { state, nonce: tx.nonce, code_verifier: tx.codeVerifier },
-    );
+    const tokenSet = await client.callback(this.config.redirectUri(slug), params, {
+      state,
+      nonce: tx.nonce,
+      code_verifier: tx.codeVerifier,
+    });
 
     const claims = tokenSet.claims();
     if (!claims.email) {
@@ -117,7 +113,7 @@ export class OidcService {
     });
 
     this.logger.log(`OIDC login via ${slug} for ${user.email}`);
-    return this.auth.issueTokenFor(user);
+    return this.auth.issueTokenFor(user, metadata);
   }
 
   private pruneTransactions(): void {
