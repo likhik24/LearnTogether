@@ -258,6 +258,13 @@ export default function ProviderPage() {
   useEffect(() => {
     const existing = readCustomerUser();
     setUser(existing);
+    if (existing) {
+      setForm((current) => ({
+        ...current,
+        fullName: current.fullName || existing.displayName,
+        email: current.email || existing.email,
+      }));
+    }
     const token = window.localStorage.getItem(CUSTOMER_TOKEN_KEY);
     if (token) {
       createTeacherClient(token)

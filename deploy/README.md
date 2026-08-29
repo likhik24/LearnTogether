@@ -13,7 +13,16 @@ network, and Next rewrites `/api/*` requests to the appropriate service.
    - confirm the admin email;
    - confirm the S3 bucket and AWS region;
    - add optional OIDC credentials only when needed.
-4. Start the private stack:
+4. Allow the production web origins to upload provider PDFs directly through
+   presigned URLs:
+
+   ```bash
+   aws s3api put-bucket-cors \
+     --bucket "$DOCUMENTS_BUCKET" \
+     --cors-configuration file://deploy/s3-cors.json
+   ```
+
+5. Start the private stack:
 
    ```bash
    docker compose \
@@ -22,7 +31,7 @@ network, and Next rewrites `/api/*` requests to the appropriate service.
      up -d --build
    ```
 
-5. Verify container and endpoint health:
+6. Verify container and endpoint health:
 
    ```bash
    docker compose \
@@ -37,7 +46,7 @@ network, and Next rewrites `/api/*` requests to the appropriate service.
      "fetch('http://localhost:3100').then(async r=>{console.log(r.status);process.exit(r.ok?0:1)})"
    ```
 
-6. For a brand-new empty database only, leave `DB_SYNCHRONIZE=true` until
+7. For a brand-new empty database only, leave `DB_SYNCHRONIZE=true` until
    `auth`, `teacher`, and `scheduling` are healthy. Then set it to `false` and
    recreate those services:
 
