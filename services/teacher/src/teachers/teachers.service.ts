@@ -95,6 +95,10 @@ export class TeachersService {
     profile.skillDescription = keep(dto.skillDescription, profile.skillDescription ?? null);
     profile.yearsExperience = keep(dto.yearsExperience, profile.yearsExperience ?? null);
     profile.portfolio = keep(dto.portfolio, profile.portfolio ?? null);
+    profile.instagramUrl = keep(dto.instagramUrl, profile.instagramUrl ?? null);
+    profile.preplyUrl = keep(dto.preplyUrl, profile.preplyUrl ?? null);
+    profile.urbanproUrl = keep(dto.urbanproUrl, profile.urbanproUrl ?? null);
+    profile.teacheronUrl = keep(dto.teacheronUrl, profile.teacheronUrl ?? null);
     profile.childrenExperience = keep(dto.childrenExperience, profile.childrenExperience ?? null);
     profile.childrenExperienceDetail = keep(
       dto.childrenExperienceDetail,
@@ -104,8 +108,10 @@ export class TeachersService {
     profile.teachingFormats = keep(dto.teachingFormats, profile.teachingFormats ?? []);
     profile.venuePreferences = keep(dto.venuePreferences, profile.venuePreferences ?? []);
     profile.travelRadius = keep(dto.travelRadius, profile.travelRadius ?? null);
+    profile.homeAddress = keep(dto.homeAddress, profile.homeAddress ?? null);
     profile.availableDays = keep(dto.availableDays, profile.availableDays ?? []);
     profile.timeSlots = keep(dto.timeSlots, profile.timeSlots ?? []);
+    profile.availabilityDates = keep(dto.availabilityDates, profile.availabilityDates ?? []);
     profile.preferredAvailability = keep(
       dto.preferredAvailability,
       profile.preferredAvailability ?? null,

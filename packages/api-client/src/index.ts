@@ -13,6 +13,7 @@ import type {
   ClassVenuePreference,
   ChildProfileDto,
   CustomerNotificationDto,
+  DateAvailability,
   DiscoverClassDto,
   GeoLocation,
   HealthResponse,
@@ -52,14 +53,20 @@ export interface UpsertTeacherProfileInput {
   skillDescription?: string;
   yearsExperience?: ProviderExperience;
   portfolio?: string;
+  instagramUrl?: string;
+  preplyUrl?: string;
+  urbanproUrl?: string;
+  teacheronUrl?: string;
   childrenExperience?: ChildrenExperience;
   childrenExperienceDetail?: string;
   childAgeGroups?: ChildAgeGroup[];
   teachingFormats?: TeachingFormat[];
   venuePreferences?: ClassVenuePreference[];
   travelRadius?: TravelRadius;
+  homeAddress?: string;
   availableDays?: AvailabilityDay[];
   timeSlots?: TimeSlot[];
+  availabilityDates?: DateAvailability[];
   preferredAvailability?: string;
   sessionFrequency?: SessionFrequency;
   whyJoin?: string;
@@ -569,6 +576,7 @@ export type {
   ClassSearchResponse,
   ChildProfileDto,
   CustomerNotificationDto,
+  DateAvailability,
   DiscoverClassDto,
   GeoLocation,
   HealthResponse,
@@ -589,6 +597,7 @@ export {
   ClassVenuePreference,
   ClassModerationStatus,
   ClassOfferingStatus,
+  DaySlot,
   discoverQueryForCategory,
   DocumentType,
   InstructorGender,

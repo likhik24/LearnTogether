@@ -13,6 +13,7 @@ import {
   type ChildAgeGroup,
   type ChildrenExperience,
   type ClassVenuePreference,
+  type DateAvailability,
   type GeoLocation,
   type ProviderAgeBand,
   type ProviderCategory,
@@ -86,6 +87,18 @@ export class TeacherProfile {
   @Column({ type: 'text', nullable: true })
   portfolio!: string | null;
 
+  @Column({ name: 'instagram_url', type: 'varchar', nullable: true })
+  instagramUrl!: string | null;
+
+  @Column({ name: 'preply_url', type: 'varchar', nullable: true })
+  preplyUrl!: string | null;
+
+  @Column({ name: 'urbanpro_url', type: 'varchar', nullable: true })
+  urbanproUrl!: string | null;
+
+  @Column({ name: 'teacheron_url', type: 'varchar', nullable: true })
+  teacheronUrl!: string | null;
+
   @Column({ name: 'children_experience', type: 'varchar', nullable: true })
   childrenExperience!: ChildrenExperience | null;
 
@@ -104,11 +117,19 @@ export class TeacherProfile {
   @Column({ name: 'travel_radius', type: 'varchar', nullable: true })
   travelRadius!: TravelRadius | null;
 
+  @Column({ name: 'home_address', type: 'varchar', nullable: true })
+  homeAddress!: string | null;
+
   @Column({ name: 'available_days', type: 'text', array: true, default: () => "'{}'" })
   availableDays!: AvailabilityDay[];
 
   @Column({ name: 'time_slots', type: 'text', array: true, default: () => "'{}'" })
   timeSlots!: TimeSlot[];
+
+  // Specific dates with one-hour slots (next ~2 months). JSONB list of
+  // { date: 'YYYY-MM-DD', slots: DaySlot[] }.
+  @Column({ name: 'availability_dates', type: 'jsonb', default: () => "'[]'" })
+  availabilityDates!: DateAvailability[];
 
   @Column({ name: 'preferred_availability', type: 'text', nullable: true })
   preferredAvailability!: string | null;
@@ -179,14 +200,20 @@ export class TeacherProfile {
       skillDescription: this.skillDescription ?? null,
       yearsExperience: this.yearsExperience ?? null,
       portfolio: this.portfolio ?? null,
+      instagramUrl: this.instagramUrl ?? null,
+      preplyUrl: this.preplyUrl ?? null,
+      urbanproUrl: this.urbanproUrl ?? null,
+      teacheronUrl: this.teacheronUrl ?? null,
       childrenExperience: this.childrenExperience ?? null,
       childrenExperienceDetail: this.childrenExperienceDetail ?? null,
       childAgeGroups: this.childAgeGroups ?? [],
       teachingFormats: this.teachingFormats ?? [],
       venuePreferences: this.venuePreferences ?? [],
       travelRadius: this.travelRadius ?? null,
+      homeAddress: this.homeAddress ?? null,
       availableDays: this.availableDays ?? [],
       timeSlots: this.timeSlots ?? [],
+      availabilityDates: this.availabilityDates ?? [],
       preferredAvailability: this.preferredAvailability ?? null,
       sessionFrequency: this.sessionFrequency ?? null,
       whyJoin: this.whyJoin ?? null,

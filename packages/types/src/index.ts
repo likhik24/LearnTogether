@@ -295,6 +295,33 @@ export function discoverQueryForCategory(category: ProviderCategory): string | n
   return PROVIDER_CATEGORY_TAXONOMY.find((c) => c.category === category)?.discoverQuery ?? null;
 }
 
+/**
+ * One-hour availability slots between 09:00 and 21:00. Value is the slot start
+ * hour in 24h form (e.g. `9` = 9-10am, `20` = 8-9pm).
+ */
+export enum DaySlot {
+  H_9 = '9',
+  H_10 = '10',
+  H_11 = '11',
+  H_12 = '12',
+  H_13 = '13',
+  H_14 = '14',
+  H_15 = '15',
+  H_16 = '16',
+  H_17 = '17',
+  H_18 = '18',
+  H_19 = '19',
+  H_20 = '20',
+}
+
+/** Availability on a specific calendar date (used for the next ~2 months). */
+export interface DateAvailability {
+  /** ISO calendar date, `YYYY-MM-DD`. */
+  date: string;
+  /** One-hour slots the provider is available on that date. */
+  slots: DaySlot[];
+}
+
 export interface TeacherProfileDto {
   id: string;
   userId: string;
@@ -320,6 +347,11 @@ export interface TeacherProfileDto {
   yearsExperience: ProviderExperience | null;
   /** Section 3 — portfolio + child experience */
   portfolio: string | null;
+  /** Public teaching / social profile links. */
+  instagramUrl: string | null;
+  preplyUrl: string | null;
+  urbanproUrl: string | null;
+  teacheronUrl: string | null;
   childrenExperience: ChildrenExperience | null;
   childrenExperienceDetail: string | null;
   /** Section 4 — teaching preferences */
@@ -327,9 +359,13 @@ export interface TeacherProfileDto {
   teachingFormats: TeachingFormat[];
   venuePreferences: ClassVenuePreference[];
   travelRadius: TravelRadius | null;
+  /** Home location (human-readable; coordinates live in `location`). */
+  homeAddress: string | null;
   /** Section 5 — availability */
   availableDays: AvailabilityDay[];
   timeSlots: TimeSlot[];
+  /** Specific dates (next ~2 months) with one-hour slots between 9am-9pm. */
+  availabilityDates: DateAvailability[];
   preferredAvailability: string | null;
   sessionFrequency: SessionFrequency | null;
   /** Final — motivation */

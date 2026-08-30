@@ -1,4 +1,5 @@
 'use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -11,6 +12,7 @@ import {
   ChildAgeGroup,
   ChildrenExperience,
   ClassVenuePreference,
+  DaySlot,
   DocumentType,
   ProviderAgeBand,
   ProviderCategory,
@@ -21,6 +23,7 @@ import {
   TeachingFormat,
   TimeSlot,
   TravelRadius,
+  type DateAvailability,
   type TeacherDocumentDto,
   type UpsertTeacherProfileInput,
 } from '@learn-and-build/api-client';
@@ -150,11 +153,59 @@ const SKILL_OPTIONS = [
   'Other',
 ];
 
+/** One-hour slot labels (9am–9pm). */
+const SLOT_HOUR_LABELS: Record<DaySlot, string> = {
+  [DaySlot.H_9]: '9–10 AM',
+  [DaySlot.H_10]: '10–11 AM',
+  [DaySlot.H_11]: '11–12 PM',
+  [DaySlot.H_12]: '12–1 PM',
+  [DaySlot.H_13]: '1–2 PM',
+  [DaySlot.H_14]: '2–3 PM',
+  [DaySlot.H_15]: '3–4 PM',
+  [DaySlot.H_16]: '4–5 PM',
+  [DaySlot.H_17]: '5–6 PM',
+  [DaySlot.H_18]: '6–7 PM',
+  [DaySlot.H_19]: '7–8 PM',
+  [DaySlot.H_20]: '8–9 PM',
+};
+
+const ALL_DAY_SLOTS = Object.values(DaySlot);
+
 /* -------- small helpers -------- */
 
 function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 }
+
+/** Local `YYYY-MM-DD` for a date (avoids UTC shift from toISOString). */
+function isoDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** The next `count` calendar days starting today (default ~2 months). */
+function upcomingDates(count = 60): Date[] {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+}
+
+const DATE_FMT = new Intl.DateTimeFormat('en-IN', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+});
+const DATE_FMT_LONG = new Intl.DateTimeFormat('en-IN', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+});
 
 type FormState = {
   fullName: string;
@@ -169,14 +220,22 @@ type FormState = {
   skillDescription: string;
   yearsExperience: ProviderExperience | '';
   portfolio: string;
+  instagramUrl: string;
+  preplyUrl: string;
+  urbanproUrl: string;
+  teacheronUrl: string;
   childrenExperience: ChildrenExperience | '';
   childrenExperienceDetail: string;
   childAgeGroups: ChildAgeGroup[];
   teachingFormats: TeachingFormat[];
   venuePreferences: ClassVenuePreference[];
   travelRadius: TravelRadius | '';
+  homeAddress: string;
+  homeLat: number | null;
+  homeLng: number | null;
   availableDays: AvailabilityDay[];
   timeSlots: TimeSlot[];
+  availabilityDates: DateAvailability[];
   preferredAvailability: string;
   sessionFrequency: SessionFrequency | '';
   whyJoin: string;
@@ -195,14 +254,22 @@ const EMPTY_FORM: FormState = {
   skillDescription: '',
   yearsExperience: '',
   portfolio: '',
+  instagramUrl: '',
+  preplyUrl: '',
+  urbanproUrl: '',
+  teacheronUrl: '',
   childrenExperience: '',
   childrenExperienceDetail: '',
   childAgeGroups: [],
   teachingFormats: [],
   venuePreferences: [],
   travelRadius: '',
+  homeAddress: '',
+  homeLat: null,
+  homeLng: null,
   availableDays: [],
   timeSlots: [],
+  availabilityDates: [],
   preferredAvailability: '',
   sessionFrequency: '',
   whyJoin: '',
@@ -223,14 +290,22 @@ function formFromProfile(p: TeacherProfileDto): FormState {
     skillDescription: p.skillDescription ?? '',
     yearsExperience: p.yearsExperience ?? '',
     portfolio: p.portfolio ?? '',
+    instagramUrl: p.instagramUrl ?? '',
+    preplyUrl: p.preplyUrl ?? '',
+    urbanproUrl: p.urbanproUrl ?? '',
+    teacheronUrl: p.teacheronUrl ?? '',
     childrenExperience: p.childrenExperience ?? '',
     childrenExperienceDetail: p.childrenExperienceDetail ?? '',
     childAgeGroups: p.childAgeGroups ?? [],
     teachingFormats: p.teachingFormats ?? [],
     venuePreferences: p.venuePreferences ?? [],
     travelRadius: p.travelRadius ?? '',
+    homeAddress: p.homeAddress ?? '',
+    homeLat: p.location?.lat ?? null,
+    homeLng: p.location?.lng ?? null,
     availableDays: p.availableDays ?? [],
     timeSlots: p.timeSlots ?? [],
+    availabilityDates: p.availabilityDates ?? [],
     preferredAvailability: p.preferredAvailability ?? '',
     sessionFrequency: p.sessionFrequency ?? '',
     whyJoin: p.whyJoin ?? '',
@@ -395,14 +470,24 @@ export default function ProviderPage() {
       skillDescription: form.skillDescription.trim() || undefined,
       yearsExperience: form.yearsExperience || undefined,
       portfolio: form.portfolio.trim() || undefined,
+      instagramUrl: form.instagramUrl.trim() || undefined,
+      preplyUrl: form.preplyUrl.trim() || undefined,
+      urbanproUrl: form.urbanproUrl.trim() || undefined,
+      teacheronUrl: form.teacheronUrl.trim() || undefined,
       childrenExperience: form.childrenExperience || undefined,
       childrenExperienceDetail: form.childrenExperienceDetail.trim() || undefined,
       childAgeGroups: form.childAgeGroups.length ? form.childAgeGroups : undefined,
       teachingFormats: form.teachingFormats.length ? form.teachingFormats : undefined,
       venuePreferences: form.venuePreferences.length ? form.venuePreferences : undefined,
       travelRadius: form.travelRadius || undefined,
+      homeAddress: form.homeAddress.trim() || undefined,
+      location:
+        form.homeLat !== null && form.homeLng !== null
+          ? { lat: form.homeLat, lng: form.homeLng }
+          : undefined,
       availableDays: form.availableDays.length ? form.availableDays : undefined,
       timeSlots: form.timeSlots.length ? form.timeSlots : undefined,
+      availabilityDates: form.availabilityDates.length ? form.availabilityDates : undefined,
       preferredAvailability: form.preferredAvailability.trim() || undefined,
       sessionFrequency: form.sessionFrequency || undefined,
       whyJoin: form.whyJoin.trim() || undefined,
@@ -604,9 +689,39 @@ export default function ProviderPage() {
 
             {/* Section 3 — Show us your work */}
             <ProviderSection eyebrow="SECTION 3" title="Show us your work">
+              <div className="provider-links">
+                <TextField
+                  label="Instagram"
+                  type="url"
+                  placeholder="https://instagram.com/yourhandle"
+                  value={form.instagramUrl}
+                  onChange={(v) => set('instagramUrl', v)}
+                />
+                <TextField
+                  label="Preply"
+                  type="url"
+                  placeholder="https://preply.com/…"
+                  value={form.preplyUrl}
+                  onChange={(v) => set('preplyUrl', v)}
+                />
+                <TextField
+                  label="UrbanPro"
+                  type="url"
+                  placeholder="https://urbanpro.com/…"
+                  value={form.urbanproUrl}
+                  onChange={(v) => set('urbanproUrl', v)}
+                />
+                <TextField
+                  label="TeacherOn"
+                  type="url"
+                  placeholder="https://teacheron.com/…"
+                  value={form.teacheronUrl}
+                  onChange={(v) => set('teacheronUrl', v)}
+                />
+              </div>
               <TextArea
-                label="Share your portfolio / work / social profile"
-                hint="Instagram, YouTube, website, Google Drive portfolio, performances, workshops, artwork, projects or anything that helps us understand your work."
+                label="Other portfolio / work links"
+                hint="YouTube, website, Google Drive portfolio, performances, workshops, artwork, projects or anything else that helps us understand your work."
                 value={form.portfolio}
                 onChange={(v) => set('portfolio', v)}
               />
@@ -686,6 +801,19 @@ export default function ProviderPage() {
                   set('venuePreferences', toggle(form.venuePreferences, v as ClassVenuePreference))
                 }
               />
+              <HomeLocationField
+                address={form.homeAddress}
+                lat={form.homeLat}
+                lng={form.homeLng}
+                onResolve={(address, lat, lng) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    homeAddress: address,
+                    homeLat: lat,
+                    homeLng: lng,
+                  }))
+                }
+              />
               <ChoiceGroup
                 label="How far are you comfortable travelling to conduct a class?"
                 options={Object.values(TravelRadius).map((v) => ({
@@ -715,6 +843,10 @@ export default function ProviderPage() {
                 options={Object.values(TimeSlot).map((v) => ({ value: v, label: SLOT_LABELS[v] }))}
                 values={form.timeSlots}
                 onToggle={(v) => set('timeSlots', toggle(form.timeSlots, v as TimeSlot))}
+              />
+              <DateSlotPicker
+                value={form.availabilityDates}
+                onChange={(next) => set('availabilityDates', next)}
               />
               <TextArea
                 label="Tell us your preferred availability more specifically"
@@ -940,6 +1072,277 @@ function CheckGroup<T extends string>({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Availability picker: pick specific dates over the next ~2 months, and for
+ * each selected date choose one-hour slots between 9am and 9pm.
+ */
+function DateSlotPicker({
+  value,
+  onChange,
+}: {
+  value: DateAvailability[];
+  onChange: (next: DateAvailability[]) => void;
+}) {
+  const dates = useMemo(() => upcomingDates(60), []);
+  const byDate = useMemo(() => {
+    const map = new Map<string, DaySlot[]>();
+    for (const entry of value) map.set(entry.date, entry.slots);
+    return map;
+  }, [value]);
+  const [openDate, setOpenDate] = useState<string | null>(null);
+
+  function toggleDate(date: string) {
+    if (byDate.has(date)) {
+      onChange(value.filter((e) => e.date !== date));
+      if (openDate === date) setOpenDate(null);
+    } else {
+      // Default a newly-picked date to all-day; the provider trims from there.
+      onChange([...value, { date, slots: [...ALL_DAY_SLOTS] }]);
+      setOpenDate(date);
+    }
+  }
+
+  function toggleSlot(date: string, slot: DaySlot) {
+    onChange(
+      value.map((e) =>
+        e.date === date ? { ...e, slots: toggle(e.slots, slot) } : e,
+      ),
+    );
+  }
+
+  function setAll(date: string, all: boolean) {
+    onChange(
+      value.map((e) =>
+        e.date === date ? { ...e, slots: all ? [...ALL_DAY_SLOTS] : [] } : e,
+      ),
+    );
+  }
+
+  const selected = [...value].sort((a, b) => a.date.localeCompare(b.date));
+
+  return (
+    <div className="provider-label">
+      <span>Pick the dates and times you can teach</span>
+      <small className="provider-hint">
+        Choose dates in the next two months, then tap a selected date to fine-tune its
+        9am–9pm slots.
+      </small>
+
+      <div className="avail-calendar" role="group" aria-label="Available dates">
+        {dates.map((d) => {
+          const iso = isoDate(d);
+          const entry = byDate.get(iso);
+          const isSelected = entry !== undefined;
+          const isOpen = openDate === iso;
+          return (
+            <button
+              type="button"
+              key={iso}
+              className={`avail-day${isSelected ? ' selected' : ''}${isOpen ? ' open' : ''}`}
+              aria-pressed={isSelected}
+              onClick={() => (isSelected ? setOpenDate(isOpen ? null : iso) : toggleDate(iso))}
+            >
+              <small>{DATE_FMT.format(d).split(' ')[0]}</small>
+              <strong>{d.getDate()}</strong>
+              {isSelected && <span className="avail-day-count">{entry!.length}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {openDate && byDate.has(openDate) && (
+        <div className="avail-slots">
+          <div className="avail-slots-head">
+            <strong>{DATE_FMT_LONG.format(new Date(`${openDate}T00:00:00`))}</strong>
+            <div className="avail-slots-actions">
+              <button type="button" onClick={() => setAll(openDate, true)}>
+                All day
+              </button>
+              <button type="button" onClick={() => setAll(openDate, false)}>
+                Clear
+              </button>
+              <button type="button" onClick={() => toggleDate(openDate)}>
+                Remove date
+              </button>
+            </div>
+          </div>
+          <div className="provider-chips">
+            {ALL_DAY_SLOTS.map((slot) => {
+              const on = byDate.get(openDate)!.includes(slot);
+              return (
+                <button
+                  type="button"
+                  key={slot}
+                  className={on ? 'chip active' : 'chip'}
+                  aria-pressed={on}
+                  onClick={() => toggleSlot(openDate, slot)}
+                >
+                  {SLOT_HOUR_LABELS[slot]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {selected.length > 0 && (
+        <div className="avail-summary">
+          <span className="avail-summary-title">
+            Selected days ({selected.length})
+          </span>
+          <ul>
+            {selected.map((e) => (
+              <li key={e.date}>
+                <strong>{DATE_FMT.format(new Date(`${e.date}T00:00:00`))}</strong>
+                <span>
+                  {e.slots.length === 0
+                    ? 'no slots'
+                    : e.slots
+                        .slice()
+                        .sort((a, b) => Number(a) - Number(b))
+                        .map((s) => SLOT_HOUR_LABELS[s])
+                        .join(', ')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type GeoResult = { label: string; lat: number; lng: number };
+
+/**
+ * Home location: use the browser's GPS, or search an address (OpenStreetMap
+ * Nominatim) and pick a result. Both resolve to lat/lng coordinates.
+ */
+function HomeLocationField({
+  address,
+  lat,
+  lng,
+  onResolve,
+}: {
+  address: string;
+  lat: number | null;
+  lng: number | null;
+  onResolve: (address: string, lat: number | null, lng: number | null) => void;
+}) {
+  const [query, setQuery] = useState(address);
+  const [results, setResults] = useState<GeoResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [geoBusy, setGeoBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function searchAddress() {
+    const q = query.trim();
+    if (!q) return;
+    setSearching(true);
+    setError(null);
+    setResults([]);
+    try {
+      const url =
+        'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=' +
+        encodeURIComponent(q);
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!res.ok) throw new Error(`Search failed (${res.status})`);
+      const data: Array<{ display_name: string; lat: string; lon: string }> = await res.json();
+      setResults(
+        data.map((r) => ({
+          label: r.display_name,
+          lat: Number(r.lat),
+          lng: Number(r.lon),
+        })),
+      );
+      if (data.length === 0) setError('No matching address found.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Address search failed');
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function useGps() {
+    if (!('geolocation' in navigator)) {
+      setError('Geolocation is not available in this browser.');
+      return;
+    }
+    setGeoBusy(true);
+    setError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const label = `Current location (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`;
+        setQuery(label);
+        setResults([]);
+        onResolve(label, latitude, longitude);
+        setGeoBusy(false);
+      },
+      (err) => {
+        setError(err.message || 'Could not get your location.');
+        setGeoBusy(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }
+
+  function pick(r: GeoResult) {
+    setQuery(r.label);
+    setResults([]);
+    onResolve(r.label, r.lat, r.lng);
+  }
+
+  const hasCoords = lat !== null && lng !== null;
+
+  return (
+    <div className="provider-label">
+      <span>Home location</span>
+      <small className="provider-hint">
+        Use your current location or search an address. This sets the map point we
+        measure commute distance from.
+      </small>
+      <div className="home-loc-row">
+        <input
+          type="text"
+          value={query}
+          placeholder="Search an address, area or landmark"
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              void searchAddress();
+            }
+          }}
+        />
+        <button type="button" className="home-loc-btn" onClick={() => void searchAddress()} disabled={searching}>
+          {searching ? '…' : 'Search'}
+        </button>
+        <button type="button" className="home-loc-btn gps" onClick={useGps} disabled={geoBusy}>
+          <Icon name="location" size={14} /> {geoBusy ? 'Locating…' : 'GPS'}
+        </button>
+      </div>
+      {results.length > 0 && (
+        <ul className="home-loc-results">
+          {results.map((r, i) => (
+            <li key={`${r.lat},${r.lng},${i}`}>
+              <button type="button" onClick={() => pick(r)}>
+                <Icon name="location" size={13} /> {r.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {hasCoords && (
+        <p className="home-loc-coords">
+          <Icon name="check" size={13} /> Pinned at {lat!.toFixed(5)}, {lng!.toFixed(5)}
+        </p>
+      )}
+      {error && <p className="form-error">{error}</p>}
     </div>
   );
 }

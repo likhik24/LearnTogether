@@ -284,6 +284,42 @@ body > section input, body > section select, body > section button { padding: 9p
 .provider-docs li { display: flex; align-items: center; gap: 6px; padding: 9px 11px; border-radius: 10px; color: #3f7a56; background: var(--mint); font-size: 10px; font-weight: 700; overflow-wrap: anywhere; }
 .provider-upload { display: inline-flex; align-items: center; justify-content: center; margin-top: 2px; padding: 12px; border: 1px dashed #c7bbef; border-radius: 12px; color: var(--purple); background: #f7f3fd; font-size: 10px; font-weight: 800; text-transform: none; letter-spacing: 0; cursor: pointer; }
 .provider-upload input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+.provider-links { display: grid; gap: 12px; }
+
+/* Home location control */
+.home-loc-row { display: flex; flex-wrap: wrap; gap: 7px; }
+.home-loc-row input { flex: 1 1 160px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; color: var(--ink); background: white; font: inherit; font-size: 11px; outline: none; }
+.home-loc-row input:focus { border-color: var(--purple); }
+.home-loc-btn { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; padding: 0 14px; border: 1px solid #dcd1f4; border-radius: 11px; color: var(--purple); background: #f7f3fd; font-size: 10px; font-weight: 800; cursor: pointer; }
+.home-loc-btn:disabled { opacity: .6; cursor: wait; }
+.home-loc-results { display: grid; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; }
+.home-loc-results button { display: flex; align-items: center; gap: 6px; width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: white; color: var(--ink); font-size: 10px; font-weight: 600; text-align: left; cursor: pointer; }
+.home-loc-results button:hover { border-color: var(--purple); background: #faf8ff; }
+.home-loc-results svg { flex: 0 0 auto; color: var(--coral); }
+.home-loc-coords { display: flex; align-items: center; gap: 5px; margin: 8px 0 0; color: #3f7a56; font-size: 10px; font-weight: 800; }
+
+/* Availability date + slot picker */
+.avail-calendar { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; max-height: 232px; margin-top: 4px; padding: 4px; overflow-y: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.avail-day { position: relative; display: grid; place-items: center; gap: 1px; padding: 8px 2px; border: 1px solid transparent; border-radius: 11px; background: white; color: var(--ink); cursor: pointer; transition: transform .12s, border-color .12s; }
+.avail-day:hover { transform: translateY(-1px); }
+.avail-day small { color: var(--muted); font-size: 8px; font-weight: 800; text-transform: uppercase; }
+.avail-day strong { font-size: 14px; }
+.avail-day.selected { border-color: var(--purple); color: white; background: var(--purple); }
+.avail-day.selected small { color: rgba(255,255,255,.85); }
+.avail-day.open { box-shadow: 0 0 0 2px var(--coral); }
+.avail-day-count { position: absolute; top: -5px; right: -5px; display: grid; place-items: center; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 99px; background: var(--coral); color: white; font-size: 8px; font-weight: 900; }
+.avail-slots { margin-top: 10px; padding: 13px; border: 1px solid #e4dcf5; border-radius: 14px; background: #faf8ff; }
+.avail-slots-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.avail-slots-head strong { font-size: 12px; }
+.avail-slots-actions { display: flex; gap: 6px; }
+.avail-slots-actions button { padding: 5px 9px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--muted); font-size: 8px; font-weight: 800; cursor: pointer; }
+.avail-slots-actions button:hover { border-color: var(--purple); color: var(--purple); }
+.avail-summary { margin-top: 12px; padding: 12px 14px; border-radius: 13px; background: var(--mint); }
+.avail-summary-title { display: block; margin-bottom: 6px; color: #2f6a47; font-size: 9px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+.avail-summary ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.avail-summary li { display: flex; flex-wrap: wrap; gap: 4px 8px; color: #2f5a44; font-size: 10px; }
+.avail-summary li strong { min-width: 74px; font-size: 10px; }
+.avail-summary li span { color: #3f6b52; font-weight: 600; }
 
 /* Provider Studio controls ---------------------------------------- */
 .teacher-page > h1 { max-width: 440px; margin: 8px 0 12px; font-size: 38px; line-height: 1.04; letter-spacing: -.045em; }

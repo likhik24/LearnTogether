@@ -1,10 +1,13 @@
 import {
+  ArrayMaxSize,
   IsArray,
   IsEnum,
+  IsISO8601,
   IsLatitude,
   IsLongitude,
   IsOptional,
   IsString,
+  IsUrl,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -14,6 +17,7 @@ import {
   ChildAgeGroup,
   ChildrenExperience,
   ClassVenuePreference,
+  DaySlot,
   ProviderAgeBand,
   ProviderCategory,
   ProviderExperience,
@@ -29,6 +33,16 @@ export class GeoLocationDto {
 
   @IsLongitude()
   lng!: number;
+}
+
+export class DateAvailabilityDto {
+  /** ISO calendar date, `YYYY-MM-DD`. */
+  @IsISO8601()
+  date!: string;
+
+  @IsArray()
+  @IsEnum(DaySlot, { each: true })
+  slots!: DaySlot[];
 }
 
 export class UpsertProfileDto {
@@ -77,6 +91,10 @@ export class UpsertProfileDto {
 
   // Section 3 — portfolio + child experience
   @IsOptional() @IsString() portfolio?: string;
+  @IsOptional() @IsUrl({ require_protocol: true }) instagramUrl?: string;
+  @IsOptional() @IsUrl({ require_protocol: true }) preplyUrl?: string;
+  @IsOptional() @IsUrl({ require_protocol: true }) urbanproUrl?: string;
+  @IsOptional() @IsUrl({ require_protocol: true }) teacheronUrl?: string;
   @IsOptional() @IsEnum(ChildrenExperience) childrenExperience?: ChildrenExperience;
   @IsOptional() @IsString() childrenExperienceDetail?: string;
 
@@ -98,6 +116,8 @@ export class UpsertProfileDto {
 
   @IsOptional() @IsEnum(TravelRadius) travelRadius?: TravelRadius;
 
+  @IsOptional() @IsString() homeAddress?: string;
+
   // Section 5 — availability
   @IsOptional()
   @IsArray()
@@ -108,6 +128,14 @@ export class UpsertProfileDto {
   @IsArray()
   @IsEnum(TimeSlot, { each: true })
   timeSlots?: TimeSlot[];
+
+  // Specific dates (next ~2 months) with one-hour slots. Capped to a sane size.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(75)
+  @ValidateNested({ each: true })
+  @Type(() => DateAvailabilityDto)
+  availabilityDates?: DateAvailabilityDto[];
 
   @IsOptional() @IsString() preferredAvailability?: string;
   @IsOptional() @IsEnum(SessionFrequency) sessionFrequency?: SessionFrequency;

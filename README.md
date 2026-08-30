@@ -36,23 +36,99 @@ Some of the remaining services are still health-check skeletons.
 - Node.js >= 20
 - pnpm (via corepack: `corepack enable pnpm`)
 - Docker + Docker Compose
+- AWS account **960763460353** for any AWS-backed features (S3 document
+  uploads, SES email). Configure a named profile for this account and export it
+  before running commands that touch AWS.
+
+### AWS profile setup (macOS)
+
+Create a named profile `learnbuild` for account **960763460353** (one-time),
+then export it in each shell that runs AWS-backed commands.
+
+```bash
+# 1. Configure the profile (prompts for Access Key ID, Secret Access Key, region).
+#    Use us-east-1 (or your team's region) when asked for the default region.
+aws configure --profile learnbuild
+
+# 2. Export the profile for the current terminal session.
+export AWS_PROFILE=learnbuild
+
+# 3. Verify it resolves to the right account.
+aws sts get-caller-identity   # should report Account: 960763460353
+```
+
+To make the export permanent, add it to your shell profile (zsh is the default
+on macOS):
+
+```bash
+echo 'export AWS_PROFILE=learnbuild' >> ~/.zshrc
+source ~/.zshrc
+```
+
+> If you use SSO instead of long-lived keys, run
+> `aws configure sso --profile learnbuild` and sign in with
+> `aws sso login --profile learnbuild`, then `export AWS_PROFILE=learnbuild`.
+> The `Account` in the SSO account selection must be `960763460353`.
 
 ## Getting started
 
+Run these from the repo root, in order.
+
+### 1. Install dependencies
+
 ```bash
 pnpm install
+```
+
+> **Registry note.** Dependencies are all public npm packages. If your machine
+> has a `~/.npmrc` pointing pnpm at a private registry (e.g. AWS CodeArtifact)
+> whose token is expired, `pnpm install` fails with `ERR_PNPM_FETCH_401`. Since
+> nothing here is private, install from the public registry instead — this does
+> not modify your `~/.npmrc`:
+> ```bash
+> pnpm install --registry=https://registry.npmjs.org/ --config.always-auth=false
+> ```
+
+### 2. Build, test, lint (optional but recommended)
+
+```bash
 pnpm build
 pnpm test
 pnpm lint
 ```
 
-## Local infrastructure & services
+> Do **not** run `pnpm build` for the web app while its dev server is running —
+> both write to `apps/web/.next` and can corrupt the dev cache
+> (`__webpack_modules__[moduleId] is not a function`). If that happens, stop the
+> dev server, delete `apps/web/.next`, and restart it.
+
+### 3. Start the backend stack
 
 ```bash
 docker compose up --build
 ```
 
-This boots Postgres+PostGIS, OpenSearch, Redis, and all NestJS services.
+Boots Postgres+PostGIS, OpenSearch, Redis, and all NestJS services (see the
+port table below). Wait until the services report healthy.
+
+### 4. Start the web app (separate terminal)
+
+```bash
+pnpm --filter @learn-and-build/web dev
+```
+
+Open http://localhost:3100. The customer app, admin console (`/admin`), and the
+provider onboarding page (`/provider`) are all served here.
+
+## Local infrastructure & services
+
+`docker compose up --build` (step 3 above) boots Postgres+PostGIS, OpenSearch,
+Redis, and all NestJS services. To run a subset, name the services, e.g.:
+
+```bash
+docker compose up --build postgres redis opensearch auth teacher scheduling search
+```
+
 Each service exposes a health endpoint:
 
 | Service    | Port | Health URL                   |
@@ -192,6 +268,16 @@ service to have AWS credentials and a bucket (`DOCUMENTS_BUCKET`); for local
 dev, point it at MinIO/LocalStack with `S3_ENDPOINT` (path-style addressing is
 enabled automatically when set).
 
+> **AWS credentials for S3 uploads.** Teacher portfolios are stored in the
+> **`providers-profiles`** S3 bucket in AWS account **960763460353**. The
+> teacher service signs the upload URLs, so it needs credentials for that
+> account: export the profile from
+> [AWS profile setup (macOS)](#aws-profile-setup-macos)
+> (`export AWS_PROFILE=learnbuild`) before starting the service, and set
+> `DOCUMENTS_BUCKET=providers-profiles`. Without valid credentials, presigning
+> fails with `Could not load credentials from any providers` (HTTP 500 on the
+> presign call). See the step-by-step setup below.
+
 #### Configure real AWS S3 for local development
 
 The following setup uses AWS account `960763460353`, bucket
@@ -207,7 +293,7 @@ use a different account or bucket. Do not commit credentials or put them in
      --bucket providers-profiles \
      --region ap-southeast-2 \
      --create-bucket-configuration LocationConstraint=ap-southeast-2 \
-     --profile learnbuild-960
+     --profile learnbuild
    ```
 
    Keep **Block all public access** enabled. Presigned URLs do not require a
@@ -254,7 +340,7 @@ use a different account or bucket. Do not commit credentials or put them in
    aws s3api put-bucket-cors \
      --bucket providers-profiles \
      --cors-configuration file://s3-cors.json \
-     --profile learnbuild-960 \
+     --profile learnbuild \
      --region ap-southeast-2
    ```
 
@@ -262,9 +348,9 @@ use a different account or bucket. Do not commit credentials or put them in
    credentials and is preferred over creating long-lived access keys:
 
    ```bash
-   aws sso login --profile learnbuild-960
+   aws sso login --profile learnbuild
    eval "$(aws configure export-credentials \
-     --profile learnbuild-960 \
+     --profile learnbuild \
      --format env)"
    ```
 
@@ -285,10 +371,10 @@ use a different account or bucket. Do not commit credentials or put them in
 6. Verify identity, bucket access, and the teacher health endpoint:
 
    ```bash
-   aws sts get-caller-identity --profile learnbuild-960
+   aws sts get-caller-identity --profile learnbuild
    aws s3api head-bucket \
      --bucket providers-profiles \
-     --profile learnbuild-960 \
+     --profile learnbuild \
      --region ap-southeast-2
    curl http://localhost:3002/health
    ```
