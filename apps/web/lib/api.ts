@@ -17,6 +17,7 @@ export const SCHEDULING_API_URL =
   process.env.NEXT_PUBLIC_SCHEDULING_API_URL ?? '/api/scheduling';
 export const VOICE_API_URL =
   process.env.NEXT_PUBLIC_VOICE_API_URL ?? '/api/voice';
+export const PAYMENTS_API_URL = process.env.NEXT_PUBLIC_PAYMENTS_API_URL ?? '/api/payments';
 
 export function createAuthClient(token?: string): ApiClient {
   return new ApiClient({ baseUrl: AUTH_API_URL, token });
@@ -32,6 +33,10 @@ export function createTeacherClient(token?: string): ApiClient {
 
 export function createSearchClient(): ApiClient {
   return new ApiClient({ baseUrl: SEARCH_API_URL });
+}
+
+export function createPaymentsClient(token?: string): ApiClient {
+  return new ApiClient({ baseUrl: PAYMENTS_API_URL, token });
 }
 
 /**

@@ -45,7 +45,7 @@ export class Booking {
   @Column({ default: 'INR' })
   currency!: string;
 
-  @Column({ type: 'enum', enum: BookingStatus, default: BookingStatus.CONFIRMED })
+  @Column({ type: 'enum', enum: BookingStatus, default: BookingStatus.PENDING_PAYMENT })
   status!: BookingStatus;
 
   @CreateDateColumn({ name: 'created_at' })

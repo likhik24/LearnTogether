@@ -1,12 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { BookingStatus } from '@learn-and-build/types';
 import { ChildProfile } from './entities/child-profile.entity';
 import { SavedClass } from './entities/saved-class.entity';
 import { Booking } from './entities/booking.entity';
 import { CustomerNotification } from './entities/customer-notification.entity';
 import { SchedulingGateway } from './scheduling.gateway';
+import { PaymentsGateway } from './payments.gateway';
 
 const AVATAR_COLORS = ['#7c5cff', '#f0871f', '#2fb37f', '#d1477a', '#3f7ad1'];
 
@@ -22,6 +23,7 @@ export class CustomerService {
     @InjectRepository(CustomerNotification)
     private readonly notifications: Repository<CustomerNotification>,
     private readonly scheduling: SchedulingGateway,
+    private readonly payments: PaymentsGateway,
   ) {}
 
   // --- Children ---
@@ -116,6 +118,7 @@ export class CustomerService {
       currency?: string;
     },
   ): Promise<Booking> {
+    await this.payments.assertReady();
     const child = await this.children.findOne({ where: { id: input.childId, userId } });
     if (!child)
       throw new BadRequestException('Select a child profile that belongs to your account');
@@ -137,7 +140,7 @@ export class CustomerService {
         userId,
         classRef: offering.id,
         scheduledStart,
-        status: BookingStatus.CONFIRMED,
+        status: In([BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED]),
       },
     });
     if (existing) {
@@ -166,7 +169,7 @@ export class CustomerService {
           scheduledStart,
           amountMinor: offering.priceMinor,
           currency: offering.currency,
-          status: BookingStatus.CONFIRMED,
+          status: BookingStatus.PENDING_PAYMENT,
         }),
       );
     } catch (error) {
@@ -178,8 +181,8 @@ export class CustomerService {
     await this.notify(
       userId,
       'booking',
-      `${booking.title} confirmed`,
-      'Your trial-class spot is ready. You can review or cancel it from Bookings.',
+      `${booking.title} is awaiting payment`,
+      'Complete payment within 20 minutes to confirm this trial-class spot.',
     );
     return booking;
   }
@@ -188,6 +191,7 @@ export class CustomerService {
     const booking = await this.bookings.findOne({ where: { id, userId } });
     if (!booking) throw new NotFoundException('Booking not found');
     if (booking.status === BookingStatus.CANCELLED) return booking;
+    await this.payments.refund(authorization, booking.id);
     if (booking.reservationId) {
       await this.scheduling.release(authorization, booking.classRef, booking.reservationId);
     }

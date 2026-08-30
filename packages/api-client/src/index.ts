@@ -2,6 +2,8 @@ import type {
   AuthTokenResponse,
   AvailabilityDay,
   BookingDto,
+  PaymentDto,
+  PaymentIntentResponse,
   ChildAgeGroup,
   ChildrenExperience,
   ClassOccurrence,
@@ -435,6 +437,26 @@ export class ApiClient {
 
   cancelBooking(id: string): Promise<BookingDto> {
     return this.request<BookingDto>(`/customer/bookings/${id}/cancel`, { method: 'PATCH' });
+  }
+
+  paymentReady(): Promise<{ ready: boolean; provider: string }> {
+    return this.request<{ ready: boolean; provider: string }>('/payments/ready');
+  }
+
+  createPaymentIntent(bookingId: string): Promise<PaymentIntentResponse> {
+    return this.request<PaymentIntentResponse>('/payments/intents', {
+      method: 'POST', body: JSON.stringify({ bookingId }),
+    });
+  }
+
+  verifyPayment(id: string, input: { providerOrderId: string; providerPaymentId: string; signature: string }): Promise<PaymentDto> {
+    return this.request<PaymentDto>(`/payments/${id}/verify`, {
+      method: 'POST', body: JSON.stringify(input),
+    });
+  }
+
+  paymentForBooking(bookingId: string): Promise<PaymentDto | null> {
+    return this.request<PaymentDto | null>(`/payments/booking/${bookingId}`);
   }
 
   listNotifications(unreadOnly = false): Promise<CustomerNotificationDto[]> {

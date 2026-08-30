@@ -7,6 +7,7 @@ import { ChildProfile } from './entities/child-profile.entity';
 import { CustomerNotification } from './entities/customer-notification.entity';
 import { SavedClass } from './entities/saved-class.entity';
 import { SchedulingGateway } from './scheduling.gateway';
+import { PaymentsGateway } from './payments.gateway';
 
 type Repo<T extends ObjectLiteral> = jest.Mocked<
   Pick<Repository<T>, 'create' | 'save' | 'find' | 'findOne' | 'delete' | 'update'>
@@ -29,6 +30,7 @@ describe('CustomerService', () => {
   let bookings: Repo<Booking>;
   let notifications: Repo<CustomerNotification>;
   let scheduling: jest.Mocked<Pick<SchedulingGateway, 'getClass' | 'reserve' | 'release'>>;
+  let payments: jest.Mocked<Pick<PaymentsGateway, 'assertReady' | 'refund'>>;
   let service: CustomerService;
 
   beforeEach(() => {
@@ -37,12 +39,14 @@ describe('CustomerService', () => {
     bookings = repository();
     notifications = repository();
     scheduling = { getClass: jest.fn(), reserve: jest.fn(), release: jest.fn() };
+    payments = { assertReady: jest.fn().mockResolvedValue(undefined), refund: jest.fn().mockResolvedValue(undefined) };
     service = new CustomerService(
       children as unknown as Repository<ChildProfile>,
       saved as unknown as Repository<SavedClass>,
       bookings as unknown as Repository<Booking>,
       notifications as unknown as Repository<CustomerNotification>,
       scheduling as unknown as SchedulingGateway,
+      payments as unknown as PaymentsGateway,
     );
   });
 
@@ -139,6 +143,7 @@ describe('CustomerService', () => {
     expect(booking.status).toBe(BookingStatus.CANCELLED);
     expect(scheduling.reserve).toHaveBeenCalledTimes(1);
     expect(scheduling.release).toHaveBeenCalledTimes(1);
+    expect(payments.refund).toHaveBeenCalledWith('Bearer token', 'booking-1');
     expect(notifications.save).toHaveBeenCalledTimes(2);
   });
 

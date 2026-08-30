@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { BookingDto } from '@learn-and-build/types';
 import { BookingStatus } from '@learn-and-build/types';
 import { getCustomerClient, hydrateCustomerSession } from '../../lib/customer-session';
+import { runPaymentCheckout } from '../../lib/payment-checkout';
 import { AppHeader, BottomNav, Icon } from '../ui';
 import { ChildName } from '../child-name';
 
@@ -16,6 +17,7 @@ export default function BookingsPage() {
   const [cancelTarget, setCancelTarget] = useState<BookingDto | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
 
   const loadBookings = useCallback(async () => {
     setError(null);
@@ -33,7 +35,7 @@ export default function BookingsPage() {
     setPageState('loading');
     try {
       const items = await client.listBookings();
-      setBookings(items.filter((item) => item.status === BookingStatus.CONFIRMED));
+      setBookings(items.filter((item) => item.status !== BookingStatus.CANCELLED));
       setPageState('ready');
     } catch {
       setPageState('error');
@@ -64,6 +66,23 @@ export default function BookingsPage() {
       setCancelTarget(null);
     } finally {
       setCancelling(false);
+    }
+  }
+
+  async function completePayment(booking: BookingDto) {
+    setPayingId(booking.id);
+    setError(null);
+    try {
+      await runPaymentCheckout(booking);
+      setBookings((items) =>
+        items.map((item) =>
+          item.id === booking.id ? { ...item, status: BookingStatus.CONFIRMED } : item,
+        ),
+      );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Payment could not be completed.');
+    } finally {
+      setPayingId(null);
     }
   }
 
@@ -144,7 +163,9 @@ export default function BookingsPage() {
                     <small>{weekday}</small>
                   </div>
                   <div>
-                    <span className="status-pill">CONFIRMED</span>
+                    <span className={`status-pill ${booking.status === BookingStatus.PENDING_PAYMENT ? 'pending' : ''}`}>
+                      {booking.status === BookingStatus.PENDING_PAYMENT ? 'PAYMENT PENDING' : 'CONFIRMED'}
+                    </span>
                     <h2>{booking.title}</h2>
                     <p>
                       {new Intl.DateTimeFormat('en-IN', {
@@ -157,10 +178,15 @@ export default function BookingsPage() {
                     </p>
                     <small>
                       {booking.childName ? `For ${booking.childName} • ` : ''}₹
-                      {booking.amountMinor / 100} payable at venue • Synced with your account
+                      {booking.amountMinor / 100} {booking.status === BookingStatus.PENDING_PAYMENT ? 'due online' : 'paid'} • Synced with your account
                     </small>
                   </div>
                   <div className="booking-actions">
+                    {booking.status === BookingStatus.PENDING_PAYMENT && (
+                      <button onClick={() => void completePayment(booking)} disabled={payingId === booking.id}>
+                        {payingId === booking.id ? 'Opening payment…' : 'Pay now'}
+                      </button>
+                    )}
                     <Link href={`/classes/${booking.classSlug ?? booking.classRef}`}>
                       View details
                     </Link>

@@ -184,7 +184,25 @@ route below requires a bearer JWT and is scoped to that user.
 
 Booking and profile actions create notifications automatically. Booking calls
 the scheduling service to reserve inventory transactionally before persisting
-the customer record. Payment capture remains a separate, unfinished concern.
+the customer record. New bookings remain `pending_payment` until the Payments
+service creates a Razorpay Order, verifies the checkout signature, and confirms
+the captured amount and currency with Razorpay. Abandoned holds expire after
+20 minutes; paid cancellations are refunded before inventory is released.
+
+### Payments (Razorpay)
+
+| Method | Route                               | Purpose                               |
+| ------ | ----------------------------------- | ------------------------------------- |
+| GET    | /payments/ready                     | Gateway readiness                     |
+| POST   | /payments/intents                   | Create/reuse an order for a booking   |
+| POST   | /payments/:id/verify                | Verify and confirm captured payment   |
+| GET    | /payments/booking/:bookingId        | Read owned booking payment            |
+| POST   | /payments/booking/:bookingId/refund | Refund before booking cancellation    |
+| POST   | /payments/webhooks/razorpay         | Signed, idempotent webhook processing |
+
+Local Docker uses the mock provider. Production requires
+`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and a separate
+`RAZORPAY_WEBHOOK_SECRET`; secrets never reach browser code.
 
 ### OIDC (Google + AWS Cognito)
 

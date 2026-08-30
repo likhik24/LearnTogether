@@ -124,6 +124,32 @@ services:
       retries: 10
       start_period: 45s
 
+  payments:
+    <<: *app-defaults
+    build:
+      context: ..
+      dockerfile: services/payments/Dockerfile
+    environment:
+      <<: *database-environment
+      PORT: 3007
+      PAYMENTS_PROVIDER: razorpay
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:?Set RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:?Set RAZORPAY_KEY_SECRET}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:?Set RAZORPAY_WEBHOOK_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      auth:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:3007/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+
   auth:
     <<: *app-defaults
     build:
@@ -140,6 +166,7 @@ services:
       AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM:-}
       AWS_REGION: ${AWS_REGION:-ap-southeast-2}
       SCHEDULING_API_URL: http://scheduling:3004
+      PAYMENTS_API_URL: http://payments:3007
       CORS_ORIGIN: https://learnandbuild.org
       OIDC_REDIRECT_BASE: https://learnandbuild.org/api/auth
       OIDC_SUCCESS_REDIRECT: ${OIDC_SUCCESS_REDIRECT:-https://learnandbuild.org/profile}
@@ -277,11 +304,13 @@ services:
         NEXT_PUBLIC_SEARCH_API_URL: /api/search
         NEXT_PUBLIC_SCHEDULING_API_URL: /api/scheduling
         NEXT_PUBLIC_VOICE_API_URL: /api/voice
+        NEXT_PUBLIC_PAYMENTS_API_URL: /api/payments
         AUTH_SERVICE_ORIGIN: http://auth:3001
         TEACHER_SERVICE_ORIGIN: http://teacher:3002
         SEARCH_SERVICE_ORIGIN: http://search:3003
         SCHEDULING_SERVICE_ORIGIN: http://scheduling:3004
         VOICE_SERVICE_ORIGIN: http://voice:3005
+        PAYMENTS_SERVICE_ORIGIN: http://payments:3007
     environment:
       NODE_ENV: production
       PORT: 3100
@@ -290,6 +319,7 @@ services:
       SEARCH_SERVICE_ORIGIN: http://search:3003
       SCHEDULING_SERVICE_ORIGIN: http://scheduling:3004
       VOICE_SERVICE_ORIGIN: http://voice:3005
+      PAYMENTS_SERVICE_ORIGIN: http://payments:3007
     depends_on:
       auth:
         condition: service_healthy
@@ -300,6 +330,8 @@ services:
       search:
         condition: service_healthy
       voice:
+        condition: service_healthy
+      payments:
         condition: service_healthy
     healthcheck:
       test:

@@ -67,6 +67,7 @@ services:
       OPENSEARCH_URL: http://opensearch:9200
       JWT_SECRET: dev-insecure-secret
       JWT_EXPIRES_IN: 1h
+      PAYMENTS_API_URL: http://payments:3007
       ADMIN_EMAIL: admin@learnbuild.local
       ADMIN_PASSWORD: change-me-now
       ADMIN_NAME: Administrator
@@ -262,12 +263,17 @@ services:
       PORT: 3007
       DATABASE_URL: postgres://learnbuild:learnbuild@postgres:5432/learnbuild
       REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-insecure-secret
+      PAYMENTS_PROVIDER: mock
+      DB_SYNCHRONIZE: 'true'
     ports:
       - '3007:3007'
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      auth:
         condition: service_healthy
     healthcheck:
       test:

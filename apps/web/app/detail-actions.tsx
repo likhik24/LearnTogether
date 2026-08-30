@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ApiError } from '@learn-and-build/api-client';
 import { getCustomerClient, hydrateCustomerSession } from '../lib/customer-session';
 import { createSchedulingClient } from '../lib/api';
+import { runPaymentCheckout } from '../lib/payment-checkout';
 import { Icon } from './ui';
 import type { ClassCardData } from './data';
 import type { ChildProfileDto, ClassOccurrence } from '@learn-and-build/types';
@@ -237,7 +238,7 @@ export function BookingBar({
       return;
     }
     try {
-      await customerClient.createBooking({
+      const booking = await customerClient.createBooking({
         childId: selectedChild.id,
         classRef: inventory.classId,
         classSlug: classRef,
@@ -246,6 +247,7 @@ export function BookingBar({
         amountMinor: price * 100,
         currency: 'INR',
       });
+      await runPaymentCheckout(booking);
       setStep('booked');
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) {
@@ -257,7 +259,9 @@ export function BookingBar({
         setBookingError(
           caught instanceof Error && caught.message.includes('sold out')
             ? 'That class has just sold out. Please choose another time.'
-            : 'We could not reserve a seat. Nothing was booked—please try again.',
+            : caught instanceof Error
+              ? caught.message
+              : 'We could not complete payment. Please try again.',
         );
       }
     } finally {
@@ -394,17 +398,19 @@ export function BookingBar({
                   disabled={bookingPending || !eligibility?.eligible}
                   onClick={() => void confirmBooking()}
                 >
-                  {bookingPending ? 'Reserving…' : `Reserve for ${selectedChild?.name ?? 'child'}`}
+                  {bookingPending
+                    ? 'Opening secure payment…'
+                    : `Pay ₹${price} & reserve for ${selectedChild?.name ?? 'child'}`}
                 </button>
                 {bookingError && <small className="booking-error">{bookingError}</small>}
-                <small>₹{price} is payable at the venue. Nothing is charged online.</small>
+                <small>Secure online checkout. Your seat is confirmed after payment succeeds.</small>
               </>
             ) : (
               <>
                 <span className="eyebrow purple">BOOKING CONFIRMED</span>
                 <h2>You’re all set.</h2>
                 <p>
-                  We’ve added the workshop to your bookings.
+                  Payment received and the workshop is in your bookings.
                   <br />
                   {scheduleLabel}
                 </p>
