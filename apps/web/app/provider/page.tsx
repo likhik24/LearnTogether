@@ -1,5 +1,4 @@
 'use client';
-'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -29,6 +28,7 @@ import {
 } from '@learn-and-build/api-client';
 import { createAuthClient, createTeacherClient } from '../../lib/api';
 import {
+  hydrateCustomerSession,
   readCustomerUser,
   saveCustomerSession,
   signOutCustomerSession,
@@ -336,16 +336,22 @@ export default function ProviderPage() {
 
   // Restore any existing session + saved profile on load.
   useEffect(() => {
-    const existing = readCustomerUser();
-    setUser(existing);
-    if (existing) {
+    let active = true;
+    void hydrateCustomerSession().then((existing) => {
+      if (!active) return;
+      if (existing && existing.role !== Role.TEACHER) {
+        setAuthError(
+          'This account is not a provider account. Choose “Create account” to become a provider.',
+        );
+        return;
+      }
+      setUser(existing);
+      if (!existing) return;
       setForm((current) => ({
         ...current,
         fullName: current.fullName || existing.displayName,
         email: current.email || existing.email,
       }));
-    }
-    if (existing) {
       createTeacherClient()
         .getMyTeacherProfile()
         .then((profile) => {
@@ -357,7 +363,10 @@ export default function ProviderPage() {
         .catch(() => {
           /* No profile yet — start from an empty form. */
         });
-    }
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -386,6 +395,8 @@ export default function ProviderPage() {
               displayName,
               role: Role.TEACHER,
             });
+      if (response.user.role !== Role.TEACHER)
+        throw new Error('This account is not a provider account.');
       saveCustomerSession(response.accessToken, response.user);
       setUser(response.user);
       setForm((prev) => ({

@@ -14,6 +14,11 @@ network, and Next rewrites `/api/*` requests to the appropriate service.
    - confirm the S3 bucket and AWS region;
    - add optional OIDC credentials only when needed.
    - set `AUTH_EMAIL_FROM` to an address on an SES-verified domain.
+   - add the Razorpay key ID, key secret, and a separately generated webhook
+     secret. Start with Test Mode credentials until the complete checkout and
+     refund flow has been verified.
+   - keep the generated `INTERNAL_SERVICE_SECRET` private; it authorizes the
+     auth service—not browsers—to request refunds from the payments service.
 4. Allow the production web origins to upload provider PDFs directly through
    presigned URLs:
 
@@ -61,14 +66,14 @@ network, and Next rewrites `/api/*` requests to the appropriate service.
    ```
 
 7. For a brand-new empty database only, leave `DB_SYNCHRONIZE=true` until
-   `auth`, `teacher`, and `scheduling` are healthy. Then set it to `false` and
+   `auth`, `teacher`, `scheduling`, and `payments` are healthy. Then set it to `false` and
    recreate those services:
 
    ```bash
    docker compose \
      --env-file deploy/.env.production \
      -f deploy/docker-compose.production.yml \
-     up -d --force-recreate auth teacher scheduling
+     up -d --force-recreate auth teacher scheduling payments web
    ```
 
 Do not enable `DB_SYNCHRONIZE` again after real customer data exists. Future
@@ -95,6 +100,19 @@ docker compose \
 `scripts/run-production-migrations.sh` remains available for an explicit
 operator-run migration or recovery. A failed migration exits non-zero and
 prevents dependent services from starting; do not bypass that gate.
+
+## Razorpay activation
+
+In the Razorpay dashboard, create a webhook pointing to:
+
+`https://learnandbuild.org/api/payments/payments/webhooks/razorpay`
+
+Subscribe to `payment.captured`, `payment.failed`, and `order.paid`, and use the
+same webhook secret stored as `RAZORPAY_WEBHOOK_SECRET`. Test successful
+payment, declined payment, checkout dismissal and retry, abandoned-seat expiry,
+and a paid booking cancellation/refund before replacing Test Mode keys with
+Live Mode keys. Never put the Razorpay key secret or webhook secret in a
+`NEXT_PUBLIC_*` variable.
 
 ## Cloudflare
 

@@ -556,20 +556,24 @@ export enum PaymentStatus {
 export interface PaymentDto {
   id: string;
   userId: string;
+  bookingId: string;
   classId: string;
   amountMinor: number;
   currency: string;
   status: PaymentStatus;
   provider: string;
   providerRef: string | null;
+  providerOrderId: string | null;
+  failureReason: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-/** Response when creating a payment: includes client secret for the provider. */
+/** Checkout-safe order data. Provider secrets remain server-side. */
 export interface PaymentIntentResponse {
   payment: PaymentDto;
-  clientSecret: string;
+  publicKey: string;
+  providerOrderId: string;
 }
 
 /** A child belonging to the signed-in parent account. */
@@ -594,6 +598,7 @@ export interface SavedClassDto {
 }
 
 export enum BookingStatus {
+  PENDING_PAYMENT = 'pending_payment',
   CONFIRMED = 'confirmed',
   CANCELLED = 'cancelled',
 }

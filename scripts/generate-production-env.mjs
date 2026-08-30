@@ -22,6 +22,8 @@ const secret = (bytes) => randomBytes(bytes).toString('base64url');
 contents = contents
   .replace('generate-a-long-alphanumeric-secret', secret(24))
   .replace('generate-at-least-32-random-bytes', secret(48))
+  .replace('generate-a-separate-internal-service-secret', secret(48))
+  .replace('generate-a-separate-32-byte-random-secret', secret(32))
   .replace('generate-a-long-random-password', secret(24));
 await writeFile(outputPath, contents, { mode: 0o600 });
 await chmod(outputPath, 0o600);

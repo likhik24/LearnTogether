@@ -9,6 +9,7 @@ const ORIGINS = {
   search: process.env.SEARCH_SERVICE_ORIGIN ?? 'http://localhost:3003',
   scheduling: process.env.SCHEDULING_SERVICE_ORIGIN ?? 'http://localhost:3004',
   voice: process.env.VOICE_SERVICE_ORIGIN ?? 'http://localhost:3005',
+  payments: process.env.PAYMENTS_SERVICE_ORIGIN ?? 'http://localhost:3007',
 };
 
 const nextConfig = {
@@ -30,6 +31,7 @@ const nextConfig = {
         destination: `${ORIGINS.scheduling}/:path*`,
       },
       { source: '/api/voice/:path*', destination: `${ORIGINS.voice}/:path*` },
+      { source: '/api/payments/:path*', destination: `${ORIGINS.payments}/:path*` },
     ];
   },
   async headers() {
@@ -39,11 +41,12 @@ const nextConfig = {
       "form-action 'self'",
       "frame-ancestors 'none'",
       "object-src 'none'",
-      "script-src 'self' 'unsafe-inline'",
+      "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://api.mapbox.com https://*.mapbox.com",
+      "connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://api.mapbox.com https://*.mapbox.com https://api.razorpay.com https://*.razorpay.com",
+      "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com",
       "worker-src 'self' blob:",
     ].join('; ');
     return [

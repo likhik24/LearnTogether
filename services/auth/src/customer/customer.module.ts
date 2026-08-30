@@ -9,6 +9,7 @@ import { CustomerNotification } from './entities/customer-notification.entity';
 import { CustomerService } from './customer.service';
 import { CustomerController } from './customer.controller';
 import { SchedulingGateway } from './scheduling.gateway';
+import { PaymentsGateway } from './payments.gateway';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { SchedulingGateway } from './scheduling.gateway';
     TypeOrmModule.forFeature([ChildProfile, SavedClass, Booking, CustomerNotification]),
   ],
   controllers: [CustomerController],
-  providers: [CustomerService, SchedulingGateway, JwtStrategy],
+  providers: [CustomerService, SchedulingGateway, PaymentsGateway, JwtStrategy],
   exports: [CustomerService],
 })
 export class CustomerModule {}
