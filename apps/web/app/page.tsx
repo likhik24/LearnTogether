@@ -25,7 +25,7 @@ export default function HomePage() {
           </div>
           <span>→</span>
         </Link>
-        <Link className="trust-note provider-cta" href="/provider">
+        <Link className="trust-note provider-cta" href="/teacher">
           <Icon name="star" size={22} />
           <div>
             <strong>Provider sign in or apply</strong>

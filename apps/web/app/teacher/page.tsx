@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
   ClassOfferingStatus,
@@ -21,6 +20,7 @@ import {
 } from '../../lib/customer-session';
 import { AppHeader, ProviderNav } from '../ui';
 import { OidcButtons } from '../oidc-buttons';
+import { ProviderProfileForm } from './provider-profile';
 
 type ScheduleRow = { weekday: number; start: string };
 const categoryOptions = PROVIDER_CATEGORY_TAXONOMY.map((item) => item.label);
@@ -292,10 +292,12 @@ export default function TeacherPage() {
             <span className="eyebrow purple">PROVIDER ACCOUNT REQUIRED</span>
             <h2>Continue your educator setup first.</h2>
             <p>
-              {customerAccount.email} is currently a family account. Continue through provider
-              onboarding to use the same login for teaching.
+              {customerAccount.email} is currently a family account. Sign out and create a
+              provider account to teach with the same email.
             </p>
-            <Link className="primary-wide" href="/provider">Continue as a provider</Link>
+            <button className="primary-wide" type="button" onClick={() => void signOut()}>
+              Sign out to become a provider
+            </button>
           </section>
         ) : !user ? (
           <>
@@ -363,7 +365,7 @@ export default function TeacherPage() {
             <p>
               Add your teaching background and availability before creating classes for review.
             </p>
-            <Link className="primary-wide" href="/provider">Complete provider profile</Link>
+            <ProviderProfileForm />
             <button className="secondary-wide" type="button" onClick={() => void signOut()}>
               Sign out of provider account
             </button>
@@ -373,8 +375,19 @@ export default function TeacherPage() {
             <section className="provider-status-line">
               Profile review: <strong>{verificationStatus.replaceAll('_', ' ')}</strong>. You can
               prepare classes now; a class cannot be approved for families until your identity
-              review is approved. <Link href="/provider">View provider profile</Link>
+              review is approved.
             </section>
+            <section className="provider-profile-block">
+              <div className="section-heading">
+                <h2>Your provider profile</h2>
+              </div>
+              <p className="section-hint">
+                Set what you teach, your availability over the next two months, your home
+                location, how far you’ll travel, and links to your public class profiles.
+              </p>
+              <ProviderProfileForm />
+            </section>
+
             <form className="provider-form" onSubmit={publish}>
               <div className="provider-section">
                 <div className="section-heading">

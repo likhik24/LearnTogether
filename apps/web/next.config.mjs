@@ -35,17 +35,28 @@ const nextConfig = {
     ];
   },
   async headers() {
+    // Next.js dev mode (React Fast Refresh) evaluates code via eval(), which
+    // needs 'unsafe-eval'. Only relax the policy outside production so the
+    // deployed app keeps the stricter script-src.
+    const isDev = process.env.NODE_ENV !== 'production';
+    const scriptSrc = [
+      "script-src 'self' 'unsafe-inline'",
+      isDev ? "'unsafe-eval'" : '',
+      'https://checkout.razorpay.com',
+    ]
+      .filter(Boolean)
+      .join(' ');
     const csp = [
       "default-src 'self'",
       "base-uri 'self'",
       "form-action 'self'",
       "frame-ancestors 'none'",
       "object-src 'none'",
-      "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com",
+      scriptSrc,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://api.mapbox.com https://*.mapbox.com https://api.razorpay.com https://*.razorpay.com https://*.amazonaws.com",
+      "connect-src 'self' https://nominatim.openstreetmap.org https://tiles.openfreemap.org https://*.openfreemap.org https://api.mapbox.com https://*.mapbox.com https://api.razorpay.com https://*.razorpay.com https://*.amazonaws.com",
       "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com",
       "worker-src 'self' blob:",
     ].join('; ');
