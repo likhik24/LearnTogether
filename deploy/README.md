@@ -33,10 +33,20 @@ network, and Next rewrites `/api/*` requests to the appropriate service.
      up -d --build
    ```
 
-6. Apply the reviewed migrations, then verify container and endpoint health:
+6. Start the stack. The one-shot `migrate` service applies every reviewed SQL
+   migration before the database-backed application services start. Then
+   verify the migration and endpoint health:
 
    ```bash
-   bash scripts/run-production-migrations.sh
+   docker compose \
+     --env-file deploy/.env.production \
+     -f deploy/docker-compose.production.yml \
+     up -d --build
+
+   docker compose \
+     --env-file deploy/.env.production \
+     -f deploy/docker-compose.production.yml \
+     logs migrate
 
    docker compose \
      --env-file deploy/.env.production \
@@ -66,16 +76,25 @@ schema changes must use reviewed migrations.
 
 ## Updating an existing deployment
 
-Apply migrations while the current version is still running, then rebuild the
-services. The migrations are transactional and idempotent.
+Pull the reviewed release and rebuild the stack. The one-shot `migrate`
+service runs transactional, idempotent migrations before auth, scheduling, and
+teacher services are allowed to start.
 
 ```bash
-bash scripts/run-production-migrations.sh
 docker compose \
   --env-file deploy/.env.production \
   -f deploy/docker-compose.production.yml \
   up -d --build
+
+docker compose \
+  --env-file deploy/.env.production \
+  -f deploy/docker-compose.production.yml \
+  logs migrate
 ```
+
+`scripts/run-production-migrations.sh` remains available for an explicit
+operator-run migration or recovery. A failed migration exits non-zero and
+prevents dependent services from starting; do not bypass that gate.
 
 ## Cloudflare
 

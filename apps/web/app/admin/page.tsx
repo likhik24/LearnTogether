@@ -158,7 +158,7 @@ export default function AdminPage() {
             <div className="admin-oidc">
               <span>Or continue with</span>
               {providers.map((provider) => (
-                <a key={provider.id} href={provider.loginUrl}>
+                <a key={provider.id} href={`${provider.loginUrl}?returnTo=%2Fadmin`}>
                   Sign in with {provider.label}
                 </a>
               ))}

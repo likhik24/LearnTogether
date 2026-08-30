@@ -4,12 +4,15 @@ import { UsersService } from '../../users/users.service';
 import { AuthService } from '../auth.service';
 import type { SessionMetadata, SessionResult } from '../auth.service';
 import { OidcConfigService, type OidcProviderConfig } from './oidc-config.service';
+import { Role } from '@learn-and-build/types';
 
 interface AuthTransaction {
   slug: string;
   nonce: string;
   codeVerifier: string;
   createdAt: number;
+  returnTo: string;
+  requestedRole: Role.USER | Role.TEACHER;
 }
 
 const TX_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -52,7 +55,11 @@ export class OidcService {
   }
 
   /** Builds the provider authorization URL and records the login transaction. */
-  async createAuthorizationUrl(slug: string): Promise<string> {
+  async createAuthorizationUrl(
+    slug: string,
+    returnTo = '/profile',
+    requestedRole: Role.USER | Role.TEACHER = Role.USER,
+  ): Promise<string> {
     const provider = this.requireProvider(slug);
     const client = await this.getClient(provider);
 
@@ -67,6 +74,8 @@ export class OidcService {
       nonce,
       codeVerifier,
       createdAt: Date.now(),
+      returnTo: safeReturnTo(returnTo),
+      requestedRole,
     });
 
     return client.authorizationUrl({
@@ -83,7 +92,7 @@ export class OidcService {
     slug: string,
     params: Record<string, string>,
     metadata: SessionMetadata = {},
-  ): Promise<SessionResult> {
+  ): Promise<{ session: SessionResult; returnTo: string }> {
     const provider = this.requireProvider(slug);
     const client = await this.getClient(provider);
 
@@ -110,10 +119,11 @@ export class OidcService {
       providerSubject: claims.sub,
       email: String(claims.email),
       displayName: String(claims.name ?? claims.email),
+      role: tx.requestedRole,
     });
 
     this.logger.log(`OIDC login via ${slug} for ${user.email}`);
-    return this.auth.issueTokenFor(user, metadata);
+    return { session: await this.auth.issueTokenFor(user, metadata), returnTo: tx.returnTo };
   }
 
   private pruneTransactions(): void {
@@ -124,4 +134,8 @@ export class OidcService {
       }
     }
   }
+}
+
+function safeReturnTo(value: string): string {
+  return value.startsWith('/') && !value.startsWith('//') ? value : '/profile';
 }

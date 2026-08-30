@@ -3,13 +3,18 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ClassCardData } from '../data';
 
-const HITECH_CITY: [number, number] = [78.3915, 17.4485];
-
-export function RealDiscoveryMap({ items, selectedSlug, onSelect, recenterKey }: {
+export function RealDiscoveryMap({
+  items,
+  selectedSlug,
+  onSelect,
+  recenterKey,
+  origin = { lat: 17.4485, lng: 78.3915 },
+}: {
   items: ClassCardData[];
   selectedSlug?: string;
   onSelect: (slug: string) => void;
   recenterKey: number;
+  origin?: { lat: number; lng: number };
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import('maplibre-gl').Map | null>(null);
@@ -24,7 +29,12 @@ export function RealDiscoveryMap({ items, selectedSlug, onSelect, recenterKey }:
       const style = token
         ? `https://api.mapbox.com/styles/v1/mapbox/streets-v12?access_token=${encodeURIComponent(token)}`
         : 'https://tiles.openfreemap.org/styles/liberty';
-      const map = new maplibregl.Map({ container: container.current, style, center: HITECH_CITY, zoom: 13.5 });
+      const map = new maplibregl.Map({
+        container: container.current,
+        style,
+        center: [origin.lng, origin.lat],
+        zoom: 13.5,
+      });
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
       mapRef.current = map;
       setMapReady(true);
@@ -48,25 +58,38 @@ export function RealDiscoveryMap({ items, selectedSlug, onSelect, recenterKey }:
         if (item.latitude === undefined || item.longitude === undefined) return [];
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = selectedSlug === item.slug ? 'real-map-price-pin active' : 'real-map-price-pin';
+        button.className =
+          selectedSlug === item.slug ? 'real-map-price-pin active' : 'real-map-price-pin';
         button.textContent = `₹${item.price}`;
         button.setAttribute('aria-label', `Select ${item.title}, ₹${item.price}`);
         button.addEventListener('click', () => onSelect(item.slug));
-        return [new maplibregl.Marker({ element: button, anchor: 'bottom' })
-          .setLngLat([item.longitude, item.latitude])
-          .addTo(mapRef.current!)];
+        return [
+          new maplibregl.Marker({ element: button, anchor: 'bottom' })
+            .setLngLat([item.longitude, item.latitude])
+            .addTo(mapRef.current!),
+        ];
       });
     });
-    return () => { disposed = true; };
+    return () => {
+      disposed = true;
+    };
   }, [items, mapReady, onSelect, selectedSlug]);
 
   useEffect(() => {
     const selected = items.find((item) => item.slug === selectedSlug);
-    const center: [number, number] = selected?.longitude !== undefined && selected.latitude !== undefined
-      ? [selected.longitude, selected.latitude]
-      : HITECH_CITY;
+    const center: [number, number] =
+      selected?.longitude !== undefined && selected.latitude !== undefined
+        ? [selected.longitude, selected.latitude]
+        : [origin.lng, origin.lat];
     mapRef.current?.flyTo({ center, zoom: selected ? 14.5 : 13.5, essential: true });
-  }, [items, mapReady, recenterKey, selectedSlug]);
+  }, [items, mapReady, origin.lat, origin.lng, recenterKey, selectedSlug]);
 
-  return <div ref={container} className="discovery-map real-map" role="application" aria-label="Interactive map of nearby classes" />;
+  return (
+    <div
+      ref={container}
+      className="discovery-map real-map"
+      role="application"
+      aria-label="Interactive map of nearby classes"
+    />
+  );
 }

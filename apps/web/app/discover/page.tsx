@@ -2,62 +2,51 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createSchedulingClient, createSearchClient } from '../../lib/api';
-import { getCustomerClient } from '../../lib/customer-session';
+import { getPrimaryChild, hydrateCustomerSession } from '../../lib/customer-session';
 import { toClassCard } from '../../lib/class-data';
-import { categories, classes, type ClassCardData } from '../data';
+import { categories, type ClassCardData } from '../data';
 import { AppHeader, BottomNav, ClassCard, Icon } from '../ui';
 import { RealDiscoveryMap } from './real-discovery-map';
+import { readCustomerLocation, subscribeCustomerLocation } from '../../lib/customer-location';
 
 const filters = ['All', 'Today', 'Tomorrow', 'Weekend', 'Nearby'];
 const viewModes = ['Categories', 'List', 'Map'] as const;
 type ViewMode = (typeof viewModes)[number];
 
-const origin = { lat: 17.4485, lng: 78.3915 };
-
 export default function DiscoverPage() {
+  const [origin, setOrigin] = useState(readCustomerLocation);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('Categories');
-  const [allClasses, setAllClasses] = useState<ClassCardData[]>(classes);
-  const [selectedSlug, setSelectedSlug] = useState(classes[0].slug);
+  const [allClasses, setAllClasses] = useState<ClassCardData[]>([]);
+  const [selectedSlug, setSelectedSlug] = useState('');
   const [recenterKey, setRecenterKey] = useState(0);
-  const [dataStatus, setDataStatus] = useState<'loading' | 'live' | 'offline'>('loading');
+  const [dataStatus, setDataStatus] = useState<'loading' | 'live' | 'error'>('loading');
   const [childName, setChildName] = useState<string | null>(null);
   const [childInterests, setChildInterests] = useState<string[]>([]);
   const searchInput = useRef<HTMLInputElement>(null);
 
-  // Load the signed-in parent's child (with a local fallback) so the page is
-  // personalized to their child and interests, not a hardcoded sample.
+  // Personalize only from the authenticated, server-backed child profile.
   useEffect(() => {
-    function applyLocal() {
-      try {
-        const raw = window.localStorage.getItem('learn-together-child-profile');
-        if (!raw) return;
-        const local = JSON.parse(raw) as { name?: string; interests?: string[] };
-        setChildName(local.name ?? null);
-        setChildInterests(local.interests ?? []);
-      } catch {
-        /* ignore malformed local data */
-      }
-    }
-    const client = getCustomerClient();
-    if (!client) {
-      applyLocal();
-      return;
-    }
-    client
-      .listChildren()
-      .then((items) => {
-        const first = items[0];
-        if (first) {
-          setChildName(first.name);
-          setChildInterests(first.interests ?? []);
-        } else {
-          applyLocal();
-        }
-      })
-      .catch(applyLocal);
+    return subscribeCustomerLocation((location) => {
+      setOrigin(location);
+      setRecenterKey((value) => value + 1);
+    });
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void hydrateCustomerSession()
+      .then((user) => (user ? getPrimaryChild() : null))
+      .then((child) => {
+        if (!active || !child) return;
+        setChildName(child.name);
+        setChildInterests(child.interests ?? []);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -126,8 +115,9 @@ export default function DiscoverPage() {
         })
         .catch(() => {
           if (cancelled) return;
-          setAllClasses(classes);
-          setDataStatus('offline');
+          setAllClasses([]);
+          setSelectedSlug('');
+          setDataStatus('error');
         });
     }, 220);
     return () => {
@@ -135,7 +125,7 @@ export default function DiscoverPage() {
       window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, childInterests.join(',')]);
+  }, [query, childInterests.join(','), origin.lat, origin.lng]);
 
   const visibleClasses = useMemo(
     () =>
@@ -210,14 +200,13 @@ export default function DiscoverPage() {
               <div>
                 <h2>Browse by interest</h2>
               </div>
-              <span className={`api-source ${dataStatus}`}>
-                {dataStatus === 'live'
-                  ? 'LIVE API'
-                  : dataStatus === 'loading'
-                    ? 'SYNCING'
-                    : 'OFFLINE'}
-              </span>
             </div>
+            {dataStatus === 'loading' && <p className="section-hint">Loading nearby classes…</p>}
+            {dataStatus === 'error' && (
+              <p className="form-error" role="alert">
+                Classes are temporarily unavailable. Please refresh and try again.
+              </p>
+            )}
             <div className="category-grid">
               {categories.map((category) => (
                 <button
@@ -307,11 +296,7 @@ export default function DiscoverPage() {
             <div className="section-heading">
               <div>
                 <span className="eyebrow coral">
-                  {dataStatus === 'live'
-                    ? 'LIVE MAP'
-                    : dataStatus === 'loading'
-                      ? 'MAP • SYNCING'
-                      : 'MAP • OFFLINE DATA'}
+                  {dataStatus === 'loading' ? 'LOADING NEARBY CLASSES' : 'NEAR YOU'}
                 </span>
                 <h2>{visibleClasses.length} classes around you</h2>
               </div>
@@ -324,6 +309,7 @@ export default function DiscoverPage() {
               selectedSlug={selectedClass?.slug}
               onSelect={selectClass}
               recenterKey={recenterKey}
+              origin={origin}
             />
             {selectedClass ? (
               <div className="map-preview">

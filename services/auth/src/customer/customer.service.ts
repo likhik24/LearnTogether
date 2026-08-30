@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { BookingStatus } from '@learn-and-build/types';
@@ -37,9 +37,12 @@ export class CustomerService {
     input: { name: string; birthDate?: string; interests?: string[]; avatarColor?: string },
     index = 0,
   ): Promise<ChildProfile> {
+    const name = input.name.trim();
+    if (!name) throw new BadRequestException('Child name is required');
+    assertValidBirthDate(input.birthDate);
     const child = this.children.create({
       userId,
-      name: input.name,
+      name,
       birthDate: input.birthDate ?? null,
       interests: input.interests ?? [],
       avatarColor: input.avatarColor ?? AVATAR_COLORS[index % AVATAR_COLORS.length],
@@ -61,8 +64,15 @@ export class CustomerService {
   ): Promise<ChildProfile> {
     const child = await this.children.findOne({ where: { id, userId } });
     if (!child) throw new NotFoundException('Child profile not found');
-    if (input.name !== undefined) child.name = input.name;
-    if (input.birthDate !== undefined) child.birthDate = input.birthDate || null;
+    if (input.name !== undefined) {
+      const name = input.name.trim();
+      if (!name) throw new BadRequestException('Child name is required');
+      child.name = name;
+    }
+    if (input.birthDate !== undefined) {
+      assertValidBirthDate(input.birthDate);
+      child.birthDate = input.birthDate || null;
+    }
     if (input.interests !== undefined) child.interests = input.interests;
     if (input.avatarColor !== undefined) child.avatarColor = input.avatarColor;
     return this.children.save(child);
@@ -73,10 +83,11 @@ export class CustomerService {
     return this.saved.find({ where: { userId }, order: { createdAt: 'DESC' } });
   }
 
-  async saveClass(userId: string, classRef: string, title: string): Promise<SavedClass> {
+  async saveClass(userId: string, authorization: string, classRef: string): Promise<SavedClass> {
     const existing = await this.saved.findOne({ where: { userId, classRef } });
     if (existing) return existing;
-    return this.saved.save(this.saved.create({ userId, classRef, title: title || classRef }));
+    const offering = await this.scheduling.getClass(authorization, classRef);
+    return this.saved.save(this.saved.create({ userId, classRef, title: offering.activity }));
   }
 
   async removeSaved(userId: string, classRef: string): Promise<void> {
@@ -95,6 +106,7 @@ export class CustomerService {
     userId: string,
     authorization: string,
     input: {
+      childId: string;
       classRef: string;
       classSlug?: string;
       reservationId?: string;
@@ -104,20 +116,40 @@ export class CustomerService {
       currency?: string;
     },
   ): Promise<Booking> {
+    const child = await this.children.findOne({ where: { id: input.childId, userId } });
+    if (!child)
+      throw new BadRequestException('Select a child profile that belongs to your account');
+    if (!child.birthDate)
+      throw new BadRequestException('Add the selected child’s birthday before booking');
+
+    // Class identity, title and price are authoritative Scheduling data. Never
+    // trust a browser-provided snapshot for a booking record.
+    const offering = await this.scheduling.getClass(authorization, input.classRef);
     const scheduledStart = new Date(input.scheduledStart);
+    const childAge = ageOnDate(child.birthDate, scheduledStart);
+    if (childAge < offering.ageMin || childAge > offering.ageMax) {
+      throw new BadRequestException(
+        `${child.name} is ${childAge} on this date; this class is for ages ${offering.ageMin}–${offering.ageMax}`,
+      );
+    }
     const existing = await this.bookings.findOne({
       where: {
         userId,
-        classRef: input.classRef,
+        classRef: offering.id,
         scheduledStart,
         status: BookingStatus.CONFIRMED,
       },
     });
-    if (existing) return existing;
+    if (existing) {
+      if (existing.childId === child.id) return existing;
+      throw new BadRequestException(
+        'This account already reserved this class time for another child',
+      );
+    }
 
     const reservation = await this.scheduling.reserve(
       authorization,
-      input.classRef,
+      offering.id,
       input.scheduledStart,
     );
     let booking: Booking;
@@ -125,19 +157,21 @@ export class CustomerService {
       booking = await this.bookings.save(
         this.bookings.create({
           userId,
-          classRef: input.classRef,
-          classSlug: input.classSlug ?? null,
+          classRef: offering.id,
+          classSlug: offering.slug ?? input.classSlug ?? null,
           reservationId: reservation.id,
-          title: input.title,
+          childId: child.id,
+          childName: child.name,
+          title: offering.activity,
           scheduledStart,
-          amountMinor: input.amountMinor ?? 0,
-          currency: input.currency ?? 'INR',
+          amountMinor: offering.priceMinor,
+          currency: offering.currency,
           status: BookingStatus.CONFIRMED,
         }),
       );
     } catch (error) {
       await this.scheduling
-        .release(authorization, input.classRef, reservation.id)
+        .release(authorization, offering.id, reservation.id)
         .catch(() => undefined);
       throw error;
     }
@@ -197,4 +231,22 @@ export class CustomerService {
   async markAllNotificationsRead(userId: string): Promise<void> {
     await this.notifications.update({ userId, readAt: IsNull() }, { readAt: new Date() });
   }
+}
+
+function assertValidBirthDate(value?: string): void {
+  if (!value) return;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) throw new BadRequestException('Birthday is invalid');
+  const today = new Date();
+  today.setUTCHours(23, 59, 59, 999);
+  if (date > today) throw new BadRequestException('Birthday cannot be in the future');
+}
+
+function ageOnDate(birthDate: string, occurrence: Date): number {
+  const [year, month, day] = birthDate.split('-').map(Number);
+  let age = occurrence.getUTCFullYear() - year;
+  const occurrenceMonth = occurrence.getUTCMonth() + 1;
+  const occurrenceDay = occurrence.getUTCDate();
+  if (occurrenceMonth < month || (occurrenceMonth === month && occurrenceDay < day)) age -= 1;
+  return age;
 }

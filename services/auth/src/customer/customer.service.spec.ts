@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BookingStatus } from '@learn-and-build/types';
 import type { ObjectLiteral, Repository } from 'typeorm';
 import { CustomerService } from './customer.service';
@@ -28,7 +28,7 @@ describe('CustomerService', () => {
   let saved: Repo<SavedClass>;
   let bookings: Repo<Booking>;
   let notifications: Repo<CustomerNotification>;
-  let scheduling: jest.Mocked<Pick<SchedulingGateway, 'reserve' | 'release'>>;
+  let scheduling: jest.Mocked<Pick<SchedulingGateway, 'getClass' | 'reserve' | 'release'>>;
   let service: CustomerService;
 
   beforeEach(() => {
@@ -36,7 +36,7 @@ describe('CustomerService', () => {
     saved = repository();
     bookings = repository();
     notifications = repository();
-    scheduling = { reserve: jest.fn(), release: jest.fn() };
+    scheduling = { getClass: jest.fn(), reserve: jest.fn(), release: jest.fn() };
     service = new CustomerService(
       children as unknown as Repository<ChildProfile>,
       saved as unknown as Repository<SavedClass>,
@@ -74,8 +74,22 @@ describe('CustomerService', () => {
     });
     saved.findOne.mockResolvedValue(existing);
 
-    await expect(service.saveClass('user-1', 'build-a-car', 'Build a Car')).resolves.toBe(existing);
+    await expect(service.saveClass('user-1', 'Bearer token', 'build-a-car')).resolves.toBe(
+      existing,
+    );
     expect(saved.save).not.toHaveBeenCalled();
+  });
+
+  it('uses the authoritative class title when saving a class', async () => {
+    saved.findOne.mockResolvedValue(null);
+    scheduling.getClass.mockResolvedValue({ activity: 'Authoritative title' } as never);
+    saved.create.mockImplementation((value) => value as SavedClass);
+    saved.save.mockImplementation(async (value) => value as SavedClass);
+
+    const result = await service.saveClass('user-1', 'Bearer token', 'build-a-car');
+
+    expect(result.title).toBe('Authoritative title');
+    expect(scheduling.getClass).toHaveBeenCalledWith('Bearer token', 'build-a-car');
   });
 
   it('does not update a child belonging to another user', async () => {
@@ -86,6 +100,18 @@ describe('CustomerService', () => {
   });
 
   it('creates and cancels a booking', async () => {
+    children.findOne.mockResolvedValue(
+      Object.assign(new ChildProfile(), { id: 'child-1', name: 'Asha', birthDate: '2021-06-10' }),
+    );
+    scheduling.getClass.mockResolvedValue({
+      id: 'class-1',
+      slug: 'build-a-car',
+      activity: 'Build a Car',
+      priceMinor: 49900,
+      currency: 'INR',
+      ageMin: 4,
+      ageMax: 8,
+    } as never);
     const booking = Object.assign(new Booking(), {
       id: 'booking-1',
       userId: 'user-1',
@@ -100,6 +126,7 @@ describe('CustomerService', () => {
     scheduling.release.mockResolvedValue({ id: 'reservation-1' } as never);
 
     await service.createBooking('user-1', 'Bearer token', {
+      childId: 'child-1',
       classRef: 'class-1',
       title: 'Build a Car',
       scheduledStart: '2026-08-29T05:00:00.000Z',
@@ -113,6 +140,62 @@ describe('CustomerService', () => {
     expect(scheduling.reserve).toHaveBeenCalledTimes(1);
     expect(scheduling.release).toHaveBeenCalledTimes(1);
     expect(notifications.save).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a booking when the parent has no child profile', async () => {
+    children.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.createBooking('user-1', 'Bearer token', {
+        childId: 'child-1',
+        classRef: 'class-1',
+        title: 'Build a Car',
+        scheduledStart: '2026-08-29T05:00:00.000Z',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(scheduling.getClass).not.toHaveBeenCalled();
+    expect(scheduling.reserve).not.toHaveBeenCalled();
+  });
+
+  it('rejects a booking when the selected child is outside the class age range', async () => {
+    children.findOne.mockResolvedValue(
+      Object.assign(new ChildProfile(), {
+        id: 'child-1',
+        name: 'Asha',
+        birthDate: '2024-06-10',
+      }),
+    );
+    scheduling.getClass.mockResolvedValue({ ageMin: 6, ageMax: 9 } as never);
+
+    await expect(
+      service.createBooking('user-1', 'Bearer token', {
+        childId: 'child-1',
+        classRef: 'class-1',
+        title: 'Build a Car',
+        scheduledStart: '2026-08-29T05:00:00.000Z',
+      }),
+    ).rejects.toThrow('this class is for ages 6–9');
+    expect(scheduling.reserve).not.toHaveBeenCalled();
+  });
+
+  it('requires a birthday before making an age-checked booking', async () => {
+    children.findOne.mockResolvedValue(
+      Object.assign(new ChildProfile(), {
+        id: 'child-1',
+        name: 'Asha',
+        birthDate: null,
+      }),
+    );
+
+    await expect(
+      service.createBooking('user-1', 'Bearer token', {
+        childId: 'child-1',
+        classRef: 'class-1',
+        title: 'Build a Car',
+        scheduledStart: '2026-08-29T05:00:00.000Z',
+      }),
+    ).rejects.toThrow('birthday');
+    expect(scheduling.getClass).not.toHaveBeenCalled();
   });
 
   it('marks all unread notifications as read', async () => {

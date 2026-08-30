@@ -76,6 +76,17 @@ export interface ApiClientOptions {
   refreshUrl?: string;
 }
 
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly path: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 // A single browser refresh rotation must serve requests from every service
 // client; parallel refreshes would otherwise revoke one another.
 let sharedRefreshPromise: Promise<boolean> | undefined;
@@ -153,7 +164,15 @@ export class ApiClient {
     }
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(`Request ${path} failed (${res.status}): ${body}`);
+      let message = `Request failed (${res.status})`;
+      try {
+        const parsed = JSON.parse(body) as { message?: string | string[] };
+        if (Array.isArray(parsed.message)) message = parsed.message.join(', ');
+        else if (parsed.message) message = parsed.message;
+      } catch {
+        if (body.trim()) message = body.trim();
+      }
+      throw new ApiError(res.status, path, message);
     }
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
@@ -393,6 +412,7 @@ export class ApiClient {
   }
 
   createBooking(input: {
+    childId: string;
     classRef: string;
     classSlug?: string;
     title: string;
