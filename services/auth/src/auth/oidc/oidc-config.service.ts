@@ -27,10 +27,7 @@ export class OidcConfigService {
   }
 
   get successRedirect(): string {
-    return this.config.get<string>(
-      'OIDC_SUCCESS_REDIRECT',
-      'http://localhost:3100/admin',
-    );
+    return this.config.get<string>('OIDC_SUCCESS_REDIRECT', 'http://localhost:3100/profile');
   }
 
   redirectUri(slug: string): string {
@@ -38,9 +35,7 @@ export class OidcConfigService {
   }
 
   getProviders(): OidcProviderConfig[] {
-    return [this.google(), this.aws()].filter(
-      (p): p is OidcProviderConfig => p !== null,
-    );
+    return [this.google(), this.aws()].filter((p): p is OidcProviderConfig => p !== null);
   }
 
   getProvider(slug: string): OidcProviderConfig | undefined {

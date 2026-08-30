@@ -55,6 +55,7 @@ export class UsersService {
     providerSubject: string;
     email: string;
     displayName: string;
+    role?: Role;
   }): Promise<User> {
     const linked = await this.findByProvider(input.provider, input.providerSubject);
     if (linked) {
@@ -66,13 +67,19 @@ export class UsersService {
       byEmail.provider = input.provider;
       byEmail.providerSubject = input.providerSubject;
       byEmail.emailVerifiedAt ??= new Date();
+      // Provider onboarding is publicly available, but its profile and classes
+      // still require moderation. Let an existing customer intentionally enter
+      // that flow without creating a second account for the same email.
+      if (input.role === Role.TEACHER && byEmail.role === Role.USER) {
+        byEmail.role = Role.TEACHER;
+      }
       return this.users.save(byEmail);
     }
 
     const user = this.users.create({
       email: normalizeEmail(input.email),
       displayName: input.displayName.trim(),
-      role: Role.USER,
+      role: input.role ?? Role.USER,
       provider: input.provider,
       providerSubject: input.providerSubject,
       passwordHash: null,

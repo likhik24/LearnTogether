@@ -12,6 +12,7 @@ import {
   signOutCustomerSession,
 } from '../../lib/customer-session';
 import { AppHeader, BottomNav, Icon } from '../ui';
+import { OidcButtons } from '../oidc-buttons';
 
 type Mode = 'login' | 'register' | 'forgot' | 'reset';
 
@@ -168,85 +169,88 @@ export default function ProfilePage() {
             <button onClick={signOut}>Sign out</button>
           </section>
         ) : (
-          <form className="customer-auth-form" onSubmit={submit}>
-            {mode !== 'reset' && mode !== 'forgot' && (
-              <div className="auth-tabs">
-                <button
-                  type="button"
-                  className={mode === 'login' ? 'active' : ''}
-                  onClick={() => setMode('login')}
-                >
-                  Sign in
-                </button>
-                <button
-                  type="button"
-                  className={mode === 'register' ? 'active' : ''}
-                  onClick={() => setMode('register')}
-                >
-                  Create account
-                </button>
-              </div>
-            )}
-            {mode === 'register' && (
-              <label>
-                Your name
-                <input
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  autoComplete="name"
-                  placeholder="Your full name"
-                  required
-                />
-              </label>
-            )}
-            {mode !== 'reset' && (
-              <label>
-                Email
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  autoComplete="email"
-                  inputMode="email"
-                  required
-                />
-              </label>
-            )}
-            {mode !== 'forgot' && (
-              <label>
-                {mode === 'reset' ? 'New password' : 'Password'}
-                <input
-                  type="password"
-                  minLength={8}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                  required
-                />
-              </label>
-            )}
-            <button className="primary-wide" type="submit" disabled={loading}>
-              {loading
-                ? 'Working…'
-                : mode === 'login'
-                  ? 'Sign in & sync'
-                  : mode === 'register'
-                    ? 'Create account & sync'
-                    : mode === 'forgot'
-                      ? 'Send reset link'
-                      : 'Update password'}
-            </button>
-            {mode === 'login' && (
-              <button className="auth-link" type="button" onClick={() => setMode('forgot')}>
-                Forgot password?
+          <>
+            <OidcButtons returnTo="/profile" />
+            <form className="customer-auth-form" onSubmit={submit}>
+              {mode !== 'reset' && mode !== 'forgot' && (
+                <div className="auth-tabs">
+                  <button
+                    type="button"
+                    className={mode === 'login' ? 'active' : ''}
+                    onClick={() => setMode('login')}
+                  >
+                    Sign in
+                  </button>
+                  <button
+                    type="button"
+                    className={mode === 'register' ? 'active' : ''}
+                    onClick={() => setMode('register')}
+                  >
+                    Create account
+                  </button>
+                </div>
+              )}
+              {mode === 'register' && (
+                <label>
+                  Your name
+                  <input
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    autoComplete="name"
+                    placeholder="Your full name"
+                    required
+                  />
+                </label>
+              )}
+              {mode !== 'reset' && (
+                <label>
+                  Email
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    autoComplete="email"
+                    inputMode="email"
+                    required
+                  />
+                </label>
+              )}
+              {mode !== 'forgot' && (
+                <label>
+                  {mode === 'reset' ? 'New password' : 'Password'}
+                  <input
+                    type="password"
+                    minLength={8}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                    required
+                  />
+                </label>
+              )}
+              <button className="primary-wide" type="submit" disabled={loading}>
+                {loading
+                  ? 'Working…'
+                  : mode === 'login'
+                    ? 'Sign in & sync'
+                    : mode === 'register'
+                      ? 'Create account & sync'
+                      : mode === 'forgot'
+                        ? 'Send reset link'
+                        : 'Update password'}
               </button>
-            )}
-            {(mode === 'forgot' || mode === 'reset') && (
-              <button className="auth-link" type="button" onClick={() => setMode('login')}>
-                Back to sign in
-              </button>
-            )}
-          </form>
+              {mode === 'login' && (
+                <button className="auth-link" type="button" onClick={() => setMode('forgot')}>
+                  Forgot password?
+                </button>
+              )}
+              {(mode === 'forgot' || mode === 'reset') && (
+                <button className="auth-link" type="button" onClick={() => setMode('login')}>
+                  Back to sign in
+                </button>
+              )}
+            </form>
+          </>
         )}
         <BottomNav />
       </div>

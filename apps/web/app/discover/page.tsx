@@ -7,14 +7,14 @@ import { toClassCard } from '../../lib/class-data';
 import { categories, type ClassCardData } from '../data';
 import { AppHeader, BottomNav, ClassCard, Icon } from '../ui';
 import { RealDiscoveryMap } from './real-discovery-map';
+import { readCustomerLocation, subscribeCustomerLocation } from '../../lib/customer-location';
 
 const filters = ['All', 'Today', 'Tomorrow', 'Weekend', 'Nearby'];
 const viewModes = ['Categories', 'List', 'Map'] as const;
 type ViewMode = (typeof viewModes)[number];
 
-const origin = { lat: 17.4485, lng: 78.3915 };
-
 export default function DiscoverPage() {
+  const [origin, setOrigin] = useState(readCustomerLocation);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -29,15 +29,24 @@ export default function DiscoverPage() {
 
   // Personalize only from the authenticated, server-backed child profile.
   useEffect(() => {
+    return subscribeCustomerLocation((location) => {
+      setOrigin(location);
+      setRecenterKey((value) => value + 1);
+    });
+  }, []);
+
+  useEffect(() => {
     let active = true;
     void hydrateCustomerSession()
-      .then((user) => user ? getPrimaryChild() : null)
+      .then((user) => (user ? getPrimaryChild() : null))
       .then((child) => {
         if (!active || !child) return;
         setChildName(child.name);
         setChildInterests(child.interests ?? []);
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -116,7 +125,7 @@ export default function DiscoverPage() {
       window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, childInterests.join(',')]);
+  }, [query, childInterests.join(','), origin.lat, origin.lng]);
 
   const visibleClasses = useMemo(
     () =>
@@ -300,6 +309,7 @@ export default function DiscoverPage() {
               selectedSlug={selectedClass?.slug}
               onSelect={selectClass}
               recenterKey={recenterKey}
+              origin={origin}
             />
             {selectedClass ? (
               <div className="map-preview">

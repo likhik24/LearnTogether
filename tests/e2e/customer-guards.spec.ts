@@ -25,6 +25,8 @@ interface ApiState {
   savedCalls: number;
   bookingCalls: number;
   bookings: Array<Record<string, unknown>>;
+  discoveryUrls?: string[];
+  lastBookingBody?: Record<string, unknown>;
 }
 
 async function mockCustomerApis(page: Page, state: ApiState) {
@@ -34,14 +36,20 @@ async function mockCustomerApis(page: Page, state: ApiState) {
 
     if (path.endsWith('/auth/login')) {
       state.authenticated = true;
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ accessToken: '', user }) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ accessToken: '', user }),
+      });
       return;
     }
     if (path.endsWith('/auth/me')) {
       await route.fulfill({
         status: state.authenticated ? 200 : 401,
         contentType: 'application/json',
-        body: state.authenticated ? JSON.stringify(user) : JSON.stringify({ message: 'Unauthorized' }),
+        body: state.authenticated
+          ? JSON.stringify(user)
+          : JSON.stringify({ message: 'Unauthorized' }),
       });
       return;
     }
@@ -55,10 +63,18 @@ async function mockCustomerApis(page: Page, state: ApiState) {
     }
     if (path.endsWith('/customer/children')) {
       if (request.method() === 'GET') {
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state.hasChild ? [child] : []) });
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(state.hasChild ? [child] : []),
+        });
       } else {
         state.hasChild = true;
-        await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(child) });
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify(child),
+        });
       }
       return;
     }
@@ -67,22 +83,42 @@ async function mockCustomerApis(page: Page, state: ApiState) {
         await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
       } else {
         state.savedCalls += 1;
-        await route.fulfill({ status: request.method() === 'DELETE' ? 204 : 200, contentType: 'application/json', body: request.method() === 'DELETE' ? '' : JSON.stringify({ id: 'saved-1', userId: user.id, classRef: 'build-a-car', title: 'Build-a-Car STEM Workshop', createdAt: new Date().toISOString() }) });
+        await route.fulfill({
+          status: request.method() === 'DELETE' ? 204 : 200,
+          contentType: 'application/json',
+          body:
+            request.method() === 'DELETE'
+              ? ''
+              : JSON.stringify({
+                  id: 'saved-1',
+                  userId: user.id,
+                  classRef: 'build-a-car',
+                  title: 'Build-a-Car STEM Workshop',
+                  createdAt: new Date().toISOString(),
+                }),
+        });
       }
       return;
     }
     if (path.endsWith('/customer/bookings') && request.method() === 'GET') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state.bookings) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(state.bookings),
+      });
       return;
     }
     if (path.endsWith('/customer/bookings') && request.method() === 'POST') {
       state.bookingCalls += 1;
+      state.lastBookingBody = request.postDataJSON() as Record<string, unknown>;
       const booking = {
         id: 'booking-1',
         userId: user.id,
         classRef: '11111111-1111-4111-8111-111111111111',
         classSlug: 'build-a-car',
         reservationId: 'reservation-1',
+        childId: child.id,
+        childName: child.name,
         title: 'Build-a-Car STEM Workshop',
         scheduledStart: occurrenceStart,
         amountMinor: 49900,
@@ -92,12 +128,20 @@ async function mockCustomerApis(page: Page, state: ApiState) {
         updatedAt: new Date().toISOString(),
       };
       state.bookings = [booking];
-      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(booking) });
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify(booking),
+      });
       return;
     }
     if (path.endsWith('/cancel')) {
       state.bookings = [];
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'cancelled' }) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
       return;
     }
     if (path.endsWith('/customer/notifications')) {
@@ -108,27 +152,65 @@ async function mockCustomerApis(page: Page, state: ApiState) {
   });
 
   await page.route('**/api/scheduling/**', async (route) => {
-    const path = new URL(route.request().url()).pathname;
-    const occurrence = { start: occurrenceStart, end: '2031-05-17T06:00:00.000Z', seatsTotal: 8, seatsAvailable: 6 };
+    const requestUrl = new URL(route.request().url());
+    const path = requestUrl.pathname;
+    if (path.endsWith('/classes/discover')) state.discoveryUrls?.push(requestUrl.toString());
+    const occurrence = {
+      start: occurrenceStart,
+      end: '2031-05-17T06:00:00.000Z',
+      seatsTotal: 8,
+      seatsAvailable: 6,
+    };
+    const secondOccurrence = {
+      start: '2031-05-24T05:00:00.000Z',
+      end: '2031-05-24T06:00:00.000Z',
+      seatsTotal: 8,
+      seatsAvailable: 4,
+    };
     if (path.endsWith('/availability')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([occurrence]) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([occurrence, secondOccurrence]),
+      });
       return;
     }
     if (path.includes('/classes/slug/')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: '11111111-1111-4111-8111-111111111111' }) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: '11111111-1111-4111-8111-111111111111', ageMin: 4, ageMax: 12 }),
+      });
       return;
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
   });
 
-  await page.route('**/api/search/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ hits: [] }) }));
+  await page.route('**/api/search/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ hits: [] }),
+    }),
+  );
 }
 
-test('anonymous customers are never given false save, booking, profile, or bookings success', async ({ page }) => {
-  const state: ApiState = { authenticated: false, hasChild: false, savedCalls: 0, bookingCalls: 0, bookings: [] };
+test('anonymous customers are never given false save, booking, profile, or bookings success', async ({
+  page,
+}) => {
+  const state: ApiState = {
+    authenticated: false,
+    hasChild: false,
+    savedCalls: 0,
+    bookingCalls: 0,
+    bookings: [],
+  };
   await mockCustomerApis(page, state);
   await page.addInitScript(() => {
-    localStorage.setItem('learn-together-booking', JSON.stringify({ title: 'Legacy fake booking' }));
+    localStorage.setItem(
+      'learn-together-booking',
+      JSON.stringify({ title: 'Legacy fake booking' }),
+    );
     localStorage.setItem('learn-together-child-profile', JSON.stringify({ name: 'Legacy child' }));
     localStorage.setItem('learn-together-saved-build-a-car', 'true');
   });
@@ -147,15 +229,47 @@ test('anonymous customers are never given false save, booking, profile, or booki
   await expect(page.getByRole('heading', { name: 'Sign in to see your bookings' })).toBeVisible();
   await expect(page.getByText('Legacy fake booking')).toHaveCount(0);
   await page.goto('/children');
-  await expect(page.getByRole('heading', { name: 'Sign in to manage child profiles' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Sign in to manage child profiles' }),
+  ).toBeVisible();
   await expect(page.getByText('Legacy child')).toHaveCount(0);
   await page.goto('/recommendations');
   await page.getByRole('button', { name: 'Saved', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sign in to see saved classes' })).toBeVisible();
 });
 
-test('signed-in parents add a child and return to the interrupted booking flow', async ({ page }) => {
-  const state: ApiState = { authenticated: true, hasChild: false, savedCalls: 0, bookingCalls: 0, bookings: [] };
+test('changing area changes the coordinates sent to live discovery', async ({ page }) => {
+  const state: ApiState = {
+    authenticated: false,
+    hasChild: false,
+    savedCalls: 0,
+    bookingCalls: 0,
+    bookings: [],
+    discoveryUrls: [],
+  };
+  await mockCustomerApis(page, state);
+  await page.goto('/discover');
+  await page.getByRole('button', { name: 'Change location' }).click();
+  await page.getByRole('button', { name: /Gachibowli, Hyderabad/ }).click();
+  await expect
+    .poll(() =>
+      state.discoveryUrls?.some(
+        (url) => url.includes('lat=17.4401') && url.includes('lng=78.3489'),
+      ),
+    )
+    .toBe(true);
+});
+
+test('signed-in parents add a child and return to the interrupted booking flow', async ({
+  page,
+}) => {
+  const state: ApiState = {
+    authenticated: true,
+    hasChild: false,
+    savedCalls: 0,
+    bookingCalls: 0,
+    bookings: [],
+  };
   await mockCustomerApis(page, state);
 
   await page.goto('/classes/build-a-car');
@@ -163,7 +277,10 @@ test('signed-in parents add a child and return to the interrupted booking flow',
   await page.getByRole('button', { name: 'Book trial' }).click();
   const childGate = page.getByRole('dialog', { name: 'ONE QUICK STEP' });
   await expect(childGate).toBeVisible();
-  await expect(childGate.getByRole('link', { name: 'Add child profile' })).toHaveAttribute('href', /children/);
+  await expect(childGate.getByRole('link', { name: 'Add child profile' })).toHaveAttribute(
+    'href',
+    /children/,
+  );
   expect(state.bookingCalls).toBe(0);
   await childGate.getByRole('link', { name: 'Add child profile' }).click();
   await page.waitForURL('**/children?returnTo=*');
@@ -182,13 +299,22 @@ test('signed-in parents add a child and return to the interrupted booking flow',
 });
 
 test('sign-in returns an anonymous customer to the interrupted class', async ({ page }) => {
-  const state: ApiState = { authenticated: false, hasChild: true, savedCalls: 0, bookingCalls: 0, bookings: [] };
+  const state: ApiState = {
+    authenticated: false,
+    hasChild: true,
+    savedCalls: 0,
+    bookingCalls: 0,
+    bookings: [],
+  };
   await mockCustomerApis(page, state);
 
   await page.goto('/classes/build-a-car');
   await expect(page.getByRole('button', { name: 'Book trial' })).toBeEnabled();
   await page.getByRole('button', { name: 'Book trial' }).click();
-  await page.getByRole('dialog', { name: 'SIGN IN TO BOOK' }).getByRole('link', { name: 'Sign in or create account' }).click();
+  await page
+    .getByRole('dialog', { name: 'SIGN IN TO BOOK' })
+    .getByRole('link', { name: 'Sign in or create account' })
+    .click();
   await page.waitForURL('**/profile?returnTo=*');
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill('Secure-password-2026!');
@@ -199,7 +325,13 @@ test('sign-in returns an anonymous customer to the interrupted class', async ({ 
 });
 
 test('eligible customer can reserve, view, and deliberately cancel a booking', async ({ page }) => {
-  const state: ApiState = { authenticated: true, hasChild: true, savedCalls: 0, bookingCalls: 0, bookings: [] };
+  const state: ApiState = {
+    authenticated: true,
+    hasChild: true,
+    savedCalls: 0,
+    bookingCalls: 0,
+    bookings: [],
+  };
   await mockCustomerApis(page, state);
 
   await page.goto('/classes/build-a-car');
@@ -208,7 +340,7 @@ test('eligible customer can reserve, view, and deliberately cancel a booking', a
   const confirmation = page.getByRole('dialog', { name: 'Confirm trial booking' });
   await expect(confirmation).toBeVisible();
   await expect(confirmation.getByText('payable at the venue')).toBeVisible();
-  await confirmation.getByRole('button', { name: 'Reserve this spot' }).click();
+  await confirmation.getByRole('button', { name: 'Reserve for Ari' }).click();
   await expect(page.getByRole('dialog', { name: 'Booking confirmed' })).toBeVisible();
   expect(state.bookingCalls).toBe(1);
 
@@ -220,4 +352,27 @@ test('eligible customer can reserve, view, and deliberately cancel a booking', a
   await expect(cancelDialog).toContainText('Release this class spot?');
   await cancelDialog.getByRole('button', { name: 'Yes, cancel booking' }).click();
   await expect(page.getByRole('heading', { name: 'No bookings yet' })).toBeVisible();
+});
+
+test('customer can choose a later occurrence and the booking keeps child and time context', async ({
+  page,
+}) => {
+  const state: ApiState = {
+    authenticated: true,
+    hasChild: true,
+    savedCalls: 0,
+    bookingCalls: 0,
+    bookings: [],
+  };
+  await mockCustomerApis(page, state);
+  await page.goto('/classes/build-a-car');
+  await page.getByRole('button', { name: 'Book trial' }).click();
+  const confirmation = page.getByRole('dialog', { name: 'Confirm trial booking' });
+  await confirmation.getByRole('button', { name: /Sat, 24 May/ }).click();
+  await confirmation.getByRole('button', { name: 'Reserve for Ari' }).click();
+  await expect(page.getByRole('dialog', { name: 'Booking confirmed' })).toBeVisible();
+  expect(state.lastBookingBody).toMatchObject({
+    childId: child.id,
+    scheduledStart: '2031-05-24T05:00:00.000Z',
+  });
 });

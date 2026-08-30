@@ -74,7 +74,9 @@ describe('CustomerService', () => {
     });
     saved.findOne.mockResolvedValue(existing);
 
-    await expect(service.saveClass('user-1', 'Bearer token', 'build-a-car')).resolves.toBe(existing);
+    await expect(service.saveClass('user-1', 'Bearer token', 'build-a-car')).resolves.toBe(
+      existing,
+    );
     expect(saved.save).not.toHaveBeenCalled();
   });
 
@@ -98,13 +100,17 @@ describe('CustomerService', () => {
   });
 
   it('creates and cancels a booking', async () => {
-    children.findOne.mockResolvedValue(Object.assign(new ChildProfile(), { id: 'child-1' }));
+    children.findOne.mockResolvedValue(
+      Object.assign(new ChildProfile(), { id: 'child-1', name: 'Asha', birthDate: '2021-06-10' }),
+    );
     scheduling.getClass.mockResolvedValue({
       id: 'class-1',
       slug: 'build-a-car',
       activity: 'Build a Car',
       priceMinor: 49900,
       currency: 'INR',
+      ageMin: 4,
+      ageMax: 8,
     } as never);
     const booking = Object.assign(new Booking(), {
       id: 'booking-1',
@@ -120,6 +126,7 @@ describe('CustomerService', () => {
     scheduling.release.mockResolvedValue({ id: 'reservation-1' } as never);
 
     await service.createBooking('user-1', 'Bearer token', {
+      childId: 'child-1',
       classRef: 'class-1',
       title: 'Build a Car',
       scheduledStart: '2026-08-29T05:00:00.000Z',
@@ -138,13 +145,57 @@ describe('CustomerService', () => {
   it('rejects a booking when the parent has no child profile', async () => {
     children.findOne.mockResolvedValue(null);
 
-    await expect(service.createBooking('user-1', 'Bearer token', {
-      classRef: 'class-1',
-      title: 'Build a Car',
-      scheduledStart: '2026-08-29T05:00:00.000Z',
-    })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.createBooking('user-1', 'Bearer token', {
+        childId: 'child-1',
+        classRef: 'class-1',
+        title: 'Build a Car',
+        scheduledStart: '2026-08-29T05:00:00.000Z',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(scheduling.getClass).not.toHaveBeenCalled();
     expect(scheduling.reserve).not.toHaveBeenCalled();
+  });
+
+  it('rejects a booking when the selected child is outside the class age range', async () => {
+    children.findOne.mockResolvedValue(
+      Object.assign(new ChildProfile(), {
+        id: 'child-1',
+        name: 'Asha',
+        birthDate: '2024-06-10',
+      }),
+    );
+    scheduling.getClass.mockResolvedValue({ ageMin: 6, ageMax: 9 } as never);
+
+    await expect(
+      service.createBooking('user-1', 'Bearer token', {
+        childId: 'child-1',
+        classRef: 'class-1',
+        title: 'Build a Car',
+        scheduledStart: '2026-08-29T05:00:00.000Z',
+      }),
+    ).rejects.toThrow('this class is for ages 6–9');
+    expect(scheduling.reserve).not.toHaveBeenCalled();
+  });
+
+  it('requires a birthday before making an age-checked booking', async () => {
+    children.findOne.mockResolvedValue(
+      Object.assign(new ChildProfile(), {
+        id: 'child-1',
+        name: 'Asha',
+        birthDate: null,
+      }),
+    );
+
+    await expect(
+      service.createBooking('user-1', 'Bearer token', {
+        childId: 'child-1',
+        classRef: 'class-1',
+        title: 'Build a Car',
+        scheduledStart: '2026-08-29T05:00:00.000Z',
+      }),
+    ).rejects.toThrow('birthday');
+    expect(scheduling.getClass).not.toHaveBeenCalled();
   });
 
   it('marks all unread notifications as read', async () => {

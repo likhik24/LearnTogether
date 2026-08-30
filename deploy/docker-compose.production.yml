@@ -88,7 +88,7 @@ services:
     volumes:
       - opensearch_data:/usr/share/opensearch/data
     healthcheck:
-      test: [CMD-SHELL, "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      test: [CMD-SHELL, 'curl -sf http://localhost:9200/_cluster/health || exit 1']
       interval: 15s
       timeout: 10s
       retries: 15
@@ -142,7 +142,7 @@ services:
       SCHEDULING_API_URL: http://scheduling:3004
       CORS_ORIGIN: https://learnandbuild.org
       OIDC_REDIRECT_BASE: https://learnandbuild.org/api/auth
-      OIDC_SUCCESS_REDIRECT: https://learnandbuild.org/admin
+      OIDC_SUCCESS_REDIRECT: ${OIDC_SUCCESS_REDIRECT:-https://learnandbuild.org/profile}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       AWS_COGNITO_ISSUER: ${AWS_COGNITO_ISSUER:-}

@@ -23,9 +23,7 @@ function makeUser(overrides: Partial<User> = {}): User {
 }
 
 describe('UsersService.findOrCreateOAuthUser', () => {
-  let repo: jest.Mocked<
-    Pick<Repository<User>, 'findOne' | 'save' | 'create'>
-  >;
+  let repo: jest.Mocked<Pick<Repository<User>, 'findOne' | 'save' | 'create'>>;
   let service: UsersService;
 
   beforeEach(() => {
@@ -83,5 +81,29 @@ describe('UsersService.findOrCreateOAuthUser', () => {
     expect(repo.create).toHaveBeenCalledTimes(1);
     expect(result.provider).toBe(AuthProvider.AWS);
     expect(result.passwordHash).toBeNull();
+  });
+
+  it('creates a provider-role account for a provider OIDC flow', async () => {
+    repo.findOne.mockResolvedValue(null);
+    const result = await service.findOrCreateOAuthUser({
+      provider: AuthProvider.GOOGLE,
+      providerSubject: 'provider-sub',
+      email: 'provider@example.com',
+      displayName: 'Provider',
+      role: Role.TEACHER,
+    });
+    expect(result.role).toBe(Role.TEACHER);
+  });
+
+  it('moves an existing customer into the moderated provider flow when requested', async () => {
+    repo.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(makeUser({ role: Role.USER }));
+    const result = await service.findOrCreateOAuthUser({
+      provider: AuthProvider.GOOGLE,
+      providerSubject: 'provider-sub',
+      email: 'person@example.com',
+      displayName: 'Person',
+      role: Role.TEACHER,
+    });
+    expect(result.role).toBe(Role.TEACHER);
   });
 });

@@ -412,6 +412,7 @@ export class ApiClient {
   }
 
   createBooking(input: {
+    childId: string;
     classRef: string;
     classSlug?: string;
     title: string;

@@ -31,6 +31,7 @@ import {
   signOutCustomerSession,
 } from '../../lib/customer-session';
 import { AppHeader, BottomNav, Icon } from '../ui';
+import { OidcButtons } from '../oidc-buttons';
 
 /* -------- option label maps (value -> human label) -------- */
 
@@ -449,61 +450,64 @@ export default function ProviderPage() {
         </p>
 
         {!user ? (
-          <form className="customer-auth-form" onSubmit={authenticate}>
-            <div className="auth-tabs">
-              <button
-                type="button"
-                className={mode === 'register' ? 'active' : ''}
-                onClick={() => setMode('register')}
-              >
-                Create account
-              </button>
-              <button
-                type="button"
-                className={mode === 'login' ? 'active' : ''}
-                onClick={() => setMode('login')}
-              >
-                Sign in
-              </button>
-            </div>
-            {mode === 'register' && (
+          <>
+            <OidcButtons returnTo="/provider" providerAccount />
+            <form className="customer-auth-form" onSubmit={authenticate}>
+              <div className="auth-tabs">
+                <button
+                  type="button"
+                  className={mode === 'register' ? 'active' : ''}
+                  onClick={() => setMode('register')}
+                >
+                  Create account
+                </button>
+                <button
+                  type="button"
+                  className={mode === 'login' ? 'active' : ''}
+                  onClick={() => setMode('login')}
+                >
+                  Sign in
+                </button>
+              </div>
+              {mode === 'register' && (
+                <label>
+                  Full name
+                  <input
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    required
+                  />
+                </label>
+              )}
               <label>
-                Full name
+                Email
                 <input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </label>
-            )}
-            <label>
-              Email
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </label>
-            {authError && <p className="form-error">{authError}</p>}
-            <button className="primary-wide" type="submit" disabled={authLoading}>
-              {authLoading
-                ? 'Connecting…'
-                : mode === 'register'
-                  ? 'Create provider account'
-                  : 'Sign in'}
-            </button>
-          </form>
+              <label>
+                Password
+                <input
+                  type="password"
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </label>
+              {authError && <p className="form-error">{authError}</p>}
+              <button className="primary-wide" type="submit" disabled={authLoading}>
+                {authLoading
+                  ? 'Connecting…'
+                  : mode === 'register'
+                    ? 'Create provider account'
+                    : 'Sign in'}
+              </button>
+            </form>
+          </>
         ) : (
           <form className="provider-form" onSubmit={saveProfile}>
             {/* Section 1 — About you */}

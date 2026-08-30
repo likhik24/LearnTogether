@@ -4,6 +4,7 @@ import type { OidcProviderInfo } from '@learn-and-build/types';
 import { OidcService } from './oidc.service';
 import { OidcConfigService } from './oidc-config.service';
 import { sessionMetadata, writeSessionCookies } from '../session-cookies';
+import { Role } from '@learn-and-build/types';
 
 @Controller('auth/oidc')
 export class OidcController {
@@ -24,8 +25,14 @@ export class OidcController {
 
   /** Starts the login flow by redirecting to the provider. */
   @Get(':provider/login')
-  async login(@Param('provider') provider: string, @Res() res: Response): Promise<void> {
-    const url = await this.oidc.createAuthorizationUrl(provider);
+  async login(
+    @Param('provider') provider: string,
+    @Query('returnTo') returnTo: string | undefined,
+    @Query('account') account: string | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
+    const role = account === 'provider' ? Role.TEACHER : Role.USER;
+    const url = await this.oidc.createAuthorizationUrl(provider, returnTo, role);
     res.redirect(url);
   }
 
@@ -39,12 +46,12 @@ export class OidcController {
   ): Promise<void> {
     try {
       const result = await this.oidc.handleCallback(provider, query, sessionMetadata(request));
-      writeSessionCookies(res, result);
-      const target = new URL(this.config.successRedirect);
+      writeSessionCookies(res, result.session);
+      const target = new URL(result.returnTo, this.config.successRedirect);
       res.redirect(target.toString());
     } catch {
-      const target = new URL(this.config.successRedirect);
-      target.hash = 'error=oidc_login_failed';
+      const target = new URL('/profile', this.config.successRedirect);
+      target.searchParams.set('error', 'oidc_login_failed');
       res.redirect(target.toString());
     }
   }

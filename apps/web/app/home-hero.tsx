@@ -7,13 +7,17 @@ import { toClassCard } from '../lib/class-data';
 import { getPrimaryChild } from '../lib/customer-session';
 import type { ClassCardData } from './data';
 import { ClassCard, Icon } from './ui';
-
-const origin = { lat: 17.4485, lng: 78.3915 };
+import { readCustomerLocation, subscribeCustomerLocation } from '../lib/customer-location';
 
 export function HomeHero() {
+  const [origin, setOrigin] = useState(readCustomerLocation);
   const [name, setName] = useState<string | null>(null);
   const [interests, setInterests] = useState<string[]>([]);
   const [picks, setPicks] = useState<ClassCardData[]>([]);
+
+  useEffect(() => {
+    return subscribeCustomerLocation(setOrigin);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -47,7 +51,7 @@ export function HomeHero() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [origin.lat, origin.lng]);
 
   const displayName = name ?? 'your child';
   const initial = name?.charAt(0).toUpperCase();

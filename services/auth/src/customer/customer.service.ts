@@ -106,6 +106,7 @@ export class CustomerService {
     userId: string,
     authorization: string,
     input: {
+      childId: string;
       classRef: string;
       classSlug?: string;
       reservationId?: string;
@@ -115,13 +116,22 @@ export class CustomerService {
       currency?: string;
     },
   ): Promise<Booking> {
-    const child = await this.children.findOne({ where: { userId } });
-    if (!child) throw new BadRequestException('Add a child profile before booking');
+    const child = await this.children.findOne({ where: { id: input.childId, userId } });
+    if (!child)
+      throw new BadRequestException('Select a child profile that belongs to your account');
+    if (!child.birthDate)
+      throw new BadRequestException('Add the selected child’s birthday before booking');
 
     // Class identity, title and price are authoritative Scheduling data. Never
     // trust a browser-provided snapshot for a booking record.
     const offering = await this.scheduling.getClass(authorization, input.classRef);
     const scheduledStart = new Date(input.scheduledStart);
+    const childAge = ageOnDate(child.birthDate, scheduledStart);
+    if (childAge < offering.ageMin || childAge > offering.ageMax) {
+      throw new BadRequestException(
+        `${child.name} is ${childAge} on this date; this class is for ages ${offering.ageMin}–${offering.ageMax}`,
+      );
+    }
     const existing = await this.bookings.findOne({
       where: {
         userId,
@@ -130,7 +140,12 @@ export class CustomerService {
         status: BookingStatus.CONFIRMED,
       },
     });
-    if (existing) return existing;
+    if (existing) {
+      if (existing.childId === child.id) return existing;
+      throw new BadRequestException(
+        'This account already reserved this class time for another child',
+      );
+    }
 
     const reservation = await this.scheduling.reserve(
       authorization,
@@ -145,6 +160,8 @@ export class CustomerService {
           classRef: offering.id,
           classSlug: offering.slug ?? input.classSlug ?? null,
           reservationId: reservation.id,
+          childId: child.id,
+          childName: child.name,
           title: offering.activity,
           scheduledStart,
           amountMinor: offering.priceMinor,
@@ -223,4 +240,13 @@ function assertValidBirthDate(value?: string): void {
   const today = new Date();
   today.setUTCHours(23, 59, 59, 999);
   if (date > today) throw new BadRequestException('Birthday cannot be in the future');
+}
+
+function ageOnDate(birthDate: string, occurrence: Date): number {
+  const [year, month, day] = birthDate.split('-').map(Number);
+  let age = occurrence.getUTCFullYear() - year;
+  const occurrenceMonth = occurrence.getUTCMonth() + 1;
+  const occurrenceDay = occurrence.getUTCDate();
+  if (occurrenceMonth < month || (occurrenceMonth === month && occurrenceDay < day)) age -= 1;
+  return age;
 }

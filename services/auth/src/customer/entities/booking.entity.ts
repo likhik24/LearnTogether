@@ -26,6 +26,13 @@ export class Booking {
   @Column({ name: 'reservation_id', type: 'varchar', nullable: true })
   reservationId!: string | null;
 
+  @Index()
+  @Column({ name: 'child_id', type: 'uuid', nullable: true })
+  childId!: string | null;
+
+  @Column({ name: 'child_name', type: 'varchar', nullable: true })
+  childName!: string | null;
+
   @Column()
   title!: string;
 
@@ -54,9 +61,10 @@ export class Booking {
       classRef: this.classRef,
       classSlug: this.classSlug ?? null,
       reservationId: this.reservationId ?? null,
+      childId: this.childId ?? null,
+      childName: this.childName ?? null,
       title: this.title,
-      scheduledStart:
-        this.scheduledStart?.toISOString() ?? new Date().toISOString(),
+      scheduledStart: this.scheduledStart?.toISOString() ?? new Date().toISOString(),
       amountMinor: this.amountMinor,
       currency: this.currency,
       status: this.status,
