@@ -12,7 +12,7 @@ import {
 import { createAuthClient, createTeacherClient } from '../../lib/api';
 import {
   getCustomerSchedulingClient,
-  readCustomerUser,
+  hydrateCustomerSession,
   saveCustomerSession,
 } from '../../lib/customer-session';
 import { AppHeader, BottomNav } from '../ui';
@@ -58,9 +58,19 @@ export default function TeacherPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const existing = readCustomerUser();
-    setUser(existing);
-    if (existing?.role === Role.TEACHER) void loadClasses();
+    let active = true;
+    void hydrateCustomerSession().then((existing) => {
+      if (!active) return;
+      if (existing && existing.role !== Role.TEACHER) {
+        setError('This account is not a provider account.');
+        return;
+      }
+      setUser(existing);
+      if (existing) void loadClasses();
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function loadClasses() {

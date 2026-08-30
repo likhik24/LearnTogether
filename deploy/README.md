@@ -17,6 +17,8 @@ network, and Next rewrites `/api/*` requests to the appropriate service.
    - add the Razorpay key ID, key secret, and a separately generated webhook
      secret. Start with Test Mode credentials until the complete checkout and
      refund flow has been verified.
+   - keep the generated `INTERNAL_SERVICE_SECRET` private; it authorizes the
+     auth service—not browsers—to request refunds from the payments service.
 4. Allow the production web origins to upload provider PDFs directly through
    presigned URLs:
 

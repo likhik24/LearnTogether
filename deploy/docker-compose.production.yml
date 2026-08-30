@@ -136,6 +136,7 @@ services:
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:?Set RAZORPAY_KEY_ID}
       RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:?Set RAZORPAY_KEY_SECRET}
       RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:?Set RAZORPAY_WEBHOOK_SECRET}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?Set INTERNAL_SERVICE_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
@@ -167,6 +168,7 @@ services:
       AWS_REGION: ${AWS_REGION:-ap-southeast-2}
       SCHEDULING_API_URL: http://scheduling:3004
       PAYMENTS_API_URL: http://payments:3007
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?Set INTERNAL_SERVICE_SECRET}
       CORS_ORIGIN: https://learnandbuild.org
       OIDC_REDIRECT_BASE: https://learnandbuild.org/api/auth
       OIDC_SUCCESS_REDIRECT: ${OIDC_SUCCESS_REDIRECT:-https://learnandbuild.org/profile}

@@ -8,8 +8,10 @@ import {
   Post,
   RawBodyRequest,
   Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { CurrentUser, JwtAuthGuard, type AuthPrincipal } from '@learn-and-build/nest-auth';
 import type { PaymentDto, PaymentIntentResponse } from '@learn-and-build/types';
@@ -22,6 +24,7 @@ export class PaymentsController {
   constructor(
     private readonly payments: PaymentsService,
     private readonly gateway: RazorpayGateway,
+    private readonly config: ConfigService,
   ) {}
 
   @Get('ready') ready(): { ready: boolean; provider: string } {
@@ -61,7 +64,15 @@ export class PaymentsController {
   async refund(
     @CurrentUser() user: AuthPrincipal,
     @Param('bookingId') bookingId: string,
+    @Headers('x-internal-service-token') internalToken = '',
   ): Promise<PaymentDto | null> {
+    const expected = this.config.get<string>(
+      'INTERNAL_SERVICE_SECRET',
+      'dev-insecure-internal-secret',
+    );
+    if (!internalToken || internalToken !== expected) {
+      throw new UnauthorizedException('Internal service authorization is required');
+    }
     return (await this.payments.refund(user.sub, bookingId))?.toDto() ?? null;
   }
 
