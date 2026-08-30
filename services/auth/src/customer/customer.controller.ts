@@ -3,15 +3,16 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   HttpCode,
   Param,
   Patch,
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { JwtAuthGuard, CurrentUser, type AuthPrincipal } from '@learn-and-build/nest-auth';
 import type {
   BookingDto,
@@ -21,6 +22,7 @@ import type {
 } from '@learn-and-build/types';
 import { CustomerService } from './customer.service';
 import { CreateBookingDto, CreateChildDto, SaveClassDto, UpdateChildDto } from './customer.dto';
+import { ACCESS_COOKIE, readCookie } from '../auth/session-cookies';
 
 /** Per-user customer data (children, saved classes, bookings, notifications). */
 @Controller('customer')
@@ -59,10 +61,11 @@ export class CustomerController {
   @Put('saved-classes/:classRef')
   async saveClass(
     @CurrentUser() u: AuthPrincipal,
+    @Req() request: Request,
     @Param('classRef') classRef: string,
-    @Body() dto: SaveClassDto,
+    @Body() _dto: SaveClassDto,
   ): Promise<SavedClassDto> {
-    return (await this.customer.saveClass(u.sub, classRef, dto.title ?? '')).toDto();
+    return (await this.customer.saveClass(u.sub, downstreamAuthorization(request), classRef)).toDto();
   }
 
   @Delete('saved-classes/:classRef')
@@ -82,19 +85,19 @@ export class CustomerController {
   @Post('bookings')
   async createBooking(
     @CurrentUser() u: AuthPrincipal,
-    @Headers('authorization') authorization: string,
+    @Req() request: Request,
     @Body() dto: CreateBookingDto,
   ): Promise<BookingDto> {
-    return (await this.customer.createBooking(u.sub, authorization, dto)).toDto();
+    return (await this.customer.createBooking(u.sub, downstreamAuthorization(request), dto)).toDto();
   }
 
   @Patch('bookings/:id/cancel')
   async cancelBooking(
     @CurrentUser() u: AuthPrincipal,
-    @Headers('authorization') authorization: string,
+    @Req() request: Request,
     @Param('id') id: string,
   ): Promise<BookingDto> {
-    return (await this.customer.cancelBooking(u.sub, authorization, id)).toDto();
+    return (await this.customer.cancelBooking(u.sub, downstreamAuthorization(request), id)).toDto();
   }
 
   @Get('notifications')
@@ -119,4 +122,14 @@ export class CustomerController {
   async markAllRead(@CurrentUser() u: AuthPrincipal): Promise<void> {
     await this.customer.markAllNotificationsRead(u.sub);
   }
+}
+
+/** Forward the already-validated user identity to Scheduling. Browser clients
+ * authenticate with an HttpOnly cookie, so an Authorization header is often
+ * intentionally absent at this boundary. */
+export function downstreamAuthorization(request: Request): string {
+  const header = request.headers.authorization;
+  if (header) return header;
+  const token = readCookie(request, ACCESS_COOKIE);
+  return token ? `Bearer ${token}` : '';
 }

@@ -7,6 +7,7 @@ import { createAuthClient } from '../../lib/api';
 import {
   clearCustomerSession,
   hydrateCustomerSession,
+  readSafeReturnTo,
   saveCustomerSession,
   signOutCustomerSession,
 } from '../../lib/customer-session';
@@ -99,6 +100,8 @@ export default function ProfilePage() {
             });
       saveCustomerSession(response.accessToken, response.user);
       setUser(response.user);
+      const returnTo = readSafeReturnTo('');
+      if (returnTo && !returnTo.startsWith('/profile')) window.location.assign(returnTo);
     } catch (caught) {
       setError(authErrorMessage(caught, 'Could not complete the request', mode === 'login'));
     } finally {

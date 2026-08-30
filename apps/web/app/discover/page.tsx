@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createSchedulingClient, createSearchClient } from '../../lib/api';
-import { getCustomerClient } from '../../lib/customer-session';
+import { getPrimaryChild, hydrateCustomerSession } from '../../lib/customer-session';
 import { toClassCard } from '../../lib/class-data';
 import { categories, type ClassCardData } from '../data';
 import { AppHeader, BottomNav, ClassCard, Icon } from '../ui';
@@ -27,37 +27,17 @@ export default function DiscoverPage() {
   const [childInterests, setChildInterests] = useState<string[]>([]);
   const searchInput = useRef<HTMLInputElement>(null);
 
-  // Load the signed-in parent's child (with a local fallback) so the page is
-  // personalized to their child and interests, not a hardcoded sample.
+  // Personalize only from the authenticated, server-backed child profile.
   useEffect(() => {
-    function applyLocal() {
-      try {
-        const raw = window.localStorage.getItem('learn-together-child-profile');
-        if (!raw) return;
-        const local = JSON.parse(raw) as { name?: string; interests?: string[] };
-        setChildName(local.name ?? null);
-        setChildInterests(local.interests ?? []);
-      } catch {
-        /* ignore malformed local data */
-      }
-    }
-    const client = getCustomerClient();
-    if (!client) {
-      applyLocal();
-      return;
-    }
-    client
-      .listChildren()
-      .then((items) => {
-        const first = items[0];
-        if (first) {
-          setChildName(first.name);
-          setChildInterests(first.interests ?? []);
-        } else {
-          applyLocal();
-        }
-      })
-      .catch(applyLocal);
+    let active = true;
+    void hydrateCustomerSession()
+      .then((user) => user ? getPrimaryChild() : null)
+      .then((child) => {
+        if (!active || !child) return;
+        setChildName(child.name);
+        setChildInterests(child.interests ?? []);
+      });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {

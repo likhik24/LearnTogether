@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { createSchedulingClient } from '../../lib/api';
 import { toClassCard } from '../../lib/class-data';
-import { getCustomerClient, getPrimaryChild } from '../../lib/customer-session';
+import { getCustomerClient, getPrimaryChild, hydrateCustomerSession } from '../../lib/customer-session';
 import type { ClassCardData } from '../data';
 import { AppHeader, BottomNav, Icon } from '../ui';
 
@@ -18,17 +18,24 @@ export default function RecommendationsPage() {
   const [savedRefs, setSavedRefs] = useState<string[]>([]);
   const [childName, setChildName] = useState('your child');
   const [loading, setLoading] = useState(true);
+  const [signedIn, setSignedIn] = useState(false);
+  const [hasChild, setHasChild] = useState(false);
 
   useEffect(() => {
     let active = true;
-    const customer = getCustomerClient();
-    void Promise.all([
-      createSchedulingClient().discoverClasses({ ...origin, radiusMeters: 5_000, days: 21 }),
-      getPrimaryChild(),
-      customer ? customer.listSavedClasses().catch(() => []) : Promise.resolve([]),
-    ])
-      .then(([offerings, child, saved]) => {
-        if (!active) return;
+    void hydrateCustomerSession().then(async (user) => {
+      if (!active) return null;
+      setSignedIn(Boolean(user));
+      const customer = user ? getCustomerClient() : null;
+      return Promise.all([
+        createSchedulingClient().discoverClasses({ ...origin, radiusMeters: 5_000, days: 21 }),
+        getPrimaryChild(),
+        customer ? customer.listSavedClasses().catch(() => []) : Promise.resolve([]),
+      ]);
+    })
+      .then((result) => {
+        if (!active || !result) return;
+        const [offerings, child, saved] = result;
         const interests = (child?.interests ?? []).map((interest) => interest.toLowerCase());
         const ranked = offerings.map(toClassCard).sort((a, b) => {
           const score = (item: ClassCardData) =>
@@ -41,12 +48,14 @@ export default function RecommendationsPage() {
         });
         setItems(ranked);
         setChildName(child?.name ?? 'your child');
+        setHasChild(Boolean(child));
         setSavedRefs(saved.map((savedItem) => savedItem.classRef));
       })
       .catch(async () => {
         if (!active) return;
         const child = await getPrimaryChild();
         setChildName(child?.name ?? 'your child');
+        setHasChild(Boolean(child));
         setItems([]);
       })
       .finally(() => {
@@ -73,12 +82,13 @@ export default function RecommendationsPage() {
       <div className="phone-shell timeline-page">
         <AppHeader greeting={false} />
         <section className="timeline-intro">
-          <span className="eyebrow purple">PERSONALISED FOR {childName.toUpperCase()}</span>
+          <span className="eyebrow purple">{hasChild ? `PERSONALISED FOR ${childName.toUpperCase()}` : signedIn ? 'ADD A CHILD FOR PERSONALISED PICKS' : 'LIVE CLASSES NEAR YOU'}</span>
           <h1>
             A little plan for
             <br />a brilliant day.
           </h1>
           <p>Live availability, ordered around your family’s schedule.</p>
+          {signedIn && !hasChild && <Link className="inline-cta" href="/children?returnTo=%2Frecommendations">Add a child profile →</Link>}
         </section>
         <div className="timeline-tabs" aria-label="Recommendation timeline filters">
           {tabs.map((tab) => (
@@ -112,7 +122,14 @@ export default function RecommendationsPage() {
             </span>
           </p>
         </div>
-        {events.length > 0 ? (
+        {activeTab === 'Saved' && !signedIn ? (
+          <div className="empty-state timeline-empty">
+            <span><Icon name="profile" size={24} /></span>
+            <h3>Sign in to see saved classes</h3>
+            <p>Your favourites are securely tied to your LearnTogether account.</p>
+            <Link href="/profile?returnTo=%2Frecommendations">Sign in or create account</Link>
+          </div>
+        ) : events.length > 0 ? (
           <section className="class-timeline" aria-label={`${activeTab} class timeline`}>
             {events.map((item, index) => {
               const start = item.occurrenceStart ? new Date(item.occurrenceStart) : null;

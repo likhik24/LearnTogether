@@ -87,7 +87,7 @@ test('anonymous identity and register, logout, login, and reload session flow', 
   await expect(page.getByText(/Priya/i)).toHaveCount(0);
   await expect(page.locator('.app-header .eyebrow')).not.toContainText(',');
   await page.getByRole('button', { name: 'Notifications' }).click();
-  await expect(page.getByText('Sign in to see your updates.')).toBeVisible();
+  await expect(page.getByText('Sign in to see booking and profile updates.')).toBeVisible();
   await page.getByRole('button', { name: 'Close', exact: true }).click();
 
   await page.goto('/profile');

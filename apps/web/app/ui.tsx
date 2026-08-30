@@ -46,6 +46,8 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
   const [unread, setUnread] = useState(false);
   const [notifications, setNotifications] = useState<CustomerNotificationDto[] | null>(null);
   const [notificationsFailed, setNotificationsFailed] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [notificationActionError, setNotificationActionError] = useState(false);
 
   useEffect(() => {
     const savedLocation = window.localStorage.getItem('learn-together-location');
@@ -58,6 +60,7 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
       setUser(nextUser);
       setNotifications(null);
       setNotificationsFailed(false);
+      setNotificationActionError(false);
       setUnread(false);
       if (!nextUser) return;
       const client = getCustomerClient();
@@ -72,7 +75,7 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
       }
     };
     const unsubscribe = subscribeCustomerSession((nextUser) => void applyUser(nextUser));
-    void hydrateCustomerSession().then(applyUser);
+    void hydrateCustomerSession().then(applyUser).finally(() => { if (active) setSessionReady(true); });
     return () => {
       active = false;
       unsubscribe();
@@ -86,12 +89,15 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
   }
 
   async function markNotificationsRead() {
-    setUnread(false);
-    setNotifications((items) => items?.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() })) ?? null);
-    window.localStorage.setItem('learn-together-notifications-read', 'true');
     const client = getCustomerClient();
-    if (client) {
-      try { await client.markAllNotificationsRead(); } catch { /* Optimistic local state remains useful offline. */ }
+    if (!client) return;
+    setNotificationActionError(false);
+    try {
+      await client.markAllNotificationsRead();
+      setUnread(false);
+      setNotifications((items) => items?.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() })) ?? null);
+    } catch {
+      setNotificationActionError(true);
     }
   }
 
@@ -119,10 +125,12 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
               {notifications?.map((item) => (
                 <article className={!item.readAt ? 'unread' : ''} key={item.id}><span>{item.kind === 'profile' ? 'A' : '✦'}</span><div><strong>{item.title}</strong><p>{item.body}</p><small>{new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short' }).format(new Date(item.createdAt))}</small></div></article>
               ))}
-              {!user && <p className="notification-empty">Sign in to see your updates.</p>}
+              {!sessionReady && <p className="notification-empty">Checking your secure account…</p>}
+              {sessionReady && !user && <div className="notification-empty"><p>Sign in to see booking and profile updates.</p><Link className="notification-sign-in" href="/profile">Sign in or create account</Link></div>}
               {user && notifications === null && !notificationsFailed && <p className="notification-empty">Loading your updates…</p>}
               {user && notificationsFailed && <p className="notification-empty">We couldn’t load updates. Please try again.</p>}
               {notifications?.length === 0 && <p className="notification-empty">No notifications yet. New profile and booking updates will appear here.</p>}
+              {notificationActionError && <p className="form-error" role="alert">Notifications were not updated. Please try again.</p>}
             </div>
             {user && <button className="secondary-wide" onClick={() => void markNotificationsRead()} disabled={!unread}>{unread ? 'Mark all as read' : 'You’re all caught up'}</button>}
           </section>

@@ -44,7 +44,7 @@ test.describe.serial('live production journeys', () => {
 
     await page.getByRole('button', { name: 'Notifications' }).click();
     await expect(page.getByRole('dialog', { name: 'Notifications panel' })).toBeVisible();
-    await expect(page.getByText('Sign in to see your updates.')).toBeVisible();
+    await expect(page.getByText('Sign in to see booking and profile updates.')).toBeVisible();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
 
     await page.getByRole('button', { name: 'Change location' }).click();
@@ -79,7 +79,7 @@ test.describe.serial('live production journeys', () => {
     await page.getByRole('button', { name: 'Vehicles', exact: true }).click();
     await page.getByRole('button', { name: 'STEM', exact: true }).click();
     await page.getByRole('button', { name: 'Save profile' }).click();
-    await expect(page.getByText('Saved to LearnTogether API')).toBeVisible();
+    await expect(page.getByText('Saved to LearnTogether')).toBeVisible();
 
     await page.goto('/');
     await expect(
@@ -116,17 +116,19 @@ test.describe.serial('live production journeys', () => {
     await page.getByRole('button', { name: 'Done' }).click();
     await expect(page.getByText('checking live availability')).toBeHidden();
     await page.getByRole('button', { name: /Book trial/ }).click();
-    const bookingDialog = page.getByRole('dialog', { name: 'Trial class reserved' });
+    const bookingDialog = page.getByRole('dialog', { name: 'Confirm trial booking' });
     await expect(bookingDialog).toBeVisible();
-    await bookingDialog.getByRole('button', { name: /Confirm ₹/ }).click();
-    await expect(bookingDialog.getByText('BOOKING CONFIRMED')).toBeVisible();
+    await bookingDialog.getByRole('button', { name: 'Reserve this spot' }).click();
+    const bookedDialog = page.getByRole('dialog', { name: 'Booking confirmed' });
+    await expect(bookedDialog.getByText('BOOKING CONFIRMED')).toBeVisible();
 
     const held = await discoverClass(request, 'build-a-car');
     expect(held.nextOccurrence!.seatsAvailable).toBe(beforeSeats - 1);
 
-    await bookingDialog.getByRole('link', { name: 'View my bookings' }).click();
+    await bookedDialog.getByRole('link', { name: 'View my bookings' }).click();
     await expect(page.getByText('CONFIRMED')).toBeVisible();
     await page.getByRole('button', { name: 'Cancel booking' }).click();
+    await page.getByRole('dialog', { name: 'Cancel booking' }).getByRole('button', { name: 'Yes, cancel booking' }).click();
     await expect(page.getByRole('heading', { name: 'No bookings yet' })).toBeVisible();
 
     const released = await discoverClass(request, 'build-a-car');
