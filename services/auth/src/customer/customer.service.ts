@@ -1,6 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Repository } from 'typeorm';
+import { DataSource, In, IsNull, Repository } from 'typeorm';
 import { BookingStatus } from '@learn-and-build/types';
 import { ChildProfile } from './entities/child-profile.entity';
 import { SavedClass } from './entities/saved-class.entity';
@@ -24,6 +29,7 @@ export class CustomerService {
     private readonly notifications: Repository<CustomerNotification>,
     private readonly scheduling: SchedulingGateway,
     private readonly payments: PaymentsGateway,
+    private readonly db: DataSource,
   ) {}
 
   // --- Children ---
@@ -191,6 +197,9 @@ export class CustomerService {
     const booking = await this.bookings.findOne({ where: { id, userId } });
     if (!booking) throw new NotFoundException('Booking not found');
     if (booking.status === BookingStatus.CANCELLED) return booking;
+    if (booking.scheduledStart <= new Date()) {
+      throw new ConflictException('A class cannot be cancelled after it starts');
+    }
     await this.payments.refund(authorization, booking.id);
     if (booking.reservationId) {
       await this.scheduling.release(authorization, booking.classRef, booking.reservationId);
@@ -202,6 +211,12 @@ export class CustomerService {
       'booking',
       `${booking.title} cancelled`,
       'The trial booking has been removed from your upcoming plans.',
+    );
+    await this.db.query(
+      `INSERT INTO customer_notifications (user_id, kind, title, body, read_at)
+       SELECT teacher_id, 'booking', $2, $3, NULL
+       FROM class_offerings WHERE id::text = $1`,
+      [booking.classRef, `${booking.title} booking cancelled`, `${booking.childName ?? 'A learner'} will no longer attend this session.`],
     );
     return cancelled;
   }

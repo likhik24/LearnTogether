@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import {
   AvailabilityDay,
   ChildAgeGroup,
@@ -47,6 +47,7 @@ describe('TeachersService verification flow', () => {
   let documents: jest.Mocked<Pick<Repository<TeacherDocument>, 'save' | 'create'>>;
   let audits: jest.Mocked<Pick<Repository<TeacherModerationAudit>, 'save' | 'create'>>;
   let service: TeachersService;
+  const db = { query: jest.fn().mockResolvedValue([]) };
 
   beforeEach(() => {
     profiles = { findOne: jest.fn(), save: jest.fn() };
@@ -59,6 +60,7 @@ describe('TeachersService verification flow', () => {
       profiles as unknown as Repository<TeacherProfile>,
       documents as unknown as Repository<TeacherDocument>,
       audits as unknown as Repository<TeacherModerationAudit>,
+      db as unknown as DataSource,
     );
   });
 
@@ -112,6 +114,7 @@ describe('TeachersService.upsertProfile provider onboarding', () => {
   let documents: jest.Mocked<Pick<Repository<TeacherDocument>, 'save' | 'create'>>;
   let audits: jest.Mocked<Pick<Repository<TeacherModerationAudit>, 'save' | 'create'>>;
   let service: TeachersService;
+  const db = { query: jest.fn().mockResolvedValue([]) };
 
   beforeEach(() => {
     profiles = { findOne: jest.fn(), save: jest.fn(), create: jest.fn() };
@@ -125,6 +128,7 @@ describe('TeachersService.upsertProfile provider onboarding', () => {
       profiles as unknown as Repository<TeacherProfile>,
       documents as unknown as Repository<TeacherDocument>,
       audits as unknown as Repository<TeacherModerationAudit>,
+      db as unknown as DataSource,
     );
   });
 

@@ -9,8 +9,10 @@ import { Between, DataSource, Repository } from 'typeorm';
 import {
   ClassModerationStatus,
   ClassOfferingStatus,
+  OccurrenceStatus,
   ReservationStatus,
   type ClassOccurrence,
+  type PublicClassReviewDto,
   type DiscoverClassDto,
   type GeoLocation,
 } from '@learn-and-build/types';
@@ -27,6 +29,12 @@ interface DiscoverQuery {
   origin?: GeoLocation;
   radiusMeters?: number;
   days?: number;
+}
+
+interface OccurrenceOverrideRow {
+  original_start: Date;
+  replacement_start: Date | null;
+  status: OccurrenceStatus;
 }
 
 @Injectable()
@@ -210,7 +218,37 @@ export class ClassesService {
         note: offering.moderationReason,
       }),
     );
+    await this.dataSource.query(
+      `INSERT INTO customer_notifications (user_id, kind, title, body, read_at)
+       VALUES ($1, 'moderation', $2, $3, NULL)`,
+      [
+        offering.teacherId,
+        `Class ${status}`,
+        status === ClassModerationStatus.APPROVED
+          ? `${offering.activity} is approved and visible to families.`
+          : `${offering.activity} needs changes.${offering.moderationReason ? ` ${offering.moderationReason}` : ''}`,
+      ],
+    );
     return saved;
+  }
+
+  async reviews(classId: string): Promise<PublicClassReviewDto[]> {
+    await this.getPublicBySlugOrThrow(classId);
+    const rows = await this.dataSource.query<
+      Array<Omit<PublicClassReviewDto, 'createdAt' | 'updatedAt'> & { createdAt: Date; updatedAt: Date }>
+    >(
+      `SELECT r.id, r.class_id AS "classId", u.display_name AS "parentName",
+              r.rating, r.comment, r.created_at AS "createdAt", r.updated_at AS "updatedAt"
+       FROM class_reviews r JOIN users u ON u.id = r.user_id
+       WHERE r.class_id = $1 ORDER BY r.created_at DESC`,
+      [classId],
+    );
+    return rows.map((row) => ({
+      ...row,
+      parentName: row.parentName.trim().split(/\s+/)[0] || 'Parent',
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }));
   }
 
   async moderationHistory() {
@@ -282,11 +320,22 @@ export class ClassesService {
       }
 
       const occurrenceStart = new Date(dto.occurrenceStart);
-      const validOccurrence = generateOccurrences(
+      const generated = generateOccurrences(
         offering.timings ?? [],
         offering.durationMinutes,
         offering.seats,
         { days: 90 },
+      );
+      const overrideRows = await manager.query<OccurrenceOverrideRow[]>(
+        `SELECT original_start, replacement_start, status
+         FROM class_occurrence_overrides WHERE class_id = $1`,
+        [classId],
+      );
+      const validOccurrence = applyOccurrenceOverrides(
+        generated,
+        overrideRows,
+        offering.durationMinutes,
+        offering.seats,
       ).some((item) => item.start === occurrenceStart.toISOString());
       if (!validOccurrence)
         throw new BadRequestException('The selected class occurrence is no longer available');
@@ -353,12 +402,36 @@ export class ClassesService {
       const key = row.occurrenceStart.toISOString();
       reservedByStart.set(key, (reservedByStart.get(key) ?? 0) + row.seats);
     }
-    return generateOccurrences(offering.timings ?? [], offering.durationMinutes, offering.seats, {
+    const generated = generateOccurrences(offering.timings ?? [], offering.durationMinutes, offering.seats, {
       from,
       days,
       seatsAvailable: (start) =>
         Math.max(0, offering.seats - (reservedByStart.get(start.toISOString()) ?? 0)),
     });
+    const overrideRows = await this.dataSource.query<OccurrenceOverrideRow[]>(
+      `SELECT original_start, replacement_start, status
+       FROM class_occurrence_overrides
+       WHERE class_id = $1
+         AND (original_start BETWEEN $2 AND $3 OR replacement_start BETWEEN $2 AND $3)`,
+      [offering.id, from, horizon],
+    );
+    return applyOccurrenceOverrides(
+      generated,
+      overrideRows,
+      offering.durationMinutes,
+      offering.seats,
+    )
+      .filter((occurrence) => {
+        const start = new Date(occurrence.start);
+        return start >= from && start <= horizon;
+      })
+      .map((occurrence) => ({
+        ...occurrence,
+        seatsAvailable: Math.max(
+          0,
+          offering.seats - (reservedByStart.get(occurrence.start) ?? 0),
+        ),
+      }));
   }
 
   private async getOwnedOrThrow(teacherId: string, id: string): Promise<ClassOffering> {
@@ -366,6 +439,50 @@ export class ClassesService {
     if (!offering) throw new NotFoundException(`Class ${id} not found`);
     return offering;
   }
+}
+
+function applyOccurrenceOverrides(
+  occurrences: ClassOccurrence[],
+  overrides: OccurrenceOverrideRow[],
+  durationMinutes: number,
+  seatsTotal: number,
+): ClassOccurrence[] {
+  const byStart = new Map(overrides.map((item) => [item.original_start.toISOString(), item]));
+  const generatedStarts = new Set(occurrences.map((occurrence) => occurrence.start));
+  const transformed = occurrences
+    .flatMap((occurrence): ClassOccurrence[] => {
+      const override = byStart.get(occurrence.start);
+      if (!override) return [occurrence];
+      if (override.status === OccurrenceStatus.CANCELLED || !override.replacement_start) return [];
+      const start = override.replacement_start;
+      return [
+        {
+          ...occurrence,
+          start: start.toISOString(),
+          end: new Date(start.getTime() + durationMinutes * 60_000).toISOString(),
+        },
+      ];
+    });
+  for (const override of overrides) {
+    if (
+      override.status !== OccurrenceStatus.RESCHEDULED ||
+      !override.replacement_start ||
+      generatedStarts.has(override.original_start.toISOString())
+    ) {
+      continue;
+    }
+    transformed.push({
+      start: override.replacement_start.toISOString(),
+      end: new Date(
+        override.replacement_start.getTime() + durationMinutes * 60_000,
+      ).toISOString(),
+      seatsTotal,
+      seatsAvailable: seatsTotal,
+    });
+  }
+  return [...new Map(transformed.map((item) => [item.start, item])).values()].sort((a, b) =>
+    a.start.localeCompare(b.start),
+  );
 }
 
 function haversineMeters(a: GeoLocation, b: GeoLocation): number {

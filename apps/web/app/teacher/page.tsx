@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
   ClassOfferingStatus,
@@ -21,6 +22,7 @@ import {
 import { AppHeader, ProviderNav } from '../ui';
 import { OidcButtons } from '../oidc-buttons';
 import { ProviderProfileForm } from './provider-profile';
+import { ProviderOperations } from './provider-operations';
 
 type ScheduleRow = { weekday: number; start: string };
 const categoryOptions = PROVIDER_CATEGORY_TAXONOMY.map((item) => item.label);
@@ -135,6 +137,22 @@ export default function TeacherPage() {
     setVerificationStatus(null);
     setClasses([]);
     setWorkspaceReady(true);
+  }
+
+  async function activateProviderAccount() {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await createAuthClient().becomeProvider();
+      saveCustomerSession(response.accessToken, response.user);
+      setCustomerAccount(null);
+      setUser(response.user);
+      await loadWorkspace();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not start provider onboarding');
+    } finally {
+      setBusy(false);
+    }
   }
 
   function updateRow(index: number, patch: Partial<ScheduleRow>) {
@@ -292,11 +310,16 @@ export default function TeacherPage() {
             <span className="eyebrow purple">PROVIDER ACCOUNT REQUIRED</span>
             <h2>Continue your educator setup first.</h2>
             <p>
-              {customerAccount.email} is currently a family account. Sign out and create a
-              provider account to teach with the same email.
+              {customerAccount.email} is currently a family account. Continue with the same secure
+              login to add provider access—your family profiles and bookings remain available.
             </p>
-            <button className="primary-wide" type="button" onClick={() => void signOut()}>
-              Sign out to become a provider
+            <button
+              className="primary-wide"
+              type="button"
+              disabled={busy}
+              onClick={() => void activateProviderAccount()}
+            >
+              {busy ? 'Preparing provider account…' : 'Continue as a provider'}
             </button>
           </section>
         ) : !user ? (
@@ -365,7 +388,9 @@ export default function TeacherPage() {
             <p>
               Add your teaching background and availability before creating classes for review.
             </p>
-            <ProviderProfileForm />
+            <Link className="primary-wide" href="/provider">
+              Complete provider profile
+            </Link>
             <button className="secondary-wide" type="button" onClick={() => void signOut()}>
               Sign out of provider account
             </button>
@@ -377,6 +402,7 @@ export default function TeacherPage() {
               prepare classes now; a class cannot be approved for families until your identity
               review is approved.
             </section>
+            <ProviderOperations />
             <section className="provider-profile-block">
               <div className="section-heading">
                 <h2>Your provider profile</h2>
@@ -386,6 +412,9 @@ export default function TeacherPage() {
                 location, how far you’ll travel, and links to your public class profiles.
               </p>
               <ProviderProfileForm />
+              <Link className="secondary-wide" href="/provider">
+                Open complete profile and verification documents
+              </Link>
             </section>
 
             <form className="provider-form" onSubmit={publish}>

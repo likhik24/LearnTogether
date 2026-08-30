@@ -1,7 +1,9 @@
 import type {
   AuthTokenResponse,
   AvailabilityDay,
+  AttendanceStatus,
   BookingDto,
+  ClassReviewDto,
   PaymentDto,
   PaymentIntentResponse,
   ChildAgeGroup,
@@ -27,6 +29,12 @@ import type {
   ProviderAgeBand,
   ProviderCategory,
   ProviderExperience,
+  ProviderEarningsDto,
+  ProviderPayoutDto,
+  ProviderPayoutStatus,
+  ProviderRosterEntryDto,
+  ProviderSessionDto,
+  PublicClassReviewDto,
   PublicUser,
   Role,
   SavedClassDto,
@@ -443,6 +451,52 @@ export class ApiClient {
     return this.request<BookingDto>(`/customer/bookings/${id}/cancel`, { method: 'PATCH' });
   }
 
+  listProviderSessions(days = 60): Promise<ProviderSessionDto[]> {
+    return this.request<ProviderSessionDto[]>(`/provider/sessions?days=${days}`);
+  }
+
+  providerRoster(classId: string, start: string): Promise<ProviderRosterEntryDto[]> {
+    return this.request<ProviderRosterEntryDto[]>(
+      `/provider/classes/${encodeURIComponent(classId)}/roster?start=${encodeURIComponent(start)}`,
+    );
+  }
+
+  markProviderAttendance(
+    bookingId: string,
+    status: AttendanceStatus,
+    notes?: string,
+  ): Promise<ProviderRosterEntryDto> {
+    return this.request<ProviderRosterEntryDto>(
+      `/provider/bookings/${encodeURIComponent(bookingId)}/attendance`,
+      { method: 'PATCH', body: JSON.stringify({ status, notes }) },
+    );
+  }
+
+  changeProviderOccurrence(
+    classId: string,
+    input: { originalStart: string; newStart?: string; reason?: string },
+  ): Promise<ProviderSessionDto> {
+    return this.request<ProviderSessionDto>(
+      `/provider/classes/${encodeURIComponent(classId)}/occurrences/change`,
+      { method: 'POST', body: JSON.stringify(input) },
+    );
+  }
+
+  listMyReviews(): Promise<ClassReviewDto[]> {
+    return this.request<ClassReviewDto[]>('/customer/reviews');
+  }
+
+  reviewBooking(
+    bookingId: string,
+    rating: number,
+    comment?: string,
+  ): Promise<ClassReviewDto> {
+    return this.request<ClassReviewDto>(
+      `/customer/reviews/bookings/${encodeURIComponent(bookingId)}`,
+      { method: 'POST', body: JSON.stringify({ rating, comment }) },
+    );
+  }
+
   paymentReady(): Promise<{ ready: boolean; provider: string }> {
     return this.request<{ ready: boolean; provider: string }>('/payments/ready');
   }
@@ -461,6 +515,37 @@ export class ApiClient {
 
   paymentForBooking(bookingId: string): Promise<PaymentDto | null> {
     return this.request<PaymentDto | null>(`/payments/booking/${bookingId}`);
+  }
+
+  providerEarnings(): Promise<ProviderEarningsDto> {
+    return this.request<ProviderEarningsDto>('/payments/provider/earnings');
+  }
+
+  listProviderPayouts(): Promise<ProviderPayoutDto[]> {
+    return this.request<ProviderPayoutDto[]>('/payments/provider/payouts');
+  }
+
+  requestProviderPayout(amountMinor?: number): Promise<ProviderPayoutDto> {
+    return this.request<ProviderPayoutDto>('/payments/provider/payouts', {
+      method: 'POST',
+      body: JSON.stringify({ amountMinor }),
+    });
+  }
+
+  listAdminPayouts(): Promise<ProviderPayoutDto[]> {
+    return this.request<ProviderPayoutDto[]>('/payments/admin/payouts');
+  }
+
+  updateAdminPayout(
+    id: string,
+    status: ProviderPayoutStatus,
+    reference?: string,
+    note?: string,
+  ): Promise<ProviderPayoutDto> {
+    return this.request<ProviderPayoutDto>(`/payments/admin/payouts/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      body: JSON.stringify({ status, reference, note }),
+    });
   }
 
   listNotifications(unreadOnly = false): Promise<CustomerNotificationDto[]> {
@@ -506,6 +591,10 @@ export class ApiClient {
     return this.request<ClassOccurrence[]>(
       `/classes/${encodeURIComponent(id)}/availability?days=${days}`,
     );
+  }
+
+  classReviews(id: string): Promise<PublicClassReviewDto[]> {
+    return this.request<PublicClassReviewDto[]>(`/classes/${encodeURIComponent(id)}/reviews`);
   }
 
   listMyClasses(): Promise<ClassOfferingDto[]> {
@@ -616,6 +705,7 @@ export class ApiClient {
 export type {
   AuthTokenResponse,
   BookingDto,
+  ClassReviewDto,
   ClassOccurrence,
   ClassOfferingDto,
   ClassReservationDto,
@@ -631,6 +721,11 @@ export type {
   PresignedImageUploadResponse,
   ProviderCategoryDef,
   PublicUser,
+  ProviderEarningsDto,
+  ProviderPayoutDto,
+  ProviderRosterEntryDto,
+  ProviderSessionDto,
+  PublicClassReviewDto,
   SavedClassDto,
   TeacherDocumentDto,
   TeacherProfileDto,
@@ -638,6 +733,7 @@ export type {
 } from '@learn-and-build/types';
 export {
   AvailabilityDay,
+  AttendanceStatus,
   ChildAgeGroup,
   ChildrenExperience,
   ClassVenuePreference,
@@ -650,6 +746,7 @@ export {
   ProviderAgeBand,
   ProviderCategory,
   ProviderExperience,
+  ProviderPayoutStatus,
   PROVIDER_CATEGORY_TAXONOMY,
   Role,
   SessionFrequency,

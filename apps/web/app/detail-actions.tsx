@@ -8,7 +8,11 @@ import { createSchedulingClient } from '../lib/api';
 import { runPaymentCheckout } from '../lib/payment-checkout';
 import { Icon } from './ui';
 import type { ClassCardData } from './data';
-import type { ChildProfileDto, ClassOccurrence } from '@learn-and-build/types';
+import type {
+  ChildProfileDto,
+  ClassOccurrence,
+  PublicClassReviewDto,
+} from '@learn-and-build/types';
 import { RealDiscoveryMap } from './discover/real-discovery-map';
 import { CustomerAccessDialog, type CustomerAccessReason } from './customer-access-dialog';
 
@@ -464,11 +468,36 @@ function childEligibility(
       };
 }
 
-export function ReviewsButton({ count }: { count: number }) {
+export function ReviewsButton({
+  classId,
+  count,
+  rating,
+}: {
+  classId: string;
+  count: number;
+  rating: number;
+}) {
   const [open, setOpen] = useState(false);
+  const [reviews, setReviews] = useState<PublicClassReviewDto[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  async function openReviews() {
+    setOpen(true);
+    setLoading(true);
+    setLoadError(false);
+    try {
+      setReviews(await createSchedulingClient().classReviews(classId));
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)}>
+      <button type="button" onClick={() => void openReviews()}>
         {count} parent reviews
       </button>
       {open && (
@@ -481,26 +510,37 @@ export function ReviewsButton({ count }: { count: number }) {
           <section className="app-sheet reviews-sheet">
             <div className="sheet-heading">
               <div>
-                <span className="eyebrow purple">4.9 OUT OF 5</span>
-                <h2>Parents loved it</h2>
+                <span className="eyebrow purple">
+                  {count ? `${rating} OUT OF 5` : 'VERIFIED FAMILIES'}
+                </span>
+                <h2>{count ? 'What parents said' : 'Reviews coming soon'}</h2>
               </div>
               <button aria-label="Close" onClick={() => setOpen(false)}>
                 ×
               </button>
             </div>
-            <article>
-              <strong>“He talked about his car all evening.”</strong>
-              <p>
-                The group was small, Meera was wonderfully patient, and every child got hands-on
-                time.
+            {loading && <p role="status">Loading verified reviews…</p>}
+            {loadError && (
+              <p className="form-error" role="alert">
+                Reviews are temporarily unavailable. Please try again.
               </p>
-              <small>— Kavya, parent of a 5-year-old</small>
-            </article>
-            <article>
-              <strong>“Exactly the right level of challenge.”</strong>
-              <p>Fun enough to feel like play, but he learned how wheels and axles work too.</p>
-              <small>— Arjun, parent of a 4-year-old</small>
-            </article>
+            )}
+            {!loading && !loadError && reviews.length === 0 && (
+              <p>No verified reviews yet. Only parents who completed this class can publish one.</p>
+            )}
+            {!loading &&
+              reviews.map((review) => (
+                <article key={review.id}>
+                  <strong aria-label={`${review.rating} out of 5 stars`}>
+                    {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
+                  </strong>
+                  {review.comment && <p>{review.comment}</p>}
+                  <small>
+                    — {review.parentName} · verified booking ·{' '}
+                    {new Date(review.updatedAt).toLocaleDateString('en-IN')}
+                  </small>
+                </article>
+              ))}
             <button className="secondary-wide" onClick={() => setOpen(false)}>
               Done
             </button>

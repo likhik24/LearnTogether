@@ -37,7 +37,12 @@ describe('ClassesService', () => {
     audits = { create: jest.fn(), save: jest.fn(), find: jest.fn() };
     audits.create.mockImplementation((value) => Object.assign(new ClassModerationAudit(), value));
     audits.save.mockImplementation(async (value) => value as ClassModerationAudit);
-    dataSource = { transaction: jest.fn(), query: jest.fn().mockResolvedValue([{ exists: 1 }]) };
+    dataSource = {
+      transaction: jest.fn(),
+      query: jest.fn().mockImplementation(async (sql: string) =>
+        sql.includes('FROM teacher_profiles') ? [{ exists: 1 }] : [],
+      ),
+    };
     classes.create.mockImplementation((value) => Object.assign(new ClassOffering(), value));
     classes.save.mockImplementation(async (value) => value as ClassOffering);
     service = new ClassesService(
@@ -142,6 +147,7 @@ describe('ClassesService', () => {
       }),
     };
     const manager = {
+      query: jest.fn().mockResolvedValue([]),
       getRepository: jest.fn((entity) =>
         entity === ClassOffering
           ? { findOne: jest.fn().mockResolvedValue(offering) }

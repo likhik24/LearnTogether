@@ -49,4 +49,25 @@ export class PaymentsGateway {
         'The payment could not be refunded; the booking was not cancelled',
       );
   }
+
+  async refundBooking(bookingId: string): Promise<void> {
+    let response: Response;
+    try {
+      response = await fetch(
+        `${this.baseUrl}/payments/internal/bookings/${encodeURIComponent(bookingId)}/refund`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-internal-service-token': this.internalSecret,
+          },
+        },
+      );
+    } catch {
+      throw new BadGatewayException('Payment refund service is unavailable');
+    }
+    if (!response.ok) {
+      throw new BadGatewayException('An affected payment could not be refunded');
+    }
+  }
 }

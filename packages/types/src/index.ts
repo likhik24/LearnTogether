@@ -462,6 +462,22 @@ export interface ClassOccurrence {
   seatsAvailable: number;
 }
 
+export enum OccurrenceStatus {
+  SCHEDULED = 'scheduled',
+  CANCELLED = 'cancelled',
+  RESCHEDULED = 'rescheduled',
+}
+
+/** Provider-facing concrete session, including overrides and booked capacity. */
+export interface ProviderSessionDto extends ClassOccurrence {
+  classId: string;
+  classTitle: string;
+  originalStart: string;
+  status: OccurrenceStatus;
+  reason: string | null;
+  bookedSeats: number;
+}
+
 /** Customer-facing class data enriched with its next available occurrence. */
 export interface DiscoverClassDto extends ClassOfferingDto {
   distanceMeters: number | null;
@@ -603,6 +619,11 @@ export enum BookingStatus {
   CANCELLED = 'cancelled',
 }
 
+export enum AttendanceStatus {
+  PRESENT = 'present',
+  ABSENT = 'absent',
+}
+
 /** Customer booking snapshot owned by the authenticated user. */
 export interface BookingDto {
   id: string;
@@ -617,6 +638,79 @@ export interface BookingDto {
   amountMinor: number;
   currency: string;
   status: BookingStatus;
+  attendanceStatus: AttendanceStatus | null;
+  attendanceNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A privacy-scoped roster row visible only to the class owner. */
+export interface ProviderRosterEntryDto {
+  bookingId: string;
+  classId: string;
+  parentName: string;
+  parentEmail: string;
+  childId: string | null;
+  childName: string | null;
+  scheduledStart: string;
+  bookingStatus: BookingStatus;
+  paymentStatus: PaymentStatus | null;
+  attendanceStatus: AttendanceStatus | null;
+  attendanceNotes: string | null;
+}
+
+export interface ClassReviewDto {
+  id: string;
+  bookingId: string;
+  classId: string;
+  userId: string;
+  parentName: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Privacy-safe review returned on a public class page. */
+export type PublicClassReviewDto = Omit<ClassReviewDto, 'bookingId' | 'userId'>;
+
+export interface ProviderClassEarningsDto {
+  classId: string;
+  classTitle: string;
+  bookings: number;
+  grossMinor: number;
+  refundedMinor: number;
+  netMinor: number;
+}
+
+export interface ProviderEarningsDto {
+  currency: string;
+  platformFeeBps: number;
+  grossMinor: number;
+  refundedMinor: number;
+  feeMinor: number;
+  netMinor: number;
+  requestedMinor: number;
+  paidMinor: number;
+  availableMinor: number;
+  classes: ProviderClassEarningsDto[];
+}
+
+export enum ProviderPayoutStatus {
+  REQUESTED = 'requested',
+  PROCESSING = 'processing',
+  PAID = 'paid',
+  REJECTED = 'rejected',
+}
+
+export interface ProviderPayoutDto {
+  id: string;
+  teacherId: string;
+  amountMinor: number;
+  currency: string;
+  status: ProviderPayoutStatus;
+  reference: string | null;
+  note: string | null;
   createdAt: string;
   updatedAt: string;
 }

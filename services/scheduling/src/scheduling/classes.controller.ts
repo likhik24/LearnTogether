@@ -23,6 +23,7 @@ import type {
   ClassOccurrence,
   ClassOfferingDto,
   ClassReservationDto,
+  PublicClassReviewDto,
   DiscoverClassDto,
 } from '@learn-and-build/types';
 import { ClassModerationStatus, type ModerationAuditDto } from '@learn-and-build/types';
@@ -143,6 +144,11 @@ export class ClassesController {
   @Get('slug/:slug')
   async getBySlug(@Param('slug') slug: string): Promise<ClassOfferingDto> {
     return (await this.classes.getPublicBySlugOrThrow(slug)).toDto();
+  }
+
+  @Get(':id/reviews')
+  reviews(@Param('id') id: string): Promise<PublicClassReviewDto[]> {
+    return this.classes.reviews(id);
   }
 
   @Get(':id')
