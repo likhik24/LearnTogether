@@ -1,6 +1,6 @@
 import { BadGatewayException, ConflictException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { ClassReservationDto } from '@learn-and-build/types';
+import type { ClassOfferingDto, ClassReservationDto } from '@learn-and-build/types';
 
 @Injectable()
 export class SchedulingGateway {
@@ -8,6 +8,12 @@ export class SchedulingGateway {
 
   constructor(config: ConfigService) {
     this.baseUrl = config.get<string>('SCHEDULING_API_URL', 'http://localhost:3004').replace(/\/$/, '');
+  }
+
+  getClass(authorization: string, classId: string): Promise<ClassOfferingDto> {
+    return this.request<ClassOfferingDto>(`/classes/${encodeURIComponent(classId)}`, authorization, {
+      method: 'GET',
+    });
   }
 
   reserve(authorization: string, classId: string, occurrenceStart: string): Promise<ClassReservationDto> {

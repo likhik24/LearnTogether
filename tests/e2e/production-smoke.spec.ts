@@ -40,11 +40,11 @@ test.describe.serial('live production journeys', () => {
 
     await clearSession(page);
     await expect(page.getByRole('heading', { name: /Let’s find something/ })).toBeVisible();
+    await expect(page.getByText(/Priya/i)).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Notifications' }).click();
     await expect(page.getByRole('dialog', { name: 'Notifications panel' })).toBeVisible();
-    await page.getByRole('button', { name: 'Mark all as read' }).click();
-    await expect(page.getByRole('button', { name: 'You’re all caught up' })).toBeDisabled();
+    await expect(page.getByText('Sign in to see booking and profile updates.')).toBeVisible();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
 
     await page.getByRole('button', { name: 'Change location' }).click();
@@ -66,13 +66,20 @@ test.describe.serial('live production journeys', () => {
     expect(sessionCookies.find((cookie) => cookie.name === 'lt_access')?.httpOnly).toBeTruthy();
     expect(sessionCookies.find((cookie) => cookie.name === 'lt_refresh')?.httpOnly).toBeTruthy();
 
+    await page.getByRole('button', { name: 'Sign out' }).click();
+    await expect(page.getByRole('button', { name: 'Sign in & sync' })).toBeVisible();
+    await page.getByLabel('Email').fill(customerEmail.toUpperCase());
+    await page.getByLabel('Password').fill(password);
+    await page.getByRole('button', { name: 'Sign in & sync' }).click();
+    await expect(page.getByText('API CONNECTED')).toBeVisible();
+
     await page.goto('/children');
     await page.getByLabel('Name').fill(childName);
     await page.getByLabel('Birthday').fill('2021-05-17');
     await page.getByRole('button', { name: 'Vehicles', exact: true }).click();
     await page.getByRole('button', { name: 'STEM', exact: true }).click();
     await page.getByRole('button', { name: 'Save profile' }).click();
-    await expect(page.getByText('Saved to LearnTogether API')).toBeVisible();
+    await expect(page.getByText('Saved to LearnTogether')).toBeVisible();
 
     await page.goto('/');
     await expect(
@@ -85,7 +92,7 @@ test.describe.serial('live production journeys', () => {
     await page.screenshot({ path: `${screenshotDir}/customer-home.png`, fullPage: true });
 
     await page.goto('/discover');
-    await expect(page.getByText('LIVE API')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Browse by interest' })).toBeVisible();
     await page.getByRole('button', { name: 'List', exact: true }).click();
     await page.getByLabel('Search classes').fill('car');
     await expect(page.getByRole('heading', { name: 'Build-a-Car STEM Workshop' })).toBeVisible();
@@ -109,17 +116,19 @@ test.describe.serial('live production journeys', () => {
     await page.getByRole('button', { name: 'Done' }).click();
     await expect(page.getByText('checking live availability')).toBeHidden();
     await page.getByRole('button', { name: /Book trial/ }).click();
-    const bookingDialog = page.getByRole('dialog', { name: 'Trial class reserved' });
+    const bookingDialog = page.getByRole('dialog', { name: 'Confirm trial booking' });
     await expect(bookingDialog).toBeVisible();
-    await bookingDialog.getByRole('button', { name: /Confirm ₹/ }).click();
-    await expect(bookingDialog.getByText('BOOKING CONFIRMED')).toBeVisible();
+    await bookingDialog.getByRole('button', { name: 'Reserve this spot' }).click();
+    const bookedDialog = page.getByRole('dialog', { name: 'Booking confirmed' });
+    await expect(bookedDialog.getByText('BOOKING CONFIRMED')).toBeVisible();
 
     const held = await discoverClass(request, 'build-a-car');
     expect(held.nextOccurrence!.seatsAvailable).toBe(beforeSeats - 1);
 
-    await bookingDialog.getByRole('link', { name: 'View my bookings' }).click();
+    await bookedDialog.getByRole('link', { name: 'View my bookings' }).click();
     await expect(page.getByText('CONFIRMED')).toBeVisible();
     await page.getByRole('button', { name: 'Cancel booking' }).click();
+    await page.getByRole('dialog', { name: 'Cancel booking' }).getByRole('button', { name: 'Yes, cancel booking' }).click();
     await expect(page.getByRole('heading', { name: 'No bookings yet' })).toBeVisible();
 
     const released = await discoverClass(request, 'build-a-car');
@@ -212,7 +221,7 @@ test.describe.serial('live production journeys', () => {
     await page.getByPlaceholder('admin email').fill('not-admin@learnandbuild.org');
     await page.getByPlaceholder('password').fill('definitely-wrong');
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.getByText(/Request \/auth\/login failed \(401\)/)).toBeVisible();
+    await expect(page.getByText('Invalid credentials')).toBeVisible();
     expect(pageErrors).toEqual([]);
   });
 

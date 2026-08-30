@@ -605,6 +605,8 @@ export interface BookingDto {
   classRef: string;
   classSlug: string | null;
   reservationId: string | null;
+  childId: string | null;
+  childName: string | null;
   title: string;
   scheduledStart: string;
   amountMinor: number;

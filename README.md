@@ -192,19 +192,24 @@ The auth service also supports OIDC login via Google and AWS Cognito
 (Authorization Code + PKCE, using `openid-client`). Providers are enabled only
 when their env vars are set, so it degrades gracefully to password-only.
 
-| Method | Route                         | Purpose                                 |
-| ------ | ----------------------------- | --------------------------------------- |
-| GET    | /auth/oidc/providers          | List enabled providers (for UI buttons) |
-| GET    | /auth/oidc/:provider/login    | 302 redirect to the provider            |
-| GET    | /auth/oidc/:provider/callback | Exchange code, then redirect to console |
+| Method | Route                         | Purpose                                        |
+| ------ | ----------------------------- | ---------------------------------------------- |
+| GET    | /auth/oidc/providers          | List enabled providers (for UI buttons)        |
+| GET    | /auth/oidc/:provider/login    | 302 redirect to the provider                   |
+| GET    | /auth/oidc/:provider/callback | Exchange code, set session, then return to app |
 
-On success the browser is redirected to `OIDC_SUCCESS_REDIRECT` with the JWT in
-the URL fragment (`#access_token=...`); the admin console reads it on load.
+On success the auth service sets the same secure HttpOnly session cookies as
+password login and redirects to the validated in-app `returnTo` path.
 External identities are linked to a local user (matched by email, else created
-as a `user`). Configure via `GOOGLE_CLIENT_ID/SECRET` and
+for the selected customer/provider flow). Configure via `GOOGLE_CLIENT_ID/SECRET` and
 `AWS_COGNITO_ISSUER` + `AWS_COGNITO_CLIENT_ID/SECRET` (see `.env.example`).
 Set each provider's redirect URI to
 `${OIDC_REDIRECT_BASE}/auth/oidc/<google|aws>/callback`.
+
+For Google production login, add this exact authorized redirect URI in Google
+Cloud: `https://learnandbuild.org/api/auth/auth/oidc/google/callback`. Add
+`https://learnandbuild.org` as an authorized JavaScript origin, then set the
+client ID and secret in `deploy/.env.production` and restart the auth service.
 
 ## Teacher service (port 3002)
 

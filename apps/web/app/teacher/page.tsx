@@ -16,6 +16,7 @@ import {
   saveCustomerSession,
 } from '../../lib/customer-session';
 import { AppHeader, BottomNav } from '../ui';
+import { OidcButtons } from '../oidc-buttons';
 
 type ScheduleRow = { weekday: number; start: string };
 const categoryOptions = PROVIDER_CATEGORY_TAXONOMY.map((item) => item.label);
@@ -242,61 +243,64 @@ export default function TeacherPage() {
           words they search.
         </p>
         {!user ? (
-          <form className="customer-auth-form" onSubmit={authenticate}>
-            <div className="auth-tabs">
-              <button
-                type="button"
-                className={mode === 'login' ? 'active' : ''}
-                onClick={() => setMode('login')}
-              >
-                Sign in
-              </button>
-              <button
-                type="button"
-                className={mode === 'register' ? 'active' : ''}
-                onClick={() => setMode('register')}
-              >
-                Become a provider
-              </button>
-            </div>
-            {mode === 'register' && (
+          <>
+            <OidcButtons returnTo="/teacher" providerAccount />
+            <form className="customer-auth-form" onSubmit={authenticate}>
+              <div className="auth-tabs">
+                <button
+                  type="button"
+                  className={mode === 'login' ? 'active' : ''}
+                  onClick={() => setMode('login')}
+                >
+                  Sign in
+                </button>
+                <button
+                  type="button"
+                  className={mode === 'register' ? 'active' : ''}
+                  onClick={() => setMode('register')}
+                >
+                  Become a provider
+                </button>
+              </div>
+              {mode === 'register' && (
+                <label>
+                  Your name
+                  <input
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    required
+                  />
+                </label>
+              )}
               <label>
-                Your name
+                Email
                 <input
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
                   required
                 />
               </label>
-            )}
-            <label>
-              Email
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                minLength={8}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-              />
-            </label>
-            {error && <p className="form-error">{error}</p>}
-            <button className="primary-wide" disabled={busy}>
-              {busy
-                ? 'Connecting…'
-                : mode === 'login'
-                  ? 'Open provider studio'
-                  : 'Create provider account'}
-            </button>
-          </form>
+              <label>
+                Password
+                <input
+                  type="password"
+                  minLength={8}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+              </label>
+              {error && <p className="form-error">{error}</p>}
+              <button className="primary-wide" disabled={busy}>
+                {busy
+                  ? 'Connecting…'
+                  : mode === 'login'
+                    ? 'Open provider studio'
+                    : 'Create provider account'}
+              </button>
+            </form>
+          </>
         ) : (
           <>
             <form className="provider-form" onSubmit={publish}>

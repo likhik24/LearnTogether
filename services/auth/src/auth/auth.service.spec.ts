@@ -81,15 +81,18 @@ describe('AuthService', () => {
     );
 
     const result = await service.register({
-      email: 'NEW@example.com',
+      email: '  NEW@example.com  ',
       password: 'supersecret',
-      displayName: 'New User',
+      displayName: '  New User  ',
     });
 
     expect(result.accessToken).toBe('signed.jwt.token');
     expect(result.user.email).toBe('new@example.com');
     expect(result.user.role).toBe(Role.USER);
     expect(users.create).toHaveBeenCalledTimes(1);
+    expect(users.create).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'new@example.com', displayName: 'New User' }),
+    );
     expect(result.refreshToken).toBeTruthy();
     expect(mailer.verification).toHaveBeenCalled();
   });
@@ -131,10 +134,11 @@ describe('AuthService', () => {
     users.findByEmail.mockResolvedValue(makeUser({ passwordHash }));
 
     const result = await service.login({
-      email: 'teacher@example.com',
+      email: '  TEACHER@example.com ',
       password: 'supersecret',
     });
     expect(result.accessToken).toBe('signed.jwt.token');
+    expect(users.findByEmail).toHaveBeenCalledWith('teacher@example.com');
   });
 
   it('rejects login with wrong password', async () => {

@@ -4,6 +4,7 @@ import {
   IsISO8601,
   IsOptional,
   IsString,
+  IsUUID,
   MinLength,
 } from 'class-validator';
 
@@ -53,6 +54,9 @@ export class SaveClassDto {
 }
 
 export class CreateBookingDto {
+  @IsUUID()
+  childId!: string;
+
   @IsString()
   @MinLength(1)
   classRef!: string;
