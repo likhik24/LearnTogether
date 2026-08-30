@@ -45,7 +45,7 @@ const nextConfig = {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://api.mapbox.com https://*.mapbox.com https://api.razorpay.com https://*.razorpay.com",
+      "connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://api.mapbox.com https://*.mapbox.com https://api.razorpay.com https://*.razorpay.com https://*.amazonaws.com",
       "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com",
       "worker-src 'self' blob:",
     ].join('; ');

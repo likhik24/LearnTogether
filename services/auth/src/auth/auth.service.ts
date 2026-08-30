@@ -70,6 +70,21 @@ export class AuthService {
     return this.issueSession(user, metadata);
   }
 
+  async becomeProvider(userId: string, metadata: SessionMetadata = {}): Promise<SessionResult> {
+    const existing = await this.users.findById(userId);
+    if (!existing) throw new UnauthorizedException('Session user no longer exists');
+    if (existing.role === Role.ADMIN) {
+      throw new ConflictException(
+        'Administrator accounts cannot be converted to provider accounts',
+      );
+    }
+    const provider =
+      existing.role === Role.TEACHER
+        ? existing
+        : await this.users.setRole(existing.id, Role.TEACHER);
+    return this.issueSession(provider, metadata);
+  }
+
   issueTokenFor(user: User, metadata: SessionMetadata = {}): Promise<SessionResult> {
     return this.issueSession(user, metadata);
   }

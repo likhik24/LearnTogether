@@ -155,6 +155,22 @@ export class TeachersService {
   /** Teacher submits their profile for review (PENDING/REJECTED -> SUBMITTED). */
   async submitForReview(userId: string): Promise<TeacherProfile> {
     const profile = await this.getByUserIdOrThrow(userId);
+    const missing = [
+      !profile.displayName && 'full name',
+      !profile.phone && 'phone number',
+      !profile.email && 'email address',
+      !profile.locality && 'locality',
+      !profile.city && 'city',
+      !profile.category && 'primary category',
+      !(profile.skills ?? []).length && 'teaching skills',
+      !profile.skillDescription && 'skill description',
+      !profile.whyJoin && 'reason for joining',
+    ].filter(Boolean);
+    if (missing.length) {
+      throw new BadRequestException(
+        `Complete these required profile fields before submitting: ${missing.join(', ')}`,
+      );
+    }
     if ((profile.documents ?? []).length === 0) {
       throw new BadRequestException(
         'At least one document is required before submitting for review',

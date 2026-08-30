@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
   VerificationStatus,
@@ -33,7 +34,7 @@ import {
   saveCustomerSession,
   signOutCustomerSession,
 } from '../../lib/customer-session';
-import { AppHeader, BottomNav, Icon } from '../ui';
+import { AppHeader, Icon, ProviderNav } from '../ui';
 import { OidcButtons } from '../oidc-buttons';
 
 /* -------- option label maps (value -> human label) -------- */
@@ -315,7 +316,9 @@ function formFromProfile(p: TeacherProfileDto): FormState {
 
 export default function ProviderPage() {
   const [user, setUser] = useState<PublicUser | null>(null);
-  const [mode, setMode] = useState<'login' | 'register'>('register');
+  const [customerAccount, setCustomerAccount] = useState<PublicUser | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -337,15 +340,18 @@ export default function ProviderPage() {
   // Restore any existing session + saved profile on load.
   useEffect(() => {
     let active = true;
+    if (new URLSearchParams(window.location.search).get('mode') === 'register') {
+      setMode('register');
+    }
     void hydrateCustomerSession().then((existing) => {
       if (!active) return;
       if (existing && existing.role !== Role.TEACHER) {
-        setAuthError(
-          'This account is not a provider account. Choose “Create account” to become a provider.',
-        );
+        setCustomerAccount(existing);
+        setSessionReady(true);
         return;
       }
       setUser(existing);
+      setSessionReady(true);
       if (!existing) return;
       setForm((current) => ({
         ...current,
@@ -369,6 +375,33 @@ export default function ProviderPage() {
     };
   }, []);
 
+  async function activateProviderAccount() {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const response = await createAuthClient().becomeProvider();
+      saveCustomerSession(response.accessToken, response.user);
+      setCustomerAccount(null);
+      setUser(response.user);
+      setForm((current) => ({
+        ...current,
+        fullName: current.fullName || response.user.displayName,
+        email: current.email || response.user.email,
+      }));
+    } catch (caught) {
+      setAuthError(caught instanceof Error ? caught.message : 'Could not start provider onboarding');
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function useAnotherAccount() {
+    await signOutCustomerSession();
+    setCustomerAccount(null);
+    setUser(null);
+    setAuthError(null);
+  }
+
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -388,16 +421,18 @@ export default function ProviderPage() {
       const client = createAuthClient();
       const response =
         mode === 'login'
-          ? await client.login(email, password)
+          ? await client.login(email.trim().toLowerCase(), password)
           : await client.register({
-              email,
+              email: email.trim().toLowerCase(),
               password,
-              displayName,
+              displayName: displayName.trim(),
               role: Role.TEACHER,
             });
-      if (response.user.role !== Role.TEACHER)
-        throw new Error('This account is not a provider account.');
       saveCustomerSession(response.accessToken, response.user);
+      if (response.user.role !== Role.TEACHER) {
+        setCustomerAccount(response.user);
+        return;
+      }
       setUser(response.user);
       setForm((prev) => ({
         ...prev,
@@ -424,6 +459,7 @@ export default function ProviderPage() {
   async function signOut() {
     await signOutCustomerSession();
     setUser(null);
+    setCustomerAccount(null);
     setForm(EMPTY_FORM);
     setDocuments([]);
     setVerificationStatus(null);
@@ -537,7 +573,7 @@ export default function ProviderPage() {
     <main className="page-canvas">
       <div className="phone-shell provider-page">
         <AppHeader greeting={false} />
-        <span className="eyebrow purple">BECOME A PROVIDER</span>
+        <span className="eyebrow purple">PROVIDER ACCESS</span>
         <h1>{user ? `Welcome, ${user.displayName}.` : 'Share your craft with young learners.'}</h1>
         <p>
           {user
@@ -545,24 +581,52 @@ export default function ProviderPage() {
             : 'Sign in or create a provider account to build your profile and availability.'}
         </p>
 
-        {!user ? (
+        {!sessionReady ? (
+          <p className="section-hint" role="status">Checking your secure provider session…</p>
+        ) : customerAccount ? (
+          <section className="provider-account-choice">
+            <span className="eyebrow purple">CONTINUE WITH THIS ACCOUNT</span>
+            <h2>{customerAccount.displayName}, become a provider?</h2>
+            <p>
+              You’re signed in as {customerAccount.email}. We’ll keep this account and start the
+              moderated educator onboarding process—no second login is needed.
+            </p>
+            {authError && <p className="form-error">{authError}</p>}
+            <button
+              className="primary-wide"
+              type="button"
+              disabled={authLoading}
+              onClick={() => void activateProviderAccount()}
+            >
+              {authLoading ? 'Preparing provider account…' : 'Continue as a provider'}
+            </button>
+            <button
+              className="secondary-wide"
+              type="button"
+              disabled={authLoading}
+              onClick={() => void useAnotherAccount()}
+            >
+              Use another account
+            </button>
+          </section>
+        ) : !user ? (
           <>
             <OidcButtons returnTo="/provider" providerAccount />
             <form className="customer-auth-form" onSubmit={authenticate}>
               <div className="auth-tabs">
                 <button
                   type="button"
-                  className={mode === 'register' ? 'active' : ''}
-                  onClick={() => setMode('register')}
-                >
-                  Create account
-                </button>
-                <button
-                  type="button"
                   className={mode === 'login' ? 'active' : ''}
                   onClick={() => setMode('login')}
                 >
-                  Sign in
+                  Provider sign in
+                </button>
+                <button
+                  type="button"
+                  className={mode === 'register' ? 'active' : ''}
+                  onClick={() => setMode('register')}
+                >
+                  Apply to teach
                 </button>
               </div>
               {mode === 'register' && (
@@ -600,12 +664,19 @@ export default function ProviderPage() {
                   ? 'Connecting…'
                   : mode === 'register'
                     ? 'Create provider account'
-                    : 'Sign in'}
+                    : 'Sign in to Provider Studio'}
               </button>
+              {mode === 'login' && (
+                <Link className="auth-link" href="/profile?mode=forgot&returnTo=%2Fprovider">
+                  Forgot your password?
+                </Link>
+              )}
             </form>
           </>
         ) : (
-          <form className="provider-form" onSubmit={saveProfile}>
+          <>
+            <ProviderWorkflow status={verificationStatus} />
+            <form className="provider-form" onSubmit={saveProfile}>
             {/* Section 1 — About you */}
             <ProviderSection eyebrow="SECTION 1" title="About you">
               <TextField
@@ -743,7 +814,9 @@ export default function ProviderPage() {
               <div className="provider-label">
                 <span>Upload your portfolio (PDF)</span>
                 <small className="provider-hint">
-                  Attach a PDF portfolio or resume. Uploaded straight to secure storage.
+                  {verificationStatus === null
+                    ? 'Save your provider profile first, then attach a PDF portfolio or resume.'
+                    : 'Attach a PDF portfolio or resume. Uploaded straight to secure storage.'}
                 </small>
                 {documents.length > 0 && (
                   <ul className="provider-docs">
@@ -759,9 +832,15 @@ export default function ProviderPage() {
                     type="file"
                     accept="application/pdf"
                     onChange={uploadPortfolio}
-                    disabled={uploading}
+                    disabled={uploading || verificationStatus === null}
                   />
-                  <span>{uploading ? 'Uploading…' : 'Choose PDF file'}</span>
+                  <span>
+                    {uploading
+                      ? 'Uploading…'
+                      : verificationStatus === null
+                        ? 'Save profile to enable upload'
+                        : 'Choose PDF file'}
+                  </span>
                 </label>
                 {uploadError && <p className="form-error">{uploadError}</p>}
               </div>
@@ -910,6 +989,11 @@ export default function ProviderPage() {
             <button className="primary-wide" type="submit" disabled={saving}>
               {saving ? 'Saving…' : 'Save provider profile'}
             </button>
+            {verificationStatus && (
+              <Link className="primary-wide provider-studio-link" href="/teacher">
+                Open Provider Studio
+              </Link>
+            )}
             {(verificationStatus === VerificationStatus.PENDING ||
               verificationStatus === VerificationStatus.REJECTED) && (
               <button
@@ -925,13 +1009,34 @@ export default function ProviderPage() {
               <p className="section-hint">Upload at least one PDF before submitting for review.</p>
             )}
             <button className="secondary-wide" type="button" onClick={signOut}>
-              Sign out
+              Sign out of provider account
             </button>
-          </form>
+            </form>
+          </>
         )}
-        <BottomNav />
+        <ProviderNav />
       </div>
     </main>
+  );
+}
+
+function ProviderWorkflow({ status }: { status: VerificationStatus | null }) {
+  const reviewLabel = status ? status.replaceAll('_', ' ') : 'not submitted';
+  return (
+    <div className="provider-workflow" aria-label="Provider setup progress">
+      <span className="active">
+        <strong>1. Profile</strong>
+        <small>Tell us about your teaching.</small>
+      </span>
+      <span>
+        <strong>2. Review</strong>
+        <small>{reviewLabel}</small>
+      </span>
+      <Link href="/teacher">
+        <strong>3. Studio</strong>
+        <small>Create and manage classes.</small>
+      </Link>
+    </div>
   );
 }
 
@@ -1038,7 +1143,7 @@ function ChoiceGroup<T extends string>({
     <div className="provider-label">
       <span>{label}</span>
       {hint && <small className="provider-hint">{hint}</small>}
-      <div className="provider-chips">
+      <div className="provider-chips" role="group" aria-label={label}>
         {options.map((opt) => (
           <button
             type="button"
@@ -1074,7 +1179,7 @@ function CheckGroup<T extends string>({
         {label}
         {required && <em className="req"> *</em>}
       </span>
-      <div className="provider-chips">
+      <div className="provider-chips" role="group" aria-label={label}>
         {options.map((opt) => (
           <button
             type="button"

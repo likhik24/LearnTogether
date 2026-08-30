@@ -33,6 +33,7 @@ export default function ProfilePage() {
     const params = new URLSearchParams(window.location.search);
     const verificationToken = params.get('verify_token');
     const passwordToken = params.get('reset_token');
+    if (params.get('mode') === 'forgot') setMode('forgot');
     if (passwordToken) {
       setResetToken(passwordToken);
       setMode('reset');
@@ -148,7 +149,7 @@ export default function ProfilePage() {
           <p className="section-hint" role="status">
             Checking your secure session…
           </p>
-        ) : user && mode !== 'reset' ? (
+        ) : user && mode !== 'reset' && mode !== 'forgot' ? (
           <section className="account-card">
             <span className="account-avatar">{user.displayName.charAt(0).toUpperCase()}</span>
             <div>

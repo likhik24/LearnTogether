@@ -1,21 +1,25 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
   ClassOfferingStatus,
   InstructorGender,
   PROVIDER_CATEGORY_TAXONOMY,
   Role,
+  VerificationStatus,
   type ClassOfferingDto,
   type PublicUser,
 } from '@learn-and-build/types';
+import { ApiError } from '@learn-and-build/api-client';
 import { createAuthClient, createTeacherClient } from '../../lib/api';
 import {
   getCustomerSchedulingClient,
   hydrateCustomerSession,
   saveCustomerSession,
+  signOutCustomerSession,
 } from '../../lib/customer-session';
-import { AppHeader, BottomNav } from '../ui';
+import { AppHeader, ProviderNav } from '../ui';
 import { OidcButtons } from '../oidc-buttons';
 
 type ScheduleRow = { weekday: number; start: string };
@@ -32,6 +36,9 @@ function minutesFromTime(value: string): number {
 
 export default function TeacherPage() {
   const [user, setUser] = useState<PublicUser | null>(null);
+  const [customerAccount, setCustomerAccount] = useState<PublicUser | null>(null);
+  const [workspaceReady, setWorkspaceReady] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus | null>(null);
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -62,16 +69,31 @@ export default function TeacherPage() {
     void hydrateCustomerSession().then((existing) => {
       if (!active) return;
       if (existing && existing.role !== Role.TEACHER) {
-        setError('This account is not a provider account.');
+        setCustomerAccount(existing);
+        setWorkspaceReady(true);
         return;
       }
       setUser(existing);
-      if (existing) void loadClasses();
+      if (existing) void loadWorkspace();
+      else setWorkspaceReady(true);
     });
     return () => {
       active = false;
     };
   }, []);
+
+  async function loadWorkspace() {
+    setWorkspaceReady(false);
+    try {
+      const profile = await createTeacherClient().getMyTeacherProfile();
+      setVerificationStatus(profile.verificationStatus);
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 404) setVerificationStatus(null);
+      else setError(caught instanceof Error ? caught.message : 'Could not load provider profile');
+    }
+    await loadClasses();
+    setWorkspaceReady(true);
+  }
 
   async function loadClasses() {
     const client = getCustomerSchedulingClient();
@@ -92,16 +114,27 @@ export default function TeacherPage() {
         mode === 'login'
           ? await createAuthClient().login(email, password)
           : await createAuthClient().register({ email, password, displayName, role: Role.TEACHER });
-      if (response.user.role !== Role.TEACHER)
-        throw new Error('This account is not a provider account.');
       saveCustomerSession(response.accessToken, response.user);
+      if (response.user.role !== Role.TEACHER) {
+        setCustomerAccount(response.user);
+        return;
+      }
       setUser(response.user);
-      await loadClasses();
+      await loadWorkspace();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not sign in');
     } finally {
       setBusy(false);
     }
+  }
+
+  async function signOut() {
+    await signOutCustomerSession();
+    setUser(null);
+    setCustomerAccount(null);
+    setVerificationStatus(null);
+    setClasses([]);
+    setWorkspaceReady(true);
   }
 
   function updateRow(index: number, patch: Partial<ScheduleRow>) {
@@ -252,7 +285,19 @@ export default function TeacherPage() {
           Choose what you teach, publish a recurring schedule, and help families find you by the
           words they search.
         </p>
-        {!user ? (
+        {!workspaceReady ? (
+          <p className="section-hint" role="status">Loading your Provider Studio…</p>
+        ) : customerAccount ? (
+          <section className="provider-gate">
+            <span className="eyebrow purple">PROVIDER ACCOUNT REQUIRED</span>
+            <h2>Continue your educator setup first.</h2>
+            <p>
+              {customerAccount.email} is currently a family account. Continue through provider
+              onboarding to use the same login for teaching.
+            </p>
+            <Link className="primary-wide" href="/provider">Continue as a provider</Link>
+          </section>
+        ) : !user ? (
           <>
             <OidcButtons returnTo="/teacher" providerAccount />
             <form className="customer-auth-form" onSubmit={authenticate}>
@@ -311,8 +356,25 @@ export default function TeacherPage() {
               </button>
             </form>
           </>
+        ) : verificationStatus === null ? (
+          <section className="provider-gate">
+            <span className="eyebrow purple">STEP 1 OF 3</span>
+            <h2>Complete your provider profile.</h2>
+            <p>
+              Add your teaching background and availability before creating classes for review.
+            </p>
+            <Link className="primary-wide" href="/provider">Complete provider profile</Link>
+            <button className="secondary-wide" type="button" onClick={() => void signOut()}>
+              Sign out of provider account
+            </button>
+          </section>
         ) : (
           <>
+            <section className="provider-status-line">
+              Profile review: <strong>{verificationStatus.replaceAll('_', ' ')}</strong>. You can
+              prepare classes now; a class cannot be approved for families until your identity
+              review is approved. <Link href="/provider">View provider profile</Link>
+            </section>
             <form className="provider-form" onSubmit={publish}>
               <div className="provider-section">
                 <div className="section-heading">
@@ -599,9 +661,16 @@ export default function TeacherPage() {
                 <p className="section-hint">Your submitted classes will appear here.</p>
               )}
             </section>
+            <button
+              className="secondary-wide provider-studio-link"
+              type="button"
+              onClick={() => void signOut()}
+            >
+              Sign out of Provider Studio
+            </button>
           </>
         )}
-        <BottomNav />
+        <ProviderNav />
       </div>
     </main>
   );

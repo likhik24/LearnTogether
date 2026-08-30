@@ -28,8 +28,8 @@ export default function HomePage() {
         <Link className="trust-note provider-cta" href="/provider">
           <Icon name="star" size={22} />
           <div>
-            <strong>Teach with Learn &amp; Build</strong>
-            <span>Share your craft and set your availability.</span>
+            <strong>Provider sign in or apply</strong>
+            <span>Open your studio, or start a new educator application.</span>
           </div>
           <span>→</span>
         </Link>

@@ -152,13 +152,14 @@ All `/health` endpoints return HTTP 200 with `{ "status": "ok", "service": "<nam
 
 Roles: `user`, `teacher`, `admin` (shared `Role` enum in `@learn-and-build/types`).
 
-| Method | Route                 | Auth        | Purpose                        |
-| ------ | --------------------- | ----------- | ------------------------------ |
-| POST   | /auth/register        | public      | Sign up (USER or TEACHER only) |
-| POST   | /auth/login           | public      | Get a JWT                      |
-| GET    | /auth/me              | JWT         | Current user                   |
-| GET    | /admin/users          | JWT + ADMIN | List users                     |
-| PATCH  | /admin/users/:id/role | JWT + ADMIN | Change a user's role           |
+| Method | Route                  | Auth        | Purpose                              |
+| ------ | ---------------------- | ----------- | ------------------------------------ |
+| POST   | /auth/register         | public      | Sign up (USER or TEACHER only)       |
+| POST   | /auth/login            | public      | Start a secure cookie session        |
+| GET    | /auth/me               | JWT         | Current user                         |
+| POST   | /auth/provider-account | JWT + USER  | Continue a family account as provider |
+| GET    | /admin/users           | JWT + ADMIN | List users                           |
+| PATCH  | /admin/users/:id/role  | JWT + ADMIN | Change a user's role                 |
 
 Set `ADMIN_EMAIL` / `ADMIN_PASSWORD` to seed an initial admin on first boot.
 
@@ -475,12 +476,16 @@ tiles by default. Set `NEXT_PUBLIC_MAPBOX_TOKEN` to use Mapbox Streets instead.
 
 ### Provider onboarding page (`/provider`)
 
-`/provider` (linked from the home page) lets an educator sign in or create a
-provider account (role `teacher`) and complete a five-section onboarding +
-availability form covering all provider fields, including a category selector
-that reveals matching subcategories from the shared taxonomy and a portfolio
-PDF upload. It reads/writes the teacher service via `createTeacherClient()`,
-which the Next server proxies to the teacher service at `/api/teacher`
+`/provider` (linked from the home page) lets an educator sign in, create a
+provider account, or intentionally continue an existing family account as a
+provider. The same secure login then serves a three-step profile → identity
+review → Provider Studio journey. A profile must be saved before its portfolio
+PDF can be uploaded, and all required identity/teaching fields plus at least
+one document are enforced by the API before review submission. `/teacher` is
+the authenticated Provider Studio for creating and managing classes; class
+approval is blocked until the provider profile is approved. The onboarding
+form reads/writes the teacher service via `createTeacherClient()`, which the
+Next server proxies to the teacher service at `/api/teacher`
 (override the origin with `TEACHER_SERVICE_ORIGIN`, or the browser base URL
 with `NEXT_PUBLIC_TEACHER_API_URL`; defaults to `http://localhost:3002`).
 
