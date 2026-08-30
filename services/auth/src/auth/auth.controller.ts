@@ -87,6 +87,20 @@ export class AuthController {
     return user.toPublic();
   }
 
+  @Post('provider-account')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, AuthRateLimitGuard)
+  async becomeProvider(
+    @CurrentUser() principal: AuthPrincipal,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AuthTokenResponse> {
+    return this.finishSession(
+      response,
+      await this.auth.becomeProvider(principal.sub, sessionMetadata(request)),
+    );
+  }
+
   @Post('email-verification/resend')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(JwtAuthGuard, AuthRateLimitGuard)

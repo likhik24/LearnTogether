@@ -28,7 +28,7 @@ describe('ClassesService', () => {
   let classes: jest.Mocked<Pick<Repository<ClassOffering>, 'create' | 'save' | 'findOne' | 'find'>>;
   let reservations: jest.Mocked<Pick<Repository<ClassReservation>, 'find'>>;
   let audits: jest.Mocked<Pick<Repository<ClassModerationAudit>, 'create' | 'save' | 'find'>>;
-  let dataSource: jest.Mocked<Pick<DataSource, 'transaction'>>;
+  let dataSource: jest.Mocked<Pick<DataSource, 'transaction' | 'query'>>;
   let service: ClassesService;
 
   beforeEach(() => {
@@ -37,7 +37,7 @@ describe('ClassesService', () => {
     audits = { create: jest.fn(), save: jest.fn(), find: jest.fn() };
     audits.create.mockImplementation((value) => Object.assign(new ClassModerationAudit(), value));
     audits.save.mockImplementation(async (value) => value as ClassModerationAudit);
-    dataSource = { transaction: jest.fn() };
+    dataSource = { transaction: jest.fn(), query: jest.fn().mockResolvedValue([{ exists: 1 }]) };
     classes.create.mockImplementation((value) => Object.assign(new ClassOffering(), value));
     classes.save.mockImplementation(async (value) => value as ClassOffering);
     service = new ClassesService(
@@ -74,6 +74,15 @@ describe('ClassesService', () => {
       baseDto({ timings: [{ weekday: 6, startMinute: 10 * 60 }] }),
     );
     expect(result.timings).toEqual([{ weekday: 6, startMinute: 10 * 60 }]);
+  });
+
+  it('requires a saved provider profile before creating a class', async () => {
+    dataSource.query.mockResolvedValue([]);
+
+    await expect(service.create('teacher-1', baseDto())).rejects.toThrow(
+      'Complete your provider profile',
+    );
+    expect(classes.save).not.toHaveBeenCalled();
   });
 
   it('rejects a class whose timing falls outside the operating window', async () => {
@@ -165,10 +174,12 @@ describe('ClassesService', () => {
   it('records class approval in moderation history', async () => {
     const offering = Object.assign(new ClassOffering(), {
       id: 'c-1',
+      teacherId: 'teacher-1',
       moderationStatus: ClassModerationStatus.PENDING,
       moderationReason: null,
     });
     classes.findOne.mockResolvedValue(offering);
+    dataSource.query.mockResolvedValue([{ verification_status: 'approved' }]);
 
     const result = await service.moderate(
       'admin-1',
@@ -179,5 +190,21 @@ describe('ClassesService', () => {
 
     expect(result.moderationStatus).toBe(ClassModerationStatus.APPROVED);
     expect(audits.save).toHaveBeenCalled();
+  });
+
+  it('does not approve a class before its provider passes identity review', async () => {
+    classes.findOne.mockResolvedValue(
+      Object.assign(new ClassOffering(), {
+        id: 'c-1',
+        teacherId: 'teacher-1',
+        moderationStatus: ClassModerationStatus.PENDING,
+      }),
+    );
+    dataSource.query.mockResolvedValue([{ verification_status: 'submitted' }]);
+
+    await expect(
+      service.moderate('admin-1', 'c-1', ClassModerationStatus.APPROVED),
+    ).rejects.toThrow('identity-approved');
+    expect(classes.save).not.toHaveBeenCalled();
   });
 });

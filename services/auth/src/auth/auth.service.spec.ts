@@ -29,7 +29,7 @@ describe('AuthService', () => {
   let users: jest.Mocked<
     Pick<
       UsersService,
-      'findByEmail' | 'findById' | 'create' | 'markEmailVerified' | 'updatePassword'
+      'findByEmail' | 'findById' | 'create' | 'setRole' | 'markEmailVerified' | 'updatePassword'
     >
   >;
   let jwt: { sign: jest.Mock };
@@ -47,6 +47,7 @@ describe('AuthService', () => {
       findByEmail: jest.fn(),
       findById: jest.fn(),
       create: jest.fn(),
+      setRole: jest.fn(),
       markEmailVerified: jest.fn(),
       updatePassword: jest.fn(),
     };
@@ -155,6 +156,39 @@ describe('AuthService', () => {
     await expect(
       service.login({ email: 'ghost@example.com', password: 'whatever12' }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('lets an authenticated customer intentionally enter provider onboarding', async () => {
+    const customer = makeUser({ role: Role.USER });
+    const provider = makeUser({ role: Role.TEACHER });
+    users.findById.mockResolvedValue(customer);
+    users.setRole.mockResolvedValue(provider);
+
+    const result = await service.becomeProvider(customer.id);
+
+    expect(users.setRole).toHaveBeenCalledWith(customer.id, Role.TEACHER);
+    expect(result.user.role).toBe(Role.TEACHER);
+    expect(jwt.sign).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sub: customer.id, role: Role.TEACHER }),
+    );
+  });
+
+  it('keeps provider activation idempotent for an existing provider', async () => {
+    const provider = makeUser({ role: Role.TEACHER });
+    users.findById.mockResolvedValue(provider);
+
+    const result = await service.becomeProvider(provider.id);
+
+    expect(users.setRole).not.toHaveBeenCalled();
+    expect(result.user.role).toBe(Role.TEACHER);
+  });
+
+  it('does not convert an administrator account into a provider', async () => {
+    const admin = makeUser({ role: Role.ADMIN });
+    users.findById.mockResolvedValue(admin);
+
+    await expect(service.becomeProvider(admin.id)).rejects.toBeInstanceOf(ConflictException);
+    expect(users.setRole).not.toHaveBeenCalled();
   });
 
   it('rotates a valid refresh session and revokes the previous one', async () => {

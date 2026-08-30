@@ -228,6 +228,10 @@ export class ApiClient {
     return this.request<PublicUser>('/auth/me');
   }
 
+  becomeProvider(): Promise<AuthTokenResponse> {
+    return this.request<AuthTokenResponse>('/auth/provider-account', { method: 'POST' });
+  }
+
   logout(): Promise<void> {
     return this.request<void>('/auth/logout', { method: 'POST' }, false);
   }

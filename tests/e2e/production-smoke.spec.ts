@@ -144,38 +144,27 @@ test.describe.serial('live production journeys', () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test('provider registration, class publishing, profile save and S3 PDF upload', async ({
+  test('provider registration, profile review, S3 PDF upload and class publishing', async ({
     page,
   }) => {
     const pageErrors: string[] = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
     await clearSession(page);
 
-    await page.goto('/teacher');
-    await page.getByRole('button', { name: 'Become a provider' }).click();
-    await page.getByLabel('Your name').fill(`Smoke Provider ${runId}`);
+    await page.goto('/provider?mode=register');
+    await page.getByRole('button', { name: 'Apply to teach' }).click();
+    await page.getByLabel('Full name').fill(`Smoke Provider ${runId}`);
     await page.getByLabel('Email').fill(providerEmail);
     await page.getByLabel('Password').fill(password);
     await page.getByRole('button', { name: 'Create provider account' }).click();
-    await expect(page.getByRole('heading', { name: 'Class details' })).toBeVisible();
-
-    await page.getByLabel('Class name').fill(className);
-    await page
-      .getByLabel('What will families learn?')
-      .fill('A production smoke-test robotics class.');
-    await page.getByLabel('Venue name').fill('Hitech City Community Studio');
-    await page.getByPlaceholder('painting, craft, creative, beginner').fill('robotics, smoke-test');
-    await page.getByRole('button', { name: 'Submit class for approval' }).click();
-    await expect(
-      page.getByText('Class submitted. It will appear in discovery after moderation.'),
-    ).toBeVisible();
-    await expect(page.getByText(className, { exact: true })).toBeVisible();
-
-    await page.goto('/provider');
     await expect(page.getByRole('heading', { name: /Welcome, Smoke Provider/ })).toBeVisible();
     await page.getByLabel(/Phone \/ WhatsApp number/).fill('9000000000');
     await page.getByLabel(/Which area\/locality/).fill('Hitech City');
-    await page.getByRole('button', { name: 'STEM / science', exact: true }).click();
+    await page.getByRole('button', { name: 'STEM / Robotics', exact: true }).click();
+    await page
+      .getByRole('group', { name: 'What skills would you like to teach/share with children?' })
+      .getByRole('button', { name: 'STEM / science', exact: true })
+      .click();
     await page
       .getByLabel(/Tell us about your skill/)
       .fill('I enjoy helping children build simple machines and understand how they work.');
@@ -195,15 +184,30 @@ test.describe.serial('live production journeys', () => {
     await expect(page.getByText(/Verification status: submitted/i)).toBeVisible();
     await page.screenshot({ path: `${screenshotDir}/provider-profile.png`, fullPage: true });
 
-    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await page.getByRole('link', { name: 'Open Provider Studio' }).click();
+    await expect(page.getByRole('heading', { name: 'Class details' })).toBeVisible();
+    await page.getByLabel('Class name').fill(className);
+    await page
+      .getByLabel('What will families learn?')
+      .fill('A production smoke-test robotics class.');
+    await page.getByLabel('Venue name').fill('Hitech City Community Studio');
+    await page.getByPlaceholder('painting, craft, creative, beginner').fill('robotics, smoke-test');
+    await page.getByRole('button', { name: 'Submit class for approval' }).click();
+    await expect(
+      page.getByText('Class submitted. It will appear in discovery after moderation.'),
+    ).toBeVisible();
+    await expect(page.getByText(className, { exact: true })).toBeVisible();
+
+    await page.goto('/provider');
+    await page.getByRole('button', { name: 'Sign out of provider account' }).click();
     await expect(
       page.getByRole('heading', { name: 'Share your craft with young learners.' }),
     ).toBeVisible();
-    await page.locator('.auth-tabs').getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.getByRole('button', { name: 'Provider sign in' }).click();
     const loginForm = page.locator('form.customer-auth-form');
     await loginForm.getByLabel('Email').fill(providerEmail);
     await loginForm.getByLabel('Password').fill(password);
-    await loginForm.locator('button[type="submit"]').click();
+    await loginForm.getByRole('button', { name: 'Sign in to Provider Studio' }).click();
     await expect(page.getByRole('heading', { name: /Welcome, Smoke Provider/ })).toBeVisible();
     await expect(page.getByLabel(/Phone \/ WhatsApp number/)).toHaveValue('9000000000');
     await expect(page.getByText(`smoke-portfolio-${runId}.pdf`)).toBeVisible();

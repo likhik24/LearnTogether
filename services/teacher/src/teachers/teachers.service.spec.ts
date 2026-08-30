@@ -27,6 +27,14 @@ function makeProfile(overrides: Partial<TeacherProfile> = {}): TeacherProfile {
       location: null,
       verificationStatus: VerificationStatus.PENDING,
       rejectionReason: null,
+      phone: '9000000000',
+      email: 'tess@example.com',
+      locality: 'Hitech City',
+      city: 'Hyderabad',
+      category: ProviderCategory.STEM,
+      skills: ['Robotics'],
+      skillDescription: 'Hands-on robotics projects.',
+      whyJoin: 'I enjoy helping children build things.',
       documents: [],
     },
     overrides,
@@ -57,6 +65,13 @@ describe('TeachersService verification flow', () => {
   it('blocks submission when no documents are uploaded', async () => {
     profiles.findOne.mockResolvedValue(makeProfile({ documents: [] }));
     await expect(service.submitForReview('u-1')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('blocks submission when required onboarding answers are incomplete', async () => {
+    profiles.findOne.mockResolvedValue(
+      makeProfile({ phone: null, documents: [new TeacherDocument()] }),
+    );
+    await expect(service.submitForReview('u-1')).rejects.toThrow('phone number');
   });
 
   it('moves PENDING -> SUBMITTED when a document exists', async () => {

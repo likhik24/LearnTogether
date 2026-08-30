@@ -42,6 +42,13 @@ export class ClassesService {
   ) {}
 
   async create(teacherId: string, dto: CreateClassDto): Promise<ClassOffering> {
+    const profiles = await this.dataSource.query<Array<{ exists: number }>>(
+      'SELECT 1 AS exists FROM teacher_profiles WHERE user_id = $1',
+      [teacherId],
+    );
+    if (!profiles.length) {
+      throw new ConflictException('Complete your provider profile before creating a class');
+    }
     try {
       assertValidTimings(dto.timings, dto.durationMinutes);
     } catch (err) {
@@ -181,6 +188,17 @@ export class ClassesService {
     reason?: string,
   ): Promise<ClassOffering> {
     const offering = await this.getOrThrow(id);
+    if (status === ClassModerationStatus.APPROVED) {
+      const rows = await this.dataSource.query<Array<{ verification_status: string }>>(
+        'SELECT verification_status FROM teacher_profiles WHERE user_id = $1',
+        [offering.teacherId],
+      );
+      if (rows[0]?.verification_status !== 'approved') {
+        throw new ConflictException(
+          'The provider must be identity-approved before this class can be approved',
+        );
+      }
+    }
     offering.moderationStatus = status;
     offering.moderationReason = reason?.trim() || null;
     const saved = await this.classes.save(offering);
