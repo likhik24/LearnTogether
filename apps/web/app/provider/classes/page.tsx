@@ -456,6 +456,12 @@ export default function TeacherPage() {
               prepare classes now; a class cannot be approved for families until your identity
               review is approved.
             </section>
+            <nav className="provider-subnav" aria-label="Provider studio tabs">
+              <Link className="active" href="/provider/classes">
+                Classes
+              </Link>
+              <Link href="/provider/earnings">Earnings</Link>
+            </nav>
             <ProviderOperations
               classControls={{ classes, onEdit: editClass, onChangeStatus: changeStatus }}
             />

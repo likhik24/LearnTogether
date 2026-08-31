@@ -404,6 +404,12 @@ body > section input, body > section select, body > section button { padding: 9p
 .provider-class-actions button.danger { color: #9a493b; }
 .moderation-reason { color: #9a493b !important; }
 
+/* Provider studio tabs */
+.provider-subnav { display: flex; gap: 6px; margin-top: 18px; padding: 4px; border-radius: 12px; background: var(--paper); }
+.provider-subnav a { flex: 1; padding: 9px; border-radius: 9px; color: var(--muted); font-size: 10px; font-weight: 800; text-align: center; text-decoration: none; }
+.provider-subnav a.active { color: var(--ink); background: white; box-shadow: 0 2px 8px rgba(40,34,29,.08); }
+.next-session-label { color: var(--purple) !important; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; }
+
 /* Merged classes + sessions view */
 .provider-class-sessions { display: grid; gap: 12px; margin-top: 16px; }
 .provider-class-sessions > .section-heading h3 { margin: 0; font-size: 14px; }
