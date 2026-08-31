@@ -198,7 +198,7 @@ test('provider entry, password sign-in, studio session, logout and re-login work
     if (path.includes('/customer/notifications')) return route.fulfill({ status: 200, body: '[]' });
     return route.fulfill({ status: 404, body: '{}' });
   });
-  await page.route('**/api/teacher/**', (route) =>
+  await page.route('**/api/provider/**', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -329,7 +329,7 @@ test('a family account can complete provider onboarding, review submission, and 
   await page.route('**/test-upload/**', (route) =>
     route.fulfill({ status: 200, body: '' }),
   );
-  await page.route('**/api/teacher/**', async (route) => {
+  await page.route('**/api/provider/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (path.endsWith('/teachers/me/documents/presign')) {
@@ -475,7 +475,7 @@ test('an administrator can process a provider payout with a required transfer re
     if (path.endsWith('/admin/users')) return route.fulfill({ status: 200, body: '[]' });
     return route.fulfill({ status: 404, body: '{}' });
   });
-  await page.route('**/api/teacher/**', (route) =>
+  await page.route('**/api/provider/**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
   );
   await page.route('**/api/scheduling/**', (route) =>
@@ -532,7 +532,7 @@ test('provider UI hydrates a secure cookie session after social sign-in', async 
     if (path.includes('/customer/notifications')) return route.fulfill({ status: 200, body: '[]' });
     return route.fulfill({ status: 404, body: '{}' });
   });
-  await page.route('**/api/teacher/**', (route) =>
+  await page.route('**/api/provider/**', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

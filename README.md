@@ -586,11 +586,10 @@ provider profile:
 
 The provider client calls are proxied by the Next server under `/api/provider`
 to the provider (teacher) service (override the origin with
-`PROVIDER_SERVICE_ORIGIN`, falling back to the legacy `TEACHER_SERVICE_ORIGIN`;
-override the browser base URL with `NEXT_PUBLIC_PROVIDER_API_URL`, falling back
-to `NEXT_PUBLIC_TEACHER_API_URL`; defaults to `http://localhost:3002`). The
-former separate `/teacher` studio route has been retired; the provider page now
-lives entirely at `/provider`.
+`PROVIDER_SERVICE_ORIGIN`, or the browser base URL with
+`NEXT_PUBLIC_PROVIDER_API_URL`; defaults to `http://localhost:3002`). The former
+separate `/teacher` studio route has been retired; the provider page now lives
+entirely at `/provider`.
 
 ### Class studio (`/provider/classes`)
 

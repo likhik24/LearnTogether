@@ -78,7 +78,7 @@ export class S3Service {
     return {
       uploadUrl,
       storageKey,
-      publicUrl: `/api/teacher/class-images/${encoded}`,
+      publicUrl: `/api/provider/class-images/${encoded}`,
       expiresInSeconds: this.expiresIn,
     };
   }

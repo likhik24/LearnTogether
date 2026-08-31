@@ -10,9 +10,7 @@ import type { VoiceQueryResponse } from '@learn-and-build/types';
 // this app's origin, so a single public tunnel exposes everything.
 export const AUTH_API_URL = process.env.NEXT_PUBLIC_AUTH_API_URL ?? '/api/auth';
 export const PROVIDER_API_URL =
-  process.env.NEXT_PUBLIC_PROVIDER_API_URL ??
-  process.env.NEXT_PUBLIC_TEACHER_API_URL ??
-  '/api/provider';
+  process.env.NEXT_PUBLIC_PROVIDER_API_URL ?? '/api/provider';
 export const SEARCH_API_URL =
   process.env.NEXT_PUBLIC_SEARCH_API_URL ?? '/api/search';
 export const SCHEDULING_API_URL =
