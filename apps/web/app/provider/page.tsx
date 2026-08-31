@@ -1379,20 +1379,21 @@ function HomeLocationField({
     setError(null);
     setResults([]);
     try {
-      const url =
-        'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=' +
-        encodeURIComponent(q);
-      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, {
+        headers: { Accept: 'application/json' },
+      });
       if (!res.ok) throw new Error(`Search failed (${res.status})`);
-      const data: Array<{ display_name: string; lat: string; lon: string }> = await res.json();
+      const { results } = (await res.json()) as {
+        results: Array<{ label: string; lat: string; lng: string }>;
+      };
       setResults(
-        data.map((r) => ({
-          label: r.display_name,
+        results.map((r) => ({
+          label: r.label,
           lat: Number(r.lat),
-          lng: Number(r.lon),
+          lng: Number(r.lng),
         })),
       );
-      if (data.length === 0) setError('No matching address found.');
+      if (results.length === 0) setError('No matching address found.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Address search failed');
     } finally {

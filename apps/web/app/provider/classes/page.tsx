@@ -174,14 +174,15 @@ export default function TeacherPage() {
     setVenueSearchError(null);
     setVenueResults([]);
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(q)}`,
-        { headers: { Accept: 'application/json' } },
-      );
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, {
+        headers: { Accept: 'application/json' },
+      });
       if (!res.ok) throw new Error(`Search failed (${res.status})`);
-      const data: Array<{ display_name: string; lat: string; lon: string }> = await res.json();
-      setVenueResults(data.map((r) => ({ label: r.display_name, lat: r.lat, lng: r.lon })));
-      if (data.length === 0) setVenueSearchError('No matching venue found.');
+      const { results } = (await res.json()) as {
+        results: Array<{ label: string; lat: string; lng: string }>;
+      };
+      setVenueResults(results);
+      if (results.length === 0) setVenueSearchError('No matching venue found.');
     } catch (caught) {
       setVenueSearchError(caught instanceof Error ? caught.message : 'Venue search failed');
     } finally {
