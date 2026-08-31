@@ -348,36 +348,44 @@ enabled automatically when set).
 
 #### Local uploads against real S3 (no MinIO)
 
-The `docker compose` provider (`teacher`) container ships **without** AWS
-credentials, so presign returns HTTP 500 (`Could not load credentials from any
-providers`) and the browser shows an upload failure. To exercise real uploads
-locally against the `providers-profiles` bucket (account `960763460353`, region
-`ap-southeast-2`):
+The provider (`teacher`) service signs S3 presigned upload URLs, so it needs AWS
+credentials, the bucket name, and the bucket's region. Provide all three through
+the git-ignored root `.env` file so the `docker compose` teacher container reads
+them — do not rely on your shell's ambient AWS variables. To exercise real
+uploads locally against the `providers-profiles` bucket (region `ap-southeast-2`):
 
-1. **Credentials.** Ensure a working AWS profile for that account. The examples
-   use the `default` profile (`aws sts get-caller-identity` should report
-   `960763460353`). Note: if your shell exports `AWS_PROFILE=learnbuild` but no
-   `learnbuild` profile exists in `~/.aws`, every AWS call fails — either create
-   that profile or run the service below with `AWS_PROFILE=default`.
-
-2. **Run the provider service natively** (the container has no creds and Docker
-   may be locked) on a spare port, using the real bucket + region and the same
-   `JWT_SECRET` as the rest of the stack:
+1. **Put the credentials, bucket, and region in `.env`** (repo root, git-ignored).
+   `docker-compose.yml` passes these into the teacher container:
 
    ```bash
-   PORT=3012 NODE_ENV=development \
-     DATABASE_URL=postgres://learnbuild:learnbuild@localhost:5432/learnbuild \
-     JWT_SECRET=dev-insecure-secret \
-     AUTH_SERVICE_URL=http://localhost:3011 \
-     DOCUMENTS_BUCKET=providers-profiles AWS_REGION=ap-southeast-2 \
-     AWS_PROFILE=default \
-     pnpm --filter @learn-and-build/teacher-service dev
+   # .env  (never commit this)
+   DOCUMENTS_BUCKET=providers-profiles
+   AWS_REGION=ap-southeast-2
+   AWS_ACCESS_KEY_ID=<key for the account that owns the bucket>
+   AWS_SECRET_ACCESS_KEY=<secret>
+   # AWS_SESSION_TOKEN=<only for temporary/STS credentials>
    ```
 
-   Then start the web app pointing `/api/provider` at it:
+   > **Do not let stale shell variables win.** Docker Compose gives variables
+   > already exported in your shell precedence over the `.env` file. A leftover
+   > `AWS_REGION=us-east-1` (or old `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`,
+   > or an `AWS_PROFILE` with no matching profile) will silently override `.env`,
+   > and the teacher will sign URLs for the wrong region/keys — the browser `PUT`
+   > then fails. Check with `env | grep -i aws` and clear them, or run compose
+   > with a clean environment:
+   >
+   > ```bash
+   > env -u AWS_REGION -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN -u AWS_PROFILE \
+   >   docker compose up -d --build teacher
+   > ```
+
+2. **Recreate the teacher container** so it picks up the `.env` values, then
+   confirm the region and credentials landed:
 
    ```bash
-   PROVIDER_SERVICE_ORIGIN=http://localhost:3012 pnpm --filter @learn-and-build/web dev
+   docker compose up -d --force-recreate teacher
+   docker compose exec teacher sh -c 'echo region=$AWS_REGION bucket=$DOCUMENTS_BUCKET key=${AWS_ACCESS_KEY_ID:+set}'
+   # expect: region=ap-southeast-2 bucket=providers-profiles key=set
    ```
 
 3. **Bucket CORS.** The browser `PUT`s straight to S3, so the bucket must allow
@@ -407,14 +415,15 @@ the moderation audit and sends the provider an in-app notification. The manual
 and admins still drive `start-review → approve/reject` from there.
 
 > **AWS credentials for S3 uploads.** Provider portfolios are stored in the
-> **`providers-profiles`** S3 bucket in AWS account **960763460353**. The
-> provider service signs the upload URLs, so it needs credentials for that
-> account: export the profile from
-> [AWS profile setup (macOS)](#aws-profile-setup-macos)
-> (`export AWS_PROFILE=learnbuild`) before starting the service, and set
-> `DOCUMENTS_BUCKET=providers-profiles`. Without valid credentials, presigning
-> fails with `Could not load credentials from any providers` (HTTP 500 on the
-> presign call). See the step-by-step setup below.
+> **`providers-profiles`** S3 bucket. The provider service signs the upload
+> URLs, so it needs credentials for the account that owns the bucket. Set
+> `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION=ap-southeast-2`, and
+> `DOCUMENTS_BUCKET=providers-profiles` in the git-ignored root `.env` (see the
+> step above), not via ambient shell variables — Compose lets stale shell
+> exports override `.env`. Without valid credentials, presigning fails with
+> `Could not load credentials from any providers` (HTTP 500 on the presign
+> call). In production on EC2, leave the keys unset and attach an instance role
+> instead.
 
 #### Configure real AWS S3 for local development
 

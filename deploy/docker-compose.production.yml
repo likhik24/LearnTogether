@@ -216,6 +216,14 @@ services:
       AUTH_SERVICE_URL: http://auth:3001
       DOCUMENTS_BUCKET: ${DOCUMENTS_BUCKET:?Set DOCUMENTS_BUCKET}
       AWS_REGION: ${AWS_REGION:-ap-southeast-2}
+      # The teacher service signs S3 presigned upload URLs, so it needs AWS
+      # credentials. On EC2 leave these unset and grant an instance role
+      # (the SDK reads it from IMDS). Off EC2 — a new machine, a non-AWS host —
+      # set them in .env.production so presign works; without any credentials
+      # presign returns HTTP 500 and portfolio/class-image uploads fail.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       UPLOAD_URL_TTL: ${UPLOAD_URL_TTL:-900}
       CORS_ORIGIN: https://learnandbuild.org
     depends_on:

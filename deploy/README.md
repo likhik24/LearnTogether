@@ -48,6 +48,27 @@ appropriate service.
    `scheduling`, `payments`) are allowed to start. Then verify the migration and
    endpoint health:
 
+   > **Let `.env.production` be the source of truth for AWS settings.** Docker
+   > Compose gives variables already exported in your shell precedence over
+   > `--env-file`. If your shell exports `AWS_REGION`, `AWS_ACCESS_KEY_ID`, or
+   > `AWS_SECRET_ACCESS_KEY` (common on developer machines, or a stale
+   > `AWS_REGION=us-east-1`), those values silently override the ones in
+   > `.env.production` — the teacher service then signs S3 upload URLs for the
+   > wrong region or with the wrong keys and portfolio/class-image uploads fail.
+   > Put the real values in `.env.production` and run compose with a clean
+   > environment so they win. Either unset the stale variables for the command:
+   >
+   > ```bash
+   > env -u AWS_REGION -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN -u AWS_PROFILE \
+   >   docker compose --env-file deploy/.env.production \
+   >   -f deploy/docker-compose.production.yml up -d --build
+   > ```
+   >
+   > or ensure they are not exported in the deploy shell at all (check with
+   > `env | grep -i aws`). On EC2 with an instance role, leave the AWS key
+   > variables blank in `.env.production` and unset in the shell so the SDK uses
+   > the role.
+
    ```bash
    docker compose \
      --env-file deploy/.env.production \
