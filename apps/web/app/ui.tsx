@@ -383,6 +383,8 @@ export function BottomNav() {
 const providerNavItems: { href: string; label: string; icon: IconName }[] = [
   { href: '/', label: 'Family app', icon: 'home' },
   { href: '/provider', label: 'Provider profile', icon: 'profile' },
+  { href: '/provider/classes', label: 'Class studio', icon: 'star' },
+  { href: '/provider/classes#earnings', label: 'Earnings', icon: 'calendar' },
 ];
 
 export function ProviderNav() {

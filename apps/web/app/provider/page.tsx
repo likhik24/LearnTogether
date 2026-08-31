@@ -989,20 +989,31 @@ export default function ProviderPage() {
             <button className="primary-wide" type="submit" disabled={saving}>
               {saving ? 'Saving…' : 'Save provider profile'}
             </button>
+            {verificationStatus && (
+              <Link className="primary-wide provider-studio-link" href="/provider/classes">
+                Open class studio
+              </Link>
+            )}
             {(verificationStatus === VerificationStatus.PENDING ||
-              verificationStatus === VerificationStatus.REJECTED) && (
-              <button
-                className="secondary-wide"
-                type="button"
-                onClick={submitForReview}
-                disabled={submittingReview || documents.length === 0}
-              >
-                {submittingReview ? 'Submitting…' : 'Submit profile for review'}
-              </button>
-            )}
-            {verificationStatus === VerificationStatus.PENDING && documents.length === 0 && (
-              <p className="section-hint">Upload at least one PDF before submitting for review.</p>
-            )}
+              verificationStatus === VerificationStatus.REJECTED) &&
+              documents.length === 0 && (
+                <p className="section-hint">
+                  Save your profile and upload a PDF document above — your profile is submitted
+                  for review automatically once a document is added.
+                </p>
+              )}
+            {(verificationStatus === VerificationStatus.PENDING ||
+              verificationStatus === VerificationStatus.REJECTED) &&
+              documents.length > 0 && (
+                <button
+                  className="secondary-wide"
+                  type="button"
+                  onClick={submitForReview}
+                  disabled={submittingReview}
+                >
+                  {submittingReview ? 'Submitting…' : 'Submit profile for review now'}
+                </button>
+              )}
             <button className="secondary-wide" type="button" onClick={signOut}>
               Sign out of provider account
             </button>
@@ -1027,10 +1038,10 @@ function ProviderWorkflow({ status }: { status: VerificationStatus | null }) {
         <strong>2. Review</strong>
         <small>{reviewLabel}</small>
       </span>
-      <span>
+      <Link href="/provider/classes">
         <strong>3. Studio</strong>
         <small>Create and manage classes.</small>
-      </span>
+      </Link>
     </div>
   );
 }

@@ -109,6 +109,73 @@ describe('TeachersService verification flow', () => {
   });
 });
 
+describe('TeachersService.addDocument auto-submit on upload', () => {
+  let profiles: jest.Mocked<Pick<Repository<TeacherProfile>, 'findOne' | 'save'>>;
+  let documents: jest.Mocked<Pick<Repository<TeacherDocument>, 'save' | 'create'>>;
+  let audits: jest.Mocked<Pick<Repository<TeacherModerationAudit>, 'save' | 'create'>>;
+  let service: TeachersService;
+  const db = { query: jest.fn().mockResolvedValue([]) };
+
+  beforeEach(() => {
+    profiles = { findOne: jest.fn(), save: jest.fn() };
+    documents = { save: jest.fn(), create: jest.fn() };
+    audits = { save: jest.fn(), create: jest.fn() };
+    documents.create.mockImplementation((value) => Object.assign(new TeacherDocument(), value));
+    documents.save.mockImplementation(async (value) => value as TeacherDocument);
+    audits.create.mockImplementation((value) => Object.assign(new TeacherModerationAudit(), value));
+    audits.save.mockImplementation(async (value) => value as TeacherModerationAudit);
+    profiles.save.mockImplementation(async (p) => p as TeacherProfile);
+    db.query.mockClear();
+    service = new TeachersService(
+      profiles as unknown as Repository<TeacherProfile>,
+      documents as unknown as Repository<TeacherDocument>,
+      audits as unknown as Repository<TeacherModerationAudit>,
+      db as unknown as DataSource,
+    );
+  });
+
+  const confirmDoc = { type: 'other', fileName: 'portfolio.pdf', storageKey: 'k' } as never;
+
+  it('auto-submits a complete PENDING profile when a document is uploaded', async () => {
+    profiles.findOne.mockResolvedValue(makeProfile({ verificationStatus: VerificationStatus.PENDING }));
+    const result = await service.addDocument('u-1', confirmDoc);
+    expect(result.verificationStatus).toBe(VerificationStatus.SUBMITTED);
+    expect(audits.save).toHaveBeenCalled();
+    // A submission notification is written.
+    expect(db.query).toHaveBeenCalled();
+  });
+
+  it('auto-resubmits a REJECTED profile and clears the rejection reason', async () => {
+    profiles.findOne.mockResolvedValue(
+      makeProfile({
+        verificationStatus: VerificationStatus.REJECTED,
+        rejectionReason: 'Blurry document',
+      }),
+    );
+    const result = await service.addDocument('u-1', confirmDoc);
+    expect(result.verificationStatus).toBe(VerificationStatus.SUBMITTED);
+    expect(result.rejectionReason).toBeNull();
+  });
+
+  it('does not auto-submit when required fields are missing', async () => {
+    profiles.findOne.mockResolvedValue(
+      makeProfile({ verificationStatus: VerificationStatus.PENDING, phone: null }),
+    );
+    const result = await service.addDocument('u-1', confirmDoc);
+    expect(result.verificationStatus).toBe(VerificationStatus.PENDING);
+    expect(audits.save).not.toHaveBeenCalled();
+  });
+
+  it('does not change an already-approved profile on new upload', async () => {
+    profiles.findOne.mockResolvedValue(
+      makeProfile({ verificationStatus: VerificationStatus.APPROVED }),
+    );
+    const result = await service.addDocument('u-1', confirmDoc);
+    expect(result.verificationStatus).toBe(VerificationStatus.APPROVED);
+    expect(audits.save).not.toHaveBeenCalled();
+  });
+});
+
 describe('TeachersService.upsertProfile provider onboarding', () => {
   let profiles: jest.Mocked<Pick<Repository<TeacherProfile>, 'findOne' | 'save' | 'create'>>;
   let documents: jest.Mocked<Pick<Repository<TeacherDocument>, 'save' | 'create'>>;

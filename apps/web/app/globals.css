@@ -340,6 +340,11 @@ body > section input, body > section select, body > section button { padding: 9p
 .home-loc-results button:hover { border-color: var(--purple); background: #faf8ff; }
 .home-loc-results svg { flex: 0 0 auto; color: var(--coral); }
 .home-loc-coords { display: flex; align-items: center; gap: 5px; margin: 8px 0 0; color: #3f7a56; font-size: 10px; font-weight: 800; }
+.venue-search .home-loc-results button { color: var(--ink); }
+.venue-selected { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; padding: 11px 13px; border: 1px solid #cbe3d5; border-radius: 12px; background: var(--mint); }
+.venue-selected strong { display: block; font-size: 11px; color: #2f5a44; overflow-wrap: anywhere; }
+.venue-selected small { display: block; margin-top: 2px; color: #3f6b52; font-size: 9px; font-weight: 700; }
+.venue-clear { flex: 0 0 auto; padding: 7px 12px; border: 1px solid #cbe3d5; border-radius: 9px; background: white; color: #2f6a47; font-size: 9px; font-weight: 800; cursor: pointer; }
 
 /* Availability date + slot picker */
 .avail-calendar { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; max-height: 232px; margin-top: 4px; padding: 4px; overflow-y: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
@@ -398,6 +403,19 @@ body > section input, body > section select, body > section button { padding: 9p
 .provider-class-actions button { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--purple); background: white; font-size: 8px; font-weight: 800; cursor: pointer; }
 .provider-class-actions button.danger { color: #9a493b; }
 .moderation-reason { color: #9a493b !important; }
+
+/* Merged classes + sessions view */
+.provider-class-sessions { display: grid; gap: 12px; margin-top: 16px; }
+.provider-class-sessions > .section-heading h3 { margin: 0; font-size: 14px; }
+.provider-class-sessions > h3 { margin: 14px 0 2px; font-size: 13px; }
+.provider-class-block { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 15px; background: white; }
+.provider-class-block .provider-class-actions { justify-content: flex-start; }
+.provider-class-session-rows { display: grid; gap: 6px; padding-left: 10px; border-left: 2px solid var(--lilac); }
+.provider-session-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); }
+.provider-session-row > div { display: grid; gap: 2px; }
+.provider-session-row span { font-size: 10px; font-weight: 700; }
+.provider-session-row small { color: var(--muted); font-size: 8px; }
+.provider-session-row button { flex: 0 0 auto; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: white; color: var(--purple); font-size: 8px; font-weight: 800; cursor: pointer; }
 
 /* Operational admin workspace ------------------------------------ */
 body > .admin-page { min-height: 100vh; padding: clamp(24px, 5vw, 64px); color: #e7ecff; background: radial-gradient(circle at top right, #19264b, #0b1020 48%); }

@@ -111,6 +111,35 @@ docker compose up --build
 Boots Postgres+PostGIS, OpenSearch, Redis, and all NestJS services (see the
 port table below). Wait until the services report healthy.
 
+> **After changing service code, rebuild that container** so the running image
+> isn’t stale, e.g. `docker compose up -d --build auth`. A stale container is a
+> common cause of `Cannot GET /…` (route missing) or `… is not exported`
+> (outdated bundle) errors.
+
+#### Running a service natively (when Docker is unavailable)
+
+If Docker Desktop is locked or you want a service on current code without
+rebuilding its image, run it directly against the host Postgres (which the
+compose stack already publishes on `localhost:5432`). Example for the auth
+service on a spare port so it doesn’t clash with the container on 3001:
+
+```bash
+PORT=3011 NODE_ENV=development \
+  DATABASE_URL=postgres://learnbuild:learnbuild@localhost:5432/learnbuild \
+  JWT_SECRET=dev-insecure-secret \
+  pnpm --filter @learn-and-build/auth-service dev
+```
+
+Then point the web app’s proxy at it when starting the dev server:
+
+```bash
+AUTH_SERVICE_ORIGIN=http://localhost:3011 pnpm --filter @learn-and-build/web dev
+```
+
+The same pattern works for other services via their `*_SERVICE_ORIGIN`
+overrides (see `next.config.mjs`). Use the same `JWT_SECRET` as the rest of the
+stack so tokens interoperate.
+
 ### 4. Start the web app (separate terminal)
 
 ```bash
@@ -292,6 +321,66 @@ steps in `ApiClient.uploadTeacherDocument(file, type)`. Presigning requires the
 service to have AWS credentials and a bucket (`DOCUMENTS_BUCKET`); for local
 dev, point it at MinIO/LocalStack with `S3_ENDPOINT` (path-style addressing is
 enabled automatically when set).
+
+#### Local uploads against real S3 (no MinIO)
+
+The `docker compose` provider (`teacher`) container ships **without** AWS
+credentials, so presign returns HTTP 500 (`Could not load credentials from any
+providers`) and the browser shows an upload failure. To exercise real uploads
+locally against the `providers-profiles` bucket (account `960763460353`, region
+`ap-southeast-2`):
+
+1. **Credentials.** Ensure a working AWS profile for that account. The examples
+   use the `default` profile (`aws sts get-caller-identity` should report
+   `960763460353`). Note: if your shell exports `AWS_PROFILE=learnbuild` but no
+   `learnbuild` profile exists in `~/.aws`, every AWS call fails — either create
+   that profile or run the service below with `AWS_PROFILE=default`.
+
+2. **Run the provider service natively** (the container has no creds and Docker
+   may be locked) on a spare port, using the real bucket + region and the same
+   `JWT_SECRET` as the rest of the stack:
+
+   ```bash
+   PORT=3012 NODE_ENV=development \
+     DATABASE_URL=postgres://learnbuild:learnbuild@localhost:5432/learnbuild \
+     JWT_SECRET=dev-insecure-secret \
+     AUTH_SERVICE_URL=http://localhost:3011 \
+     DOCUMENTS_BUCKET=providers-profiles AWS_REGION=ap-southeast-2 \
+     AWS_PROFILE=default \
+     pnpm --filter @learn-and-build/teacher-service dev
+   ```
+
+   Then start the web app pointing `/api/provider` at it:
+
+   ```bash
+   PROVIDER_SERVICE_ORIGIN=http://localhost:3012 pnpm --filter @learn-and-build/web dev
+   ```
+
+3. **Bucket CORS.** The browser `PUT`s straight to S3, so the bucket must allow
+   the dev origin or the upload fails with a browser `Failed to fetch`. Add
+   `http://localhost:3100` (and `http://localhost:3000`) to the bucket CORS
+   alongside the production origins:
+
+   ```bash
+   aws s3api put-bucket-cors --bucket providers-profiles \
+     --region ap-southeast-2 --profile default \
+     --cors-configuration file://deploy/s3-cors.json
+   ```
+
+   Use a CORS document that keeps the production origins and adds the localhost
+   dev origins (`PUT`, `GET`, `HEAD`). Verify with
+   `aws s3api get-bucket-cors --bucket providers-profiles --region ap-southeast-2`.
+
+**Auto-submit on upload.** Confirming a document (`POST /teachers/me/documents`)
+automatically submits the profile for review — a `PENDING` or `REJECTED`
+profile transitions to `SUBMITTED` as soon as a document is attached, provided
+all required fields are complete (full name, phone, email, locality, city,
+primary category, teaching skills, skill description, and reason for joining).
+An incomplete profile is left as-is so the provider can finish it; a `REJECTED`
+profile has its rejection reason cleared on resubmit. The move is recorded in
+the moderation audit and sends the provider an in-app notification. The manual
+`POST /teachers/me/submit` endpoint remains as an explicit resubmit/fallback,
+and admins still drive `start-review → approve/reject` from there.
 
 > **AWS credentials for S3 uploads.** Provider portfolios are stored in the
 > **`providers-profiles`** S3 bucket in AWS account **960763460353**. The
@@ -489,9 +578,10 @@ provider profile:
   OpenStreetMap Nominatim, resolved to coordinates), max commute distance, and
   public class-profile links (Instagram, Preply, UrbanPro, TeacherOn, plus an
   other/portfolio link).
-- A profile must be saved before its portfolio PDF can be uploaded, and
-  required fields plus at least one document are enforced by the API before
-  review submission. Reads/writes the shared `TeacherProfile` via the provider
+- A profile must be saved before its portfolio PDF can be uploaded. Uploading a
+  document auto-submits the profile for review once required fields are complete
+  (see “Auto-submit on upload” above), so there is no separate submit step in
+  the common case. Reads/writes the shared `TeacherProfile` via the provider
   client.
 
 The provider client calls are proxied by the Next server under `/api/provider`
@@ -501,6 +591,26 @@ override the browser base URL with `NEXT_PUBLIC_PROVIDER_API_URL`, falling back
 to `NEXT_PUBLIC_TEACHER_API_URL`; defaults to `http://localhost:3002`). The
 former separate `/teacher` studio route has been retired; the provider page now
 lives entirely at `/provider`.
+
+### Class studio (`/provider/classes`)
+
+Once a provider is signed in, `/provider/classes` is the class-management and
+operations studio (linked from `/provider` and the provider bottom nav):
+
+- **Class publishing** — create/edit recurring class offerings (name, category,
+  ages, price, duration, seats, venue + coordinates, cover image, weekend
+  schedule, discovery keywords) through the scheduling service, with a list
+  showing moderation/status and pause/resume/unpublish actions.
+- **Operations & earnings** — upcoming/recent sessions, session roster and
+  attendance, reschedule/cancel, plus an earnings panel (`#earnings` anchor)
+  with available payout, net earnings, and payout history.
+
+Class data uses the scheduling service; operations use the auth service’s
+provider routes (`/provider/sessions`, `/provider/classes/:id/roster`,
+`/provider/bookings/:id/attendance`, `/provider/classes/:id/occurrences/change`)
+and the payments service (`/payments/provider/earnings`,
+`/payments/provider/payouts`). A class cannot be approved for families until the
+provider profile is approved.
 
 ## Infrastructure (CDK)
 
