@@ -85,6 +85,7 @@ pnpm install
 > whose token is expired, `pnpm install` fails with `ERR_PNPM_FETCH_401`. Since
 > nothing here is private, install from the public registry instead — this does
 > not modify your `~/.npmrc`:
+>
 > ```bash
 > pnpm install --registry=https://registry.npmjs.org/ --config.always-auth=false
 > ```
@@ -117,8 +118,8 @@ port table below). Wait until the services report healthy.
 pnpm --filter @learn-and-build/web dev
 ```
 
-Open http://localhost:3100. The customer app, admin console (`/admin`), and the
-provider studio (`/teacher`) are all served here.
+Open http://localhost:3100. The customer app, admin console (`/admin`), provider
+onboarding (`/provider`), and provider studio (`/teacher`) are all served here.
 
 ## Local infrastructure & services
 
@@ -152,14 +153,14 @@ All `/health` endpoints return HTTP 200 with `{ "status": "ok", "service": "<nam
 
 Roles: `user`, `teacher`, `admin` (shared `Role` enum in `@learn-and-build/types`).
 
-| Method | Route                  | Auth        | Purpose                              |
-| ------ | ---------------------- | ----------- | ------------------------------------ |
-| POST   | /auth/register         | public      | Sign up (USER or TEACHER only)       |
-| POST   | /auth/login            | public      | Start a secure cookie session        |
-| GET    | /auth/me               | JWT         | Current user                         |
+| Method | Route                  | Auth        | Purpose                               |
+| ------ | ---------------------- | ----------- | ------------------------------------- |
+| POST   | /auth/register         | public      | Sign up (USER or TEACHER only)        |
+| POST   | /auth/login            | public      | Start a secure cookie session         |
+| GET    | /auth/me               | JWT         | Current user                          |
 | POST   | /auth/provider-account | JWT + USER  | Continue a family account as provider |
-| GET    | /admin/users           | JWT + ADMIN | List users                           |
-| PATCH  | /admin/users/:id/role  | JWT + ADMIN | Change a user's role                 |
+| GET    | /admin/users           | JWT + ADMIN | List users                            |
+| PATCH  | /admin/users/:id/role  | JWT + ADMIN | Change a user's role                  |
 
 Set `ADMIN_EMAIL` / `ADMIN_PASSWORD` to seed an initial admin on first boot.
 
@@ -230,11 +231,12 @@ Cloud: `https://learnandbuild.org/api/auth/auth/oidc/google/callback`. Add
 `https://learnandbuild.org` as an authorized JavaScript origin, then set the
 client ID and secret in `deploy/.env.production` and restart the auth service.
 
-## Teacher service (port 3002)
+## Provider service (port 3002)
 
-Provider (teacher) profiles with PostGIS location, a full onboarding +
-availability questionnaire, S3 document uploads, and an admin-driven
-verification state machine (`pending → submitted → under_review →
+The provider service (the `teacher` service internally; reached from the web app
+under `/api/provider`) manages provider profiles with PostGIS location, a full
+onboarding + availability questionnaire, S3 document uploads, and an
+admin-driven verification state machine (`pending → submitted → under_review →
 approved/rejected`, with resubmit from `rejected`).
 
 | Method | Route                            | Auth          | Purpose                            |
@@ -244,7 +246,7 @@ approved/rejected`, with resubmit from `rejected`).
 | POST   | /teachers/me/documents/presign   | JWT + TEACHER | Get a presigned S3 upload URL      |
 | POST   | /teachers/me/documents           | JWT + TEACHER | Attach an uploaded document        |
 | POST   | /teachers/me/submit              | JWT + TEACHER | Submit profile for review          |
-| GET    | /teachers/nearby?lat&lng&radius  | JWT           | Find approved teachers nearby      |
+| GET    | /teachers/nearby?lat&lng&radius  | JWT           | Find approved providers nearby     |
 | GET    | /admin/teachers?status=submitted | JWT + ADMIN   | List profiles by status            |
 | POST   | /admin/teachers/:id/start-review | JWT + ADMIN   | Move to under_review               |
 | POST   | /admin/teachers/:id/approve      | JWT + ADMIN   | Approve                            |
@@ -292,9 +294,9 @@ service to have AWS credentials and a bucket (`DOCUMENTS_BUCKET`); for local
 dev, point it at MinIO/LocalStack with `S3_ENDPOINT` (path-style addressing is
 enabled automatically when set).
 
-> **AWS credentials for S3 uploads.** Teacher portfolios are stored in the
+> **AWS credentials for S3 uploads.** Provider portfolios are stored in the
 > **`providers-profiles`** S3 bucket in AWS account **960763460353**. The
-> teacher service signs the upload URLs, so it needs credentials for that
+> provider service signs the upload URLs, so it needs credentials for that
 > account: export the profile from
 > [AWS profile setup (macOS)](#aws-profile-setup-macos)
 > (`export AWS_PROFILE=learnbuild`) before starting the service, and set
@@ -323,7 +325,7 @@ use a different account or bucket. Do not commit credentials or put them in
    Keep **Block all public access** enabled. Presigned URLs do not require a
    public bucket.
 
-2. Give the teacher-service IAM identity permission to upload only under the
+2. Give the provider-service IAM identity permission to upload only under the
    provider document prefix. In IAM, open **Users** → `likhilearnbuild` →
    **Add permissions** → **Create inline policy** → **JSON**, and use:
 
@@ -383,8 +385,9 @@ use a different account or bucket. Do not commit credentials or put them in
    administrator can issue an IAM user access key; never create root access
    keys and never commit the secret.
 
-5. Start the teacher service with the bucket and region. `docker-compose.yml`
-   passes these host environment variables into the container:
+5. Start the provider service with the bucket and region. `docker-compose.yml`
+   passes these host environment variables into the container (the compose
+   service is named `teacher`):
 
    ```bash
    export DOCUMENTS_BUCKET=providers-profiles
@@ -392,7 +395,7 @@ use a different account or bucket. Do not commit credentials or put them in
    docker compose up -d --build teacher
    ```
 
-6. Verify identity, bucket access, and the teacher health endpoint:
+6. Verify identity, bucket access, and the provider service health endpoint:
 
    ```bash
    aws sts get-caller-identity --profile learnbuild
@@ -410,14 +413,14 @@ use a different account or bucket. Do not commit credentials or put them in
 
 ## Scheduling service (port 3004)
 
-Verified teachers publish classes (activity, description, instructor gender,
+Verified providers publish classes (activity, description, instructor gender,
 duration, seats) with recurring weekly timings; an availability query expands
 them into concrete upcoming occurrences with seat counts.
 
 | Method | Route                          | Auth          | Purpose                      |
 | ------ | ------------------------------ | ------------- | ---------------------------- |
 | POST   | /classes                       | JWT + TEACHER | Publish a class              |
-| GET    | /classes/mine                  | JWT + TEACHER | A teacher's own classes      |
+| GET    | /classes/mine                  | JWT + TEACHER | A provider's own classes     |
 | GET    | /classes/:id                   | public        | Class details                |
 | GET    | /classes/:id/availability?days | public        | Upcoming occurrences + seats |
 | GET    | /classes/discover              | public        | Discovery cards + live seats |
@@ -474,31 +477,31 @@ Discovery reads live cards and availability from Scheduling and uses Search for
 ranked text queries. Its Map and class-detail map use MapLibre with OpenFreeMap
 tiles by default. Set `NEXT_PUBLIC_MAPBOX_TOKEN` to use Mapbox Streets instead.
 
-### Provider studio (`/teacher`)
+### Provider page (`/provider`)
 
-`/teacher` (linked from the home page) is where an educator signs in or creates
-a provider account (role `teacher`). A family account can be signed out and
-re-created as a provider. It has two parts:
+`/provider` (linked from the home page) is where an educator signs in or creates
+a provider account (role `teacher`) and completes the full provider profile. A
+family account can add provider access without losing its family data.
 
-- **Your provider profile** — teaching category (with subcategories from the
-  shared taxonomy), a two-month availability calendar (specific dates with
-  one-hour 9am–9pm slots and a selected-days summary), home location (browser
-  GPS or address search via OpenStreetMap Nominatim, resolved to coordinates),
-  max commute distance, and public class-profile links (Instagram, Preply,
-  UrbanPro, TeacherOn, plus an other/portfolio link). A profile must be saved
-  before its portfolio PDF can be uploaded, and required fields plus at least
-  one document are enforced by the API before review submission. Reads/writes
-  the shared `TeacherProfile` via `createTeacherClient()`.
-- **Class publishing** — create/edit recurring class offerings (category,
-  ages, price, schedule, cover image, discovery keywords) through the
-  scheduling service, with moderation status. Class approval is blocked until
-  the provider profile is approved.
+- Teaching category (with subcategories from the shared taxonomy), a two-month
+  availability calendar (specific dates with one-hour 9am–9pm slots and a
+  selected-days summary), home location (browser GPS or address search via
+  OpenStreetMap Nominatim, resolved to coordinates), max commute distance, and
+  public class-profile links (Instagram, Preply, UrbanPro, TeacherOn, plus an
+  other/portfolio link).
+- A profile must be saved before its portfolio PDF can be uploaded, and
+  required fields plus at least one document are enforced by the API before
+  review submission. Reads/writes the shared `TeacherProfile` via the provider
+  client.
+- After onboarding, `/teacher` provides class publishing, session calendar,
+  rosters, attendance, family messaging, reschedule decisions, earnings,
+  payout setup, and CSV exports.
 
-`createTeacherClient()` calls are proxied by the Next server to the teacher
-service at `/api/teacher` (override the origin with `TEACHER_SERVICE_ORIGIN`, or
-the browser base URL with `NEXT_PUBLIC_TEACHER_API_URL`; defaults to
-`http://localhost:3002`). The former standalone `/provider` onboarding page has
-been retired and its features folded into `/teacher`.
+The provider client calls are proxied by the Next server under `/api/provider`
+to the provider (teacher) service (override the origin with
+`PROVIDER_SERVICE_ORIGIN`, falling back to the legacy `TEACHER_SERVICE_ORIGIN`;
+override the browser base URL with `NEXT_PUBLIC_PROVIDER_API_URL`, falling back
+to `NEXT_PUBLIC_TEACHER_API_URL`; defaults to `http://localhost:3002`).
 
 ## Infrastructure (CDK)
 

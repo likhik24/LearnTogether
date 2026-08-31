@@ -309,12 +309,14 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_AUTH_API_URL: /api/auth
+        NEXT_PUBLIC_PROVIDER_API_URL: /api/provider
         NEXT_PUBLIC_TEACHER_API_URL: /api/teacher
         NEXT_PUBLIC_SEARCH_API_URL: /api/search
         NEXT_PUBLIC_SCHEDULING_API_URL: /api/scheduling
         NEXT_PUBLIC_VOICE_API_URL: /api/voice
         NEXT_PUBLIC_PAYMENTS_API_URL: /api/payments
         AUTH_SERVICE_ORIGIN: http://auth:3001
+        PROVIDER_SERVICE_ORIGIN: http://teacher:3002
         TEACHER_SERVICE_ORIGIN: http://teacher:3002
         SEARCH_SERVICE_ORIGIN: http://search:3003
         SCHEDULING_SERVICE_ORIGIN: http://scheduling:3004
@@ -324,6 +326,7 @@ services:
       NODE_ENV: production
       PORT: 3100
       AUTH_SERVICE_ORIGIN: http://auth:3001
+      PROVIDER_SERVICE_ORIGIN: http://teacher:3002
       TEACHER_SERVICE_ORIGIN: http://teacher:3002
       SEARCH_SERVICE_ORIGIN: http://search:3003
       SCHEDULING_SERVICE_ORIGIN: http://scheduling:3004

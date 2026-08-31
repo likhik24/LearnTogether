@@ -63,8 +63,16 @@ function upcomingDates(count = 60): Date[] {
   });
 }
 
-const DATE_FMT = new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
-const DATE_FMT_LONG = new Intl.DateTimeFormat('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+const DATE_FMT = new Intl.DateTimeFormat('en-IN', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+});
+const DATE_FMT_LONG = new Intl.DateTimeFormat('en-IN', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+});
 
 /* -------- profile form state -------- */
 
@@ -140,7 +148,9 @@ export function ProviderProfileForm() {
 
   const activeSubcategories = useMemo(() => {
     if (!form.category) return [];
-    return PROVIDER_CATEGORY_TAXONOMY.find((c) => c.category === form.category)?.subcategories ?? [];
+    return (
+      PROVIDER_CATEGORY_TAXONOMY.find((c) => c.category === form.category)?.subcategories ?? []
+    );
   }, [form.category]);
 
   async function save(event: React.FormEvent) {
@@ -194,7 +204,9 @@ export function ProviderProfileForm() {
         </div>
         <div className="provider-label">
           <span>Primary category</span>
-          <small className="provider-hint">Maps your profile to how families browse on Discover.</small>
+          <small className="provider-hint">
+            Maps your profile to how families browse on Discover.
+          </small>
           <div className="provider-chips">
             {PROVIDER_CATEGORY_TAXONOMY.map((c) => (
               <button
@@ -282,11 +294,36 @@ export function ProviderProfileForm() {
           <span className="form-step">D</span>
         </div>
         <div className="provider-links">
-          <LinkField label="Instagram" placeholder="https://instagram.com/yourhandle" value={form.instagramUrl} onChange={(v) => set('instagramUrl', v)} />
-          <LinkField label="Preply" placeholder="https://preply.com/…" value={form.preplyUrl} onChange={(v) => set('preplyUrl', v)} />
-          <LinkField label="UrbanPro" placeholder="https://urbanpro.com/…" value={form.urbanproUrl} onChange={(v) => set('urbanproUrl', v)} />
-          <LinkField label="TeacherOn" placeholder="https://teacheron.com/…" value={form.teacheronUrl} onChange={(v) => set('teacheronUrl', v)} />
-          <LinkField label="Other portfolio link" placeholder="YouTube, website, Google Drive…" value={form.portfolio} onChange={(v) => set('portfolio', v)} />
+          <LinkField
+            label="Instagram"
+            placeholder="https://instagram.com/yourhandle"
+            value={form.instagramUrl}
+            onChange={(v) => set('instagramUrl', v)}
+          />
+          <LinkField
+            label="Preply"
+            placeholder="https://preply.com/…"
+            value={form.preplyUrl}
+            onChange={(v) => set('preplyUrl', v)}
+          />
+          <LinkField
+            label="UrbanPro"
+            placeholder="https://urbanpro.com/…"
+            value={form.urbanproUrl}
+            onChange={(v) => set('urbanproUrl', v)}
+          />
+          <LinkField
+            label="TeacherOn"
+            placeholder="https://teacheron.com/…"
+            value={form.teacheronUrl}
+            onChange={(v) => set('teacheronUrl', v)}
+          />
+          <LinkField
+            label="Other portfolio link"
+            placeholder="YouTube, website, Google Drive…"
+            value={form.portfolio}
+            onChange={(v) => set('portfolio', v)}
+          />
         </div>
       </div>
 
@@ -317,7 +354,12 @@ function LinkField({
   return (
     <label>
       {label}
-      <input type="url" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      <input
+        type="url"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </label>
   );
 }
@@ -353,7 +395,9 @@ function DateSlotPicker({
   }
 
   function setAll(date: string, all: boolean) {
-    onChange(value.map((e) => (e.date === date ? { ...e, slots: all ? [...ALL_DAY_SLOTS] : [] } : e)));
+    onChange(
+      value.map((e) => (e.date === date ? { ...e, slots: all ? [...ALL_DAY_SLOTS] : [] } : e)),
+    );
   }
 
   const selected = [...value].sort((a, b) => a.date.localeCompare(b.date));
@@ -362,7 +406,8 @@ function DateSlotPicker({
     <div className="provider-label">
       <span>Pick the dates and times you can teach</span>
       <small className="provider-hint">
-        Choose dates in the next two months, then tap a selected date to fine-tune its 9am–9pm slots.
+        Choose dates in the next two months, then tap a selected date to fine-tune its 9am–9pm
+        slots.
       </small>
 
       <div className="avail-calendar" role="group" aria-label="Available dates">
@@ -392,9 +437,15 @@ function DateSlotPicker({
           <div className="avail-slots-head">
             <strong>{DATE_FMT_LONG.format(new Date(`${openDate}T00:00:00`))}</strong>
             <div className="avail-slots-actions">
-              <button type="button" onClick={() => setAll(openDate, true)}>All day</button>
-              <button type="button" onClick={() => setAll(openDate, false)}>Clear</button>
-              <button type="button" onClick={() => toggleDate(openDate)}>Remove date</button>
+              <button type="button" onClick={() => setAll(openDate, true)}>
+                All day
+              </button>
+              <button type="button" onClick={() => setAll(openDate, false)}>
+                Clear
+              </button>
+              <button type="button" onClick={() => toggleDate(openDate)}>
+                Remove date
+              </button>
             </div>
           </div>
           <div className="provider-chips">
@@ -473,11 +524,14 @@ function HomeLocationField({
     setResults([]);
     try {
       const url =
-        'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=' + encodeURIComponent(q);
+        'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=' +
+        encodeURIComponent(q);
       const res = await fetch(url, { headers: { Accept: 'application/json' } });
       if (!res.ok) throw new Error(`Search failed (${res.status})`);
       const data: Array<{ display_name: string; lat: string; lon: string }> = await res.json();
-      setResults(data.map((r) => ({ label: r.display_name, lat: Number(r.lat), lng: Number(r.lon) })));
+      setResults(
+        data.map((r) => ({ label: r.display_name, lat: Number(r.lat), lng: Number(r.lon) })),
+      );
       if (data.length === 0) setError('No matching address found.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Address search failed');
@@ -522,7 +576,8 @@ function HomeLocationField({
     <div className="provider-label">
       <span>Home location</span>
       <small className="provider-hint">
-        Use your current location or search an address. Sets the point we measure commute distance from.
+        Use your current location or search an address. Sets the point we measure commute distance
+        from.
       </small>
       <div className="home-loc-row">
         <input
@@ -537,7 +592,12 @@ function HomeLocationField({
             }
           }}
         />
-        <button type="button" className="home-loc-btn" onClick={() => void searchAddress()} disabled={searching}>
+        <button
+          type="button"
+          className="home-loc-btn"
+          onClick={() => void searchAddress()}
+          disabled={searching}
+        >
           {searching ? '…' : 'Search'}
         </button>
         <button type="button" className="home-loc-btn gps" onClick={useGps} disabled={geoBusy}>

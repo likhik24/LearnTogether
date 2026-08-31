@@ -95,7 +95,7 @@ img { display: block; max-width: 100%; }
 .trust-note strong, .trust-note span { display: block; font-size: 11px; }
 .trust-note div span { margin-top: 2px; opacity: .7; font-size: 9px; }
 
-.bottom-nav { position: absolute; z-index: 10; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(5, 1fr); padding: 12px 12px 16px; border-top: 1px solid var(--line); background: rgba(255,255,255,.94); backdrop-filter: blur(18px); }
+.bottom-nav { position: absolute; z-index: 10; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(6, 1fr); padding: 12px 8px 16px; border-top: 1px solid var(--line); background: rgba(255,255,255,.94); backdrop-filter: blur(18px); }
 .bottom-nav a { display: flex; align-items: center; flex-direction: column; gap: 5px; color: #8b8985; font-size: 8px; font-weight: 700; text-decoration: none; }
 .bottom-nav a.active { color: var(--purple); }
 .bottom-nav a.active svg { stroke-width: 2.5; }
@@ -459,7 +459,7 @@ body > .admin-page { min-height: 100vh; padding: clamp(24px, 5vw, 64px); color: 
   .location-button { gap: 8px; font-size: 14px; }
   .icon-button, .round-action { width: 46px; height: 46px; }
 
-  .bottom-nav { top: 0; bottom: auto; grid-template-columns: minmax(210px, 1fr) repeat(5, auto); align-items: center; gap: 5px; min-height: 76px; padding: 12px 24px; border-top: 0; border-bottom: 1px solid var(--line); }
+  .bottom-nav { top: 0; bottom: auto; grid-template-columns: minmax(210px, 1fr) repeat(6, auto); align-items: center; gap: 5px; min-height: 76px; padding: 12px 24px; border-top: 0; border-bottom: 1px solid var(--line); }
   .bottom-nav.provider-nav { grid-template-columns: minmax(210px, 1fr) repeat(4, auto); }
   .bottom-nav::before { content: 'LEARN & BUILD'; padding-left: 4px; color: var(--purple); font-size: 13px; font-weight: 900; letter-spacing: .12em; }
   .bottom-nav a { flex-direction: row; gap: 7px; padding: 10px 13px; border-radius: 12px; font-size: 10px; }
