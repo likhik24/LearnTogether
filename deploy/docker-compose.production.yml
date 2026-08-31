@@ -109,7 +109,7 @@ services:
       <<: *database-environment
       PORT: 3004
       SEED_DEMO_CLASSES: ${SEED_DEMO_CLASSES:-false}
-      CORS_ORIGIN: https://learnandbuild.org
+      CORS_ORIGIN: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}
     depends_on:
       postgres:
         condition: service_healthy
@@ -169,15 +169,15 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD}
       ADMIN_NAME: ${ADMIN_NAME:-Administrator}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
-      APP_URL: https://learnandbuild.org
+      APP_URL: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}
       AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM:-}
       AWS_REGION: ${AWS_REGION:-ap-southeast-2}
       SCHEDULING_API_URL: http://scheduling:3004
       PAYMENTS_API_URL: http://payments:3007
       INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?Set INTERNAL_SERVICE_SECRET}
-      CORS_ORIGIN: https://learnandbuild.org
-      OIDC_REDIRECT_BASE: https://learnandbuild.org/api/auth
-      OIDC_SUCCESS_REDIRECT: ${OIDC_SUCCESS_REDIRECT:-https://learnandbuild.org/profile}
+      CORS_ORIGIN: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}
+      OIDC_REDIRECT_BASE: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}/api/auth
+      OIDC_SUCCESS_REDIRECT: ${OIDC_SUCCESS_REDIRECT:-https://www.learnandbuild.org/profile}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       AWS_COGNITO_ISSUER: ${AWS_COGNITO_ISSUER:-}
@@ -225,7 +225,7 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       UPLOAD_URL_TTL: ${UPLOAD_URL_TTL:-900}
-      CORS_ORIGIN: https://learnandbuild.org
+      CORS_ORIGIN: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}
     depends_on:
       postgres:
         condition: service_healthy
@@ -257,7 +257,7 @@ services:
       <<: *database-environment
       PORT: 3003
       OPENSEARCH_URL: http://opensearch:9200
-      CORS_ORIGIN: https://learnandbuild.org
+      CORS_ORIGIN: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}
     depends_on:
       postgres:
         condition: service_healthy
@@ -290,7 +290,7 @@ services:
       PORT: 3005
       REDIS_URL: redis://redis:6379
       SEARCH_SERVICE_URL: http://search:3003
-      CORS_ORIGIN: https://learnandbuild.org
+      CORS_ORIGIN: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}
     depends_on:
       redis:
         condition: service_healthy

@@ -74,14 +74,19 @@ Resources:
   OriginSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow inbound HTTPS to the host reverse proxy; all egress.
+      GroupDescription: Allow inbound HTTP/HTTPS to the host reverse proxy; all egress.
       VpcId: !Ref Vpc
       SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref IngressCidr
+          Description: HTTP for ACME challenge and http to https redirect.
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
           CidrIp: !Ref IngressCidr
-          Description: Public HTTPS to the host reverse proxy (which forwards to web:3100).
+          Description: Public HTTPS to the host reverse proxy forwarding to web port 3100.
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0

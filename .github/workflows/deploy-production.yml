@@ -43,7 +43,7 @@ jobs:
             "git pull --ff-only origin main",
             "docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml up -d --build --remove-orphans",
             "docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml ps",
-            "curl --fail --retry 12 --retry-delay 5 https://learnandbuild.org/"
+            "curl --fail --retry 12 --retry-delay 5 https://www.learnandbuild.org/"
           ]')
           command_id=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \

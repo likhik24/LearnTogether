@@ -1,0 +1,53 @@
+# Caddy reverse proxy for Learn & Build.
+#
+# Terminates TLS for the public hostname and forwards to the web container,
+# which is published on the loopback interface at 127.0.0.1:3100
+# (WEB_BIND=127.0.0.1 in deploy/.env.production). Caddy obtains and renews
+# Let's Encrypt certificates automatically, so no manual cert management.
+#
+# Prerequisites before Caddy can issue a certificate:
+#   - DNS A/AAAA records for www.learnandbuild.org AND learnandbuild.org point
+#     at this host's public IP.
+#   - Inbound TCP 80 and 443 are open to this host (HTTP-01/TLS-ALPN challenges).
+#   - Replace the email below with a real address for ACME expiry notices.
+#
+# Install Caddy on the host (Amazon Linux 2023 example):
+#   sudo dnf install -y 'dnf-command(copr)'
+#   sudo dnf copr enable -y @caddy/caddy
+#   sudo dnf install -y caddy
+# Then point Caddy at this file:
+#   sudo cp deploy/caddy/Caddyfile /etc/caddy/Caddyfile
+#   sudo systemctl enable --now caddy
+#   sudo systemctl reload caddy   # after edits
+
+{
+	# ACME account email for certificate expiry / recovery notices.
+	email admin@learnandbuild.org
+}
+
+# Canonical host: serve the app here.
+www.learnandbuild.org {
+	encode zstd gzip
+
+	# Forward everything to the web container on the loopback interface.
+	# Next.js serves the UI and proxies /api/* to the backend services, so this
+	# single upstream covers the whole platform.
+	reverse_proxy 127.0.0.1:3100 {
+		# Preserve the original host and client info for the app.
+		header_up Host {host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-For {remote_host}
+	}
+
+	# Sensible security headers (Caddy already sets HSTS with automatic HTTPS).
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}
+
+# Redirect the apex domain to the canonical www host (301). Caddy still gets a
+# certificate for the apex so the redirect itself is served over HTTPS.
+learnandbuild.org {
+	redir https://www.learnandbuild.org{uri} permanent
+}
