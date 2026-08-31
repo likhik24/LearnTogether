@@ -374,6 +374,26 @@ export interface TeacherProfileDto {
   updatedAt: string;
 }
 
+/** Privacy-safe provider profile shown to families on an approved class. */
+export interface PublicTeacherProfileDto {
+  id: string;
+  userId: string;
+  displayName: string;
+  bio: string | null;
+  subjects: string[];
+  locality: string | null;
+  city: string | null;
+  skills: string[];
+  skillDescription: string | null;
+  yearsExperience: ProviderExperience | null;
+  portfolio: string | null;
+  instagramUrl: string | null;
+  preplyUrl: string | null;
+  urbanproUrl: string | null;
+  teacheronUrl: string | null;
+  verificationStatus: VerificationStatus;
+}
+
 /** Response with a presigned URL the client uses to upload directly to S3. */
 export interface PresignedUploadResponse {
   uploadUrl: string;
@@ -633,6 +653,7 @@ export interface BookingDto {
   reservationId: string | null;
   childId: string | null;
   childName: string | null;
+  seatCount: number;
   title: string;
   scheduledStart: string;
   amountMinor: number;
@@ -724,6 +745,100 @@ export interface CustomerNotificationDto {
   body: string;
   readAt: string | null;
   createdAt: string;
+}
+
+export enum OperationJobStatus {
+  PENDING = 'pending',
+  PROCESSING = 'processing',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+}
+
+export interface OperationJobDto {
+  id: string;
+  type: string;
+  status: OperationJobStatus;
+  attempts: number;
+  maxAttempts: number;
+  nextAttemptAt: string;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationPreferencesDto {
+  emailEnabled: boolean;
+  bookingReminders: boolean;
+  productUpdates: boolean;
+  updatedAt: string;
+}
+
+export interface AccountDeletionStatusDto {
+  requestedAt: string | null;
+  scheduledFor: string | null;
+}
+
+export interface EmailReadinessDto {
+  configured: boolean;
+  fromAddress: string | null;
+  region: string;
+  sendingEnabled: boolean | null;
+  productionAccessEnabled: boolean | null;
+  error: string | null;
+}
+
+export enum WaitlistStatus {
+  WAITING = 'waiting',
+  OFFERED = 'offered',
+  JOINED = 'joined',
+  CANCELLED = 'cancelled',
+}
+
+export interface ClassWaitlistDto {
+  id: string;
+  classId: string;
+  occurrenceStart: string;
+  childId: string;
+  childName: string;
+  status: WaitlistStatus;
+  position: number;
+  offerExpiresAt: string | null;
+  createdAt: string;
+}
+
+export enum RescheduleRequestStatus {
+  REQUESTED = 'requested',
+  APPROVED = 'approved',
+  DECLINED = 'declined',
+  CANCELLED = 'cancelled',
+}
+
+export interface BookingRescheduleRequestDto {
+  id: string;
+  bookingId: string;
+  classId: string;
+  userId: string;
+  childName: string | null;
+  currentStart: string;
+  requestedStart: string;
+  reason: string | null;
+  status: RescheduleRequestStatus;
+  providerNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProviderPayoutProfileDto {
+  teacherId: string;
+  accountHolderName: string;
+  payoutMethod: 'bank' | 'upi';
+  bankName: string | null;
+  ifsc: string | null;
+  accountLast4: string | null;
+  upiIdMasked: string | null;
+  externalFundAccountId: string | null;
+  kycStatus: 'not_started' | 'submitted' | 'verified' | 'rejected';
+  updatedAt: string;
 }
 
 /** Standard health-check response returned by every service's `GET /health`. */

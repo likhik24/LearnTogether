@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import type { DiscoverClassDto } from '@learn-and-build/types';
+import type { DiscoverClassDto, PublicTeacherProfileDto } from '@learn-and-build/types';
 import { toClassCard } from '../../../lib/class-data';
 import {
   BookingBar,
@@ -25,9 +25,23 @@ async function loadClass(slug: string): Promise<DiscoverClassDto | null> {
   }
 }
 
-export default async function ClassDetailsPage({ params }: { params: { slug: string } }) {
-  const offering = await loadClass(params.slug);
+async function loadProvider(userId: string): Promise<PublicTeacherProfileDto | null> {
+  const origin = process.env.TEACHER_SERVICE_ORIGIN ?? 'http://localhost:3002';
+  try {
+    const response = await fetch(`${origin}/teachers/public/${encodeURIComponent(userId)}`, {
+      cache: 'no-store',
+    });
+    return response.ok ? ((await response.json()) as PublicTeacherProfileDto) : null;
+  } catch {
+    return null;
+  }
+}
+
+export default async function ClassDetailsPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const offering = await loadClass(slug);
   if (!offering) notFound();
+  const provider = await loadProvider(offering.teacherId);
   const item = toClassCard(offering);
   const start = offering.nextOccurrence ? new Date(offering.nextOccurrence.start) : null;
   const end = offering.nextOccurrence ? new Date(offering.nextOccurrence.end) : null;
@@ -62,11 +76,7 @@ export default async function ClassDetailsPage({ params }: { params: { slug: str
               <span>
                 <Icon name="star" size={17} /> {item.rating}
               </span>
-              <ReviewsButton
-                classId={offering.id}
-                count={item.reviews}
-                rating={offering.rating}
-              />
+              <ReviewsButton classId={offering.id} count={item.reviews} rating={offering.rating} />
               <span>•</span>
               <span>{item.age}</span>
             </div>
@@ -177,9 +187,19 @@ export default async function ClassDetailsPage({ params }: { params: { slug: str
           <section className="teacher-card">
             <div>
               <span className="eyebrow purple">YOUR EDUCATOR</span>
-              <h3>Verified Learn &amp; Build provider</h3>
-              <p>Profile and class reviewed by our team</p>
-              <small>Provider details are shared with confirmed families.</small>
+              <h3>{provider?.displayName ?? 'Verified Learn & Build provider'}</h3>
+              <p>
+                {provider?.bio ??
+                  provider?.skillDescription ??
+                  'Profile and class reviewed by our team'}
+              </p>
+              <small>
+                {provider
+                  ? [provider.yearsExperience, provider.locality, provider.city]
+                      .filter(Boolean)
+                      .join(' • ')
+                  : 'Contact details are shared only with confirmed families.'}
+              </small>
             </div>
             <span className="verified-badge">✓</span>
           </section>

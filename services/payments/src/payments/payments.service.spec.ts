@@ -1,13 +1,10 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import {
-  BookingStatus,
-  PaymentStatus,
-  ProviderPayoutStatus,
-} from '@learn-and-build/types';
+import { BookingStatus, PaymentStatus, ProviderPayoutStatus } from '@learn-and-build/types';
 import type { DataSource, Repository } from 'typeorm';
 import { Payment } from './payment.entity';
 import { PaymentWebhookEvent } from './payment-webhook-event.entity';
 import { ProviderPayout } from './provider-payout.entity';
+import { ProviderPayoutProfile } from './provider-payout-profile.entity';
 import { PaymentsService } from './payments.service';
 import { RazorpayGateway } from './razorpay.gateway';
 
@@ -29,6 +26,12 @@ describe('PaymentsService', () => {
     create: jest.fn((v) => Object.assign(new ProviderPayout(), v)),
     save: jest.fn(async (v) => v),
   };
+  const payoutProfiles = {
+    findOne: jest.fn().mockResolvedValue({ kycStatus: 'verified' }),
+    find: jest.fn().mockResolvedValue([]),
+    create: jest.fn((v) => Object.assign(new ProviderPayoutProfile(), v)),
+    save: jest.fn(async (v) => v),
+  };
   const db = { query: jest.fn(), transaction: jest.fn() };
   const gateway = {
     provider: 'mock',
@@ -47,6 +50,7 @@ describe('PaymentsService', () => {
       payments as unknown as Repository<Payment>,
       events as unknown as Repository<PaymentWebhookEvent>,
       payouts as unknown as Repository<ProviderPayout>,
+      payoutProfiles as unknown as Repository<ProviderPayoutProfile>,
       db as unknown as DataSource,
       gateway as unknown as RazorpayGateway,
     );
@@ -164,6 +168,14 @@ describe('PaymentsService', () => {
       ConflictException,
     );
     expect(payouts.save).not.toHaveBeenCalled();
+  });
+
+  it('blocks payouts until the provider payout profile is verified', async () => {
+    payoutProfiles.findOne.mockResolvedValueOnce(null);
+    await expect(service.requestProviderPayout('teacher-1')).rejects.toThrow(
+      'verify your payout profile',
+    );
+    expect(payouts.findOne).not.toHaveBeenCalled();
   });
 
   it('requires a bank reference before a payout can be marked paid', async () => {

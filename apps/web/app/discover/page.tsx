@@ -124,7 +124,6 @@ export default function DiscoverPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, childInterests.join(','), origin.lat, origin.lng]);
 
   const visibleClasses = useMemo(

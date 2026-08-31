@@ -50,6 +50,7 @@ export class AuthService {
       passwordHash,
       displayName: dto.displayName.trim(),
       role,
+      termsAccepted: true,
     });
     const verificationToken = await this.createAccountToken(
       user.id,

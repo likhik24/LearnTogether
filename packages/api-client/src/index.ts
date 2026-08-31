@@ -1,8 +1,10 @@
 import type {
+  AccountDeletionStatusDto,
   AuthTokenResponse,
   AvailabilityDay,
   AttendanceStatus,
   BookingDto,
+  BookingRescheduleRequestDto,
   ClassReviewDto,
   PaymentDto,
   PaymentIntentResponse,
@@ -17,6 +19,7 @@ import type {
   ClassVenuePreference,
   ChildProfileDto,
   CustomerNotificationDto,
+  ClassWaitlistDto,
   DateAvailability,
   DiscoverClassDto,
   GeoLocation,
@@ -31,9 +34,13 @@ import type {
   ProviderExperience,
   ProviderEarningsDto,
   ProviderPayoutDto,
+  ProviderPayoutProfileDto,
   ProviderPayoutStatus,
   ProviderRosterEntryDto,
   ProviderSessionDto,
+  NotificationPreferencesDto,
+  OperationJobDto,
+  EmailReadinessDto,
   PublicClassReviewDto,
   PublicUser,
   Role,
@@ -43,6 +50,7 @@ import type {
   TeachingFormat,
   TimeSlot,
   TravelRadius,
+  RescheduleRequestStatus,
 } from '@learn-and-build/types';
 import { DocumentType } from '@learn-and-build/types';
 
@@ -225,6 +233,7 @@ export class ApiClient {
     password: string;
     displayName: string;
     role?: Role;
+    termsAccepted: boolean;
   }): Promise<AuthTokenResponse> {
     return this.request<AuthTokenResponse>('/auth/register', {
       method: 'POST',
@@ -434,6 +443,7 @@ export class ApiClient {
 
   createBooking(input: {
     childId: string;
+    childIds?: string[];
     classRef: string;
     classSlug?: string;
     title: string;
@@ -449,6 +459,58 @@ export class ApiClient {
 
   cancelBooking(id: string): Promise<BookingDto> {
     return this.request<BookingDto>(`/customer/bookings/${id}/cancel`, { method: 'PATCH' });
+  }
+
+  listWaitlist(): Promise<ClassWaitlistDto[]> {
+    return this.request<ClassWaitlistDto[]>('/customer/waitlist');
+  }
+
+  joinWaitlist(input: {
+    childId: string;
+    classId: string;
+    occurrenceStart: string;
+  }): Promise<ClassWaitlistDto> {
+    return this.request<ClassWaitlistDto>('/customer/waitlist', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  leaveWaitlist(id: string): Promise<ClassWaitlistDto> {
+    return this.request<ClassWaitlistDto>(`/customer/waitlist/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  listRescheduleRequests(): Promise<BookingRescheduleRequestDto[]> {
+    return this.request<BookingRescheduleRequestDto[]>('/customer/reschedule-requests');
+  }
+
+  requestBookingReschedule(
+    bookingId: string,
+    requestedStart: string,
+    reason?: string,
+  ): Promise<BookingRescheduleRequestDto> {
+    return this.request<BookingRescheduleRequestDto>(
+      `/customer/bookings/${encodeURIComponent(bookingId)}/reschedule-request`,
+      { method: 'POST', body: JSON.stringify({ requestedStart, reason }) },
+    );
+  }
+
+  exportAccountData(): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>('/customer/data-export');
+  }
+
+  getAccountDeletionStatus(): Promise<AccountDeletionStatusDto> {
+    return this.request<AccountDeletionStatusDto>('/customer/account/deletion');
+  }
+
+  requestAccountDeletion(): Promise<AccountDeletionStatusDto> {
+    return this.request<AccountDeletionStatusDto>('/customer/account', { method: 'DELETE' });
+  }
+
+  cancelAccountDeletion(): Promise<void> {
+    return this.request<void>('/customer/account/deletion/cancel', { method: 'POST' });
   }
 
   listProviderSessions(days = 60): Promise<ProviderSessionDto[]> {
@@ -482,15 +544,48 @@ export class ApiClient {
     );
   }
 
+  listProviderRescheduleRequests(): Promise<BookingRescheduleRequestDto[]> {
+    return this.request<BookingRescheduleRequestDto[]>('/provider/reschedule-requests');
+  }
+
+  decideProviderReschedule(
+    id: string,
+    status: RescheduleRequestStatus.APPROVED | RescheduleRequestStatus.DECLINED,
+    note?: string,
+  ): Promise<BookingRescheduleRequestDto> {
+    return this.request<BookingRescheduleRequestDto>(
+      `/provider/reschedule-requests/${encodeURIComponent(id)}/decision`,
+      { method: 'POST', body: JSON.stringify({ status, note }) },
+    );
+  }
+
+  bulkProviderAttendance(
+    bookingIds: string[],
+    status: AttendanceStatus,
+    notes?: string,
+  ): Promise<ProviderRosterEntryDto[]> {
+    return this.request<ProviderRosterEntryDto[]>('/provider/attendance/bulk', {
+      method: 'PATCH',
+      body: JSON.stringify({ bookingIds, status, notes }),
+    });
+  }
+
+  messageProviderSession(
+    classId: string,
+    start: string,
+    message: string,
+  ): Promise<{ recipients: number }> {
+    return this.request<{ recipients: number }>(
+      `/provider/classes/${encodeURIComponent(classId)}/message`,
+      { method: 'POST', body: JSON.stringify({ start, message }) },
+    );
+  }
+
   listMyReviews(): Promise<ClassReviewDto[]> {
     return this.request<ClassReviewDto[]>('/customer/reviews');
   }
 
-  reviewBooking(
-    bookingId: string,
-    rating: number,
-    comment?: string,
-  ): Promise<ClassReviewDto> {
+  reviewBooking(bookingId: string, rating: number, comment?: string): Promise<ClassReviewDto> {
     return this.request<ClassReviewDto>(
       `/customer/reviews/bookings/${encodeURIComponent(bookingId)}`,
       { method: 'POST', body: JSON.stringify({ rating, comment }) },
@@ -503,13 +598,18 @@ export class ApiClient {
 
   createPaymentIntent(bookingId: string): Promise<PaymentIntentResponse> {
     return this.request<PaymentIntentResponse>('/payments/intents', {
-      method: 'POST', body: JSON.stringify({ bookingId }),
+      method: 'POST',
+      body: JSON.stringify({ bookingId }),
     });
   }
 
-  verifyPayment(id: string, input: { providerOrderId: string; providerPaymentId: string; signature: string }): Promise<PaymentDto> {
+  verifyPayment(
+    id: string,
+    input: { providerOrderId: string; providerPaymentId: string; signature: string },
+  ): Promise<PaymentDto> {
     return this.request<PaymentDto>(`/payments/${id}/verify`, {
-      method: 'POST', body: JSON.stringify(input),
+      method: 'POST',
+      body: JSON.stringify(input),
     });
   }
 
@@ -529,6 +629,42 @@ export class ApiClient {
     return this.request<ProviderPayoutDto>('/payments/provider/payouts', {
       method: 'POST',
       body: JSON.stringify({ amountMinor }),
+    });
+  }
+
+  getProviderPayoutProfile(): Promise<ProviderPayoutProfileDto | null> {
+    return this.request<ProviderPayoutProfileDto | null>('/payments/provider/payout-profile');
+  }
+
+  listAdminPayoutProfiles(): Promise<ProviderPayoutProfileDto[]> {
+    return this.request<ProviderPayoutProfileDto[]>('/payments/admin/payout-profiles');
+  }
+
+  reviewAdminPayoutProfile(
+    teacherId: string,
+    status: 'submitted' | 'verified' | 'rejected',
+    externalFundAccountId?: string,
+  ): Promise<ProviderPayoutProfileDto> {
+    return this.request<ProviderPayoutProfileDto>(
+      `/payments/admin/payout-profiles/${encodeURIComponent(teacherId)}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ status, externalFundAccountId }),
+      },
+    );
+  }
+
+  saveProviderPayoutProfile(input: {
+    accountHolderName: string;
+    payoutMethod: 'bank' | 'upi';
+    bankName?: string;
+    ifsc?: string;
+    accountLast4?: string;
+    upiIdMasked?: string;
+  }): Promise<ProviderPayoutProfileDto> {
+    return this.request<ProviderPayoutProfileDto>('/payments/provider/payout-profile', {
+      method: 'POST',
+      body: JSON.stringify(input),
     });
   }
 
@@ -562,6 +698,35 @@ export class ApiClient {
 
   markAllNotificationsRead(): Promise<void> {
     return this.request<void>('/customer/notifications/read-all', { method: 'POST' });
+  }
+
+  getNotificationPreferences(): Promise<NotificationPreferencesDto> {
+    return this.request<NotificationPreferencesDto>('/customer/notification-preferences');
+  }
+
+  updateNotificationPreferences(
+    input: Partial<
+      Pick<NotificationPreferencesDto, 'emailEnabled' | 'bookingReminders' | 'productUpdates'>
+    >,
+  ): Promise<NotificationPreferencesDto> {
+    return this.request<NotificationPreferencesDto>('/customer/notification-preferences', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  }
+
+  listFailedOperations(): Promise<OperationJobDto[]> {
+    return this.request<OperationJobDto[]>('/admin/operations/failed');
+  }
+
+  emailReadiness(): Promise<EmailReadinessDto> {
+    return this.request<EmailReadinessDto>('/admin/operations/email-readiness');
+  }
+
+  retryOperation(id: string): Promise<OperationJobDto> {
+    return this.request<OperationJobDto>(`/admin/operations/${encodeURIComponent(id)}/retry`, {
+      method: 'POST',
+    });
   }
 
   discoverClasses(

@@ -31,6 +31,10 @@ async function discoverClass(request: APIRequestContext, slug: string) {
 }
 
 test.describe.serial('live production journeys', () => {
+  test.skip(
+    process.env.RUN_PRODUCTION_E2E !== 'true',
+    'Set RUN_PRODUCTION_E2E=true with E2E_BASE_URL for live production checks.',
+  );
   test('customer account, child, discovery, saved class, booking and notifications', async ({
     page,
     request,
@@ -57,6 +61,7 @@ test.describe.serial('live production journeys', () => {
     await page.getByLabel('Your name').fill(`Smoke Customer ${runId}`);
     await page.getByLabel('Email').fill(customerEmail);
     await page.getByLabel('Password').fill(password);
+    await page.getByRole('checkbox', { name: /I agree to the Terms/ }).check();
     await page.getByRole('button', { name: 'Create account & sync' }).click();
     await expect(page.getByText('API CONNECTED')).toBeVisible();
     expect(
@@ -128,7 +133,10 @@ test.describe.serial('live production journeys', () => {
     await bookedDialog.getByRole('link', { name: 'View my bookings' }).click();
     await expect(page.getByText('CONFIRMED')).toBeVisible();
     await page.getByRole('button', { name: 'Cancel booking' }).click();
-    await page.getByRole('dialog', { name: 'Cancel booking' }).getByRole('button', { name: 'Yes, cancel booking' }).click();
+    await page
+      .getByRole('dialog', { name: 'Cancel booking' })
+      .getByRole('button', { name: 'Yes, cancel booking' })
+      .click();
     await expect(page.getByRole('heading', { name: 'No bookings yet' })).toBeVisible();
 
     const released = await discoverClass(request, 'build-a-car');

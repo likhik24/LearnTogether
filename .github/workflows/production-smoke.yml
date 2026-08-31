@@ -1,0 +1,19 @@
+name: Production smoke monitor
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check public app and API routes
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --max-time 20 https://learnandbuild.org/ >/dev/null
+          curl --fail --silent --show-error --retry 3 --max-time 20 https://learnandbuild.org/api/auth/health | jq -e '.status == "ok"' >/dev/null
+          curl --fail --silent --show-error --retry 3 --max-time 20 https://learnandbuild.org/api/scheduling/health | jq -e '.status == "ok"' >/dev/null
+          curl --fail --silent --show-error --retry 3 --max-time 20 https://learnandbuild.org/api/payments/health | jq -e '.status == "ok"' >/dev/null

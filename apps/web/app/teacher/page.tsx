@@ -45,6 +45,7 @@ export default function TeacherPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [activity, setActivity] = useState('');
   const [category, setCategory] = useState(categoryOptions[0]);
   const [description, setDescription] = useState('');
@@ -115,7 +116,13 @@ export default function TeacherPage() {
       const response =
         mode === 'login'
           ? await createAuthClient().login(email, password)
-          : await createAuthClient().register({ email, password, displayName, role: Role.TEACHER });
+          : await createAuthClient().register({
+              email,
+              password,
+              displayName,
+              role: Role.TEACHER,
+              termsAccepted,
+            });
       saveCustomerSession(response.accessToken, response.user);
       if (response.user.role !== Role.TEACHER) {
         setCustomerAccount(response.user);
@@ -304,7 +311,9 @@ export default function TeacherPage() {
           words they search.
         </p>
         {!workspaceReady ? (
-          <p className="section-hint" role="status">Loading your Provider Studio…</p>
+          <p className="section-hint" role="status">
+            Loading your Provider Studio…
+          </p>
         ) : customerAccount ? (
           <section className="provider-gate">
             <span className="eyebrow purple">PROVIDER ACCOUNT REQUIRED</span>
@@ -371,6 +380,20 @@ export default function TeacherPage() {
                   required
                 />
               </label>
+              {mode === 'register' && (
+                <label className="terms-consent">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(event) => setTermsAccepted(event.target.checked)}
+                    required
+                  />
+                  <span>
+                    I agree to the <a href="/terms">Terms</a>, <a href="/privacy">Privacy Policy</a>
+                    , and <a href="/provider-agreement">Provider Agreement</a>.
+                  </span>
+                </label>
+              )}
               {error && <p className="form-error">{error}</p>}
               <button className="primary-wide" disabled={busy}>
                 {busy
@@ -385,9 +408,7 @@ export default function TeacherPage() {
           <section className="provider-gate">
             <span className="eyebrow purple">STEP 1 OF 3</span>
             <h2>Complete your provider profile.</h2>
-            <p>
-              Add your teaching background and availability before creating classes for review.
-            </p>
+            <p>Add your teaching background and availability before creating classes for review.</p>
             <Link className="primary-wide" href="/provider">
               Complete provider profile
             </Link>
@@ -408,8 +429,8 @@ export default function TeacherPage() {
                 <h2>Your provider profile</h2>
               </div>
               <p className="section-hint">
-                Set what you teach, your availability over the next two months, your home
-                location, how far you’ll travel, and links to your public class profiles.
+                Set what you teach, your availability over the next two months, your home location,
+                how far you’ll travel, and links to your public class profiles.
               </p>
               <ProviderProfileForm />
               <Link className="secondary-wide" href="/provider">

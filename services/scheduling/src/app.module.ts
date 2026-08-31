@@ -2,7 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { JwtStrategy } from '@learn-and-build/nest-auth';
+import { ApiRateLimitGuard, JwtStrategy } from '@learn-and-build/nest-auth';
+import { APP_GUARD } from '@nestjs/core';
 import { HealthController } from './health/health.controller';
 import { ClassOffering } from './scheduling/class-offering.entity';
 import { ClassReservation } from './scheduling/class-reservation.entity';
@@ -32,6 +33,6 @@ import { ClassOccurrenceOverride } from './scheduling/class-occurrence-override.
     SchedulingModule,
   ],
   controllers: [HealthController],
-  providers: [JwtStrategy],
+  providers: [JwtStrategy, { provide: APP_GUARD, useClass: ApiRateLimitGuard }],
 })
 export class AppModule {}

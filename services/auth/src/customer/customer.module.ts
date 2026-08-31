@@ -7,6 +7,8 @@ import { SavedClass } from './entities/saved-class.entity';
 import { Booking } from './entities/booking.entity';
 import { CustomerNotification } from './entities/customer-notification.entity';
 import { ClassReview } from './entities/class-review.entity';
+import { ClassWaitlist } from './entities/class-waitlist.entity';
+import { BookingRescheduleRequest } from './entities/booking-reschedule-request.entity';
 import {
   CustomerReviewsController,
   ProviderOperationsController,
@@ -20,7 +22,15 @@ import { PaymentsGateway } from './payments.gateway';
 @Module({
   imports: [
     PassportModule,
-    TypeOrmModule.forFeature([ChildProfile, SavedClass, Booking, CustomerNotification, ClassReview]),
+    TypeOrmModule.forFeature([
+      ChildProfile,
+      SavedClass,
+      Booking,
+      CustomerNotification,
+      ClassReview,
+      ClassWaitlist,
+      BookingRescheduleRequest,
+    ]),
   ],
   controllers: [CustomerController, ProviderOperationsController, CustomerReviewsController],
   providers: [
@@ -30,6 +40,6 @@ import { PaymentsGateway } from './payments.gateway';
     PaymentsGateway,
     JwtStrategy,
   ],
-  exports: [CustomerService],
+  exports: [CustomerService, PaymentsGateway],
 })
 export class CustomerModule {}

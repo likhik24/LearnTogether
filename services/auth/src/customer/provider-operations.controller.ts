@@ -11,10 +11,14 @@ import type {
   ClassReviewDto,
   ProviderRosterEntryDto,
   ProviderSessionDto,
+  BookingRescheduleRequestDto,
 } from '@learn-and-build/types';
 import {
   ChangeOccurrenceDto,
+  BulkAttendanceDto,
+  DecideRescheduleDto,
   MarkAttendanceDto,
+  ProviderMessageDto,
   ReviewBookingDto,
 } from './provider-operations.dto';
 import { ProviderOperationsService } from './provider-operations.service';
@@ -58,6 +62,37 @@ export class ProviderOperationsController {
     @Body() dto: ChangeOccurrenceDto,
   ): Promise<ProviderSessionDto> {
     return this.operations.changeOccurrence(user.sub, id, dto);
+  }
+
+  @Get('reschedule-requests')
+  rescheduleRequests(@CurrentUser() user: AuthPrincipal): Promise<BookingRescheduleRequestDto[]> {
+    return this.operations.listRescheduleRequests(user.sub);
+  }
+
+  @Post('reschedule-requests/:id/decision')
+  decideReschedule(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body() dto: DecideRescheduleDto,
+  ): Promise<BookingRescheduleRequestDto> {
+    return this.operations.decideReschedule(user.sub, id, dto.status, dto.note);
+  }
+
+  @Patch('attendance/bulk')
+  bulkAttendance(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: BulkAttendanceDto,
+  ): Promise<ProviderRosterEntryDto[]> {
+    return this.operations.bulkAttendance(user.sub, dto.bookingIds, dto.status, dto.notes);
+  }
+
+  @Post('classes/:id/message')
+  messageSession(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body() dto: ProviderMessageDto,
+  ): Promise<{ recipients: number }> {
+    return this.operations.messageSession(user.sub, id, dto.start, dto.message);
   }
 }
 

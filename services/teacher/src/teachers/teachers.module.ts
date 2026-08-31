@@ -9,6 +9,7 @@ import { VerificationController } from './verification.controller';
 import { S3Service } from '../storage/s3.service';
 import { TeacherModerationAudit } from './entities/teacher-moderation-audit.entity';
 import { PublicImagesController } from './public-images.controller';
+import { PublicDirectoryController } from './public-directory.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([TeacherProfile, TeacherDocument, TeacherModerationAudit])],
@@ -17,6 +18,7 @@ import { PublicImagesController } from './public-images.controller';
     DirectoryController,
     VerificationController,
     PublicImagesController,
+    PublicDirectoryController,
   ],
   providers: [TeachersService, S3Service],
   exports: [TeachersService],

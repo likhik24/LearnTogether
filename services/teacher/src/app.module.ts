@@ -2,7 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { JwtStrategy } from '@learn-and-build/nest-auth';
+import { ApiRateLimitGuard, JwtStrategy } from '@learn-and-build/nest-auth';
+import { APP_GUARD } from '@nestjs/core';
 import { HealthController } from './health/health.controller';
 import { TeacherProfile } from './teachers/entities/teacher-profile.entity';
 import { TeacherDocument } from './teachers/entities/teacher-document.entity';
@@ -33,6 +34,6 @@ import { TeacherModerationAudit } from './teachers/entities/teacher-moderation-a
     AuthDiscoveryModule,
   ],
   controllers: [HealthController],
-  providers: [JwtStrategy],
+  providers: [JwtStrategy, { provide: APP_GUARD, useClass: ApiRateLimitGuard }],
 })
 export class AppModule {}

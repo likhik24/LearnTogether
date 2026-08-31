@@ -145,6 +145,9 @@ test('provider entry, password sign-in, studio session, logout and re-login work
         body: JSON.stringify(sessions),
       });
     }
+    if (path.endsWith('/provider/reschedule-requests')) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    }
     if (path.includes('/provider/classes/class-1/roster')) {
       const start = new URL(request.url()).searchParams.get('start') ?? upcomingStart;
       return route.fulfill({
@@ -229,6 +232,24 @@ test('provider entry, password sign-in, studio session, logout and re-login work
         }),
       });
     }
+    if (path.endsWith('/payments/provider/payout-profile')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          teacherId: provider.id,
+          accountHolderName: provider.displayName,
+          payoutMethod: 'bank',
+          bankName: 'Test Bank',
+          ifsc: 'TEST0123456',
+          accountLast4: '1234',
+          upiIdMasked: null,
+          externalFundAccountId: 'fund-test',
+          kycStatus: 'verified',
+          updatedAt: new Date().toISOString(),
+        }),
+      });
+    }
     if (path.endsWith('/payments/provider/payouts') && request.method() === 'POST') {
       payoutRequested = true;
       return route.fulfill({ status: 201, contentType: 'application/json', body: '{}' });
@@ -267,13 +288,23 @@ test('provider entry, password sign-in, studio session, logout and re-login work
   await expect(page.getByText(/Payout requested/)).toBeVisible();
   expect(payoutRequested).toBe(true);
 
-  await page.getByText('Recent Robotics Lab', { exact: true }).locator('..').locator('..').getByRole('button', { name: 'Open roster' }).click();
+  await page
+    .getByText('Recent Robotics Lab', { exact: true })
+    .locator('..')
+    .locator('..')
+    .getByRole('button', { name: 'Open roster' })
+    .click();
   await expect(page.getByText('family@example.com')).toBeVisible();
-  await page.getByRole('button', { name: 'Present' }).click();
+  await page.getByRole('button', { name: 'Present', exact: true }).click();
   expect(attendanceMarked).toBe(true);
   await page.getByRole('button', { name: 'Close session manager' }).click();
 
-  await page.getByText('Upcoming Robotics Lab', { exact: true }).locator('..').locator('..').getByRole('button', { name: 'Manage session' }).click();
+  await page
+    .getByText('Upcoming Robotics Lab', { exact: true })
+    .locator('..')
+    .locator('..')
+    .getByRole('button', { name: 'Manage session' })
+    .click();
   await page.getByLabel('Replacement date and time').fill('2031-05-24T10:30');
   await page.getByLabel('Message to families').fill('Venue maintenance');
   await page.getByRole('button', { name: 'Reschedule session' }).click();
@@ -326,9 +357,7 @@ test('a family account can complete provider onboarding, review submission, and 
     if (path.includes('/customer/notifications')) return route.fulfill({ status: 200, body: '[]' });
     return route.fulfill({ status: 404, body: '{}' });
   });
-  await page.route('**/test-upload/**', (route) =>
-    route.fulfill({ status: 200, body: '' }),
-  );
+  await page.route('**/test-upload/**', (route) => route.fulfill({ status: 200, body: '' }));
   await page.route('**/api/teacher/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -428,13 +457,11 @@ test('a family account can complete provider onboarding, review submission, and 
     .fill('I enjoy helping children learn by building.');
   await page.getByRole('button', { name: 'Save provider profile' }).click();
   await expect(page.getByText('Profile changes saved.')).toBeVisible();
-  await page
-    .locator('input[type="file"][accept="application/pdf"]')
-    .setInputFiles({
-      name: 'portfolio.pdf',
-      mimeType: 'application/pdf',
-      buffer: Buffer.from('%PDF-1.4\nprovider portfolio'),
-    });
+  await page.locator('input[type="file"][accept="application/pdf"]').setInputFiles({
+    name: 'portfolio.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4\nprovider portfolio'),
+  });
   await expect(page.getByText('portfolio.pdf')).toBeVisible();
   await page.getByRole('button', { name: 'Submit profile for review' }).click();
   await expect(page.getByText(/Verification status: submitted/i)).toBeVisible();
@@ -469,10 +496,29 @@ test('an administrator can process a provider payout with a required transfer re
   await page.route('**/api/auth/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith('/auth/me')) {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(admin) });
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(admin),
+      });
     }
     if (path.endsWith('/auth/oidc/providers')) return route.fulfill({ status: 200, body: '[]' });
     if (path.endsWith('/admin/users')) return route.fulfill({ status: 200, body: '[]' });
+    if (path.endsWith('/admin/operations/failed'))
+      return route.fulfill({ status: 200, body: '[]' });
+    if (path.endsWith('/admin/operations/email-readiness'))
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          configured: true,
+          fromAddress: 'hello@learnandbuild.org',
+          region: 'ap-southeast-2',
+          sendingEnabled: true,
+          productionAccessEnabled: true,
+          error: null,
+        }),
+      });
     return route.fulfill({ status: 404, body: '{}' });
   });
   await page.route('**/api/teacher/**', (route) =>
@@ -490,6 +536,9 @@ test('an administrator can process a provider payout with a required transfer re
         contentType: 'application/json',
         body: JSON.stringify([payout]),
       });
+    }
+    if (path.endsWith('/payments/admin/payout-profiles')) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     }
     if (path.includes('/payments/admin/payouts/payout-1') && request.method() === 'POST') {
       const input = request.postDataJSON() as { status: string; reference?: string };

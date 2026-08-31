@@ -10,6 +10,8 @@ import {
   AttendanceStatus,
   BookingStatus,
   OccurrenceStatus,
+  RescheduleRequestStatus,
+  type BookingRescheduleRequestDto,
   type ClassOccurrence,
   type ClassReviewDto,
   type ClassTiming,
@@ -19,7 +21,7 @@ import {
 import { Booking } from './entities/booking.entity';
 import { ClassReview } from './entities/class-review.entity';
 import { CustomerNotification } from './entities/customer-notification.entity';
-import { PaymentsGateway } from './payments.gateway';
+import { BookingRescheduleRequest } from './entities/booking-reschedule-request.entity';
 
 interface OfferingRow {
   id: string;
@@ -53,8 +55,9 @@ export class ProviderOperationsService {
     private readonly reviews: Repository<ClassReview>,
     @InjectRepository(CustomerNotification)
     private readonly notifications: Repository<CustomerNotification>,
+    @InjectRepository(BookingRescheduleRequest)
+    private readonly reschedules: Repository<BookingRescheduleRequest>,
     private readonly db: DataSource,
-    private readonly payments: PaymentsGateway,
   ) {}
 
   async listSessions(teacherId: string, days = 60): Promise<ProviderSessionDto[]> {
@@ -135,7 +138,9 @@ export class ProviderOperationsService {
   ): Promise<ProviderRosterEntryDto[]> {
     const occurrence = parseDate(start, 'Session date is invalid');
     await this.ownedOffering(teacherId, classId);
-    const rows = await this.db.query<Array<Omit<ProviderRosterEntryDto, 'scheduledStart'> & { scheduledStart: Date | string }>>(
+    const rows = await this.db.query<
+      Array<Omit<ProviderRosterEntryDto, 'scheduledStart'> & { scheduledStart: Date | string }>
+    >(
       `SELECT b.id AS "bookingId", b.class_ref AS "classId",
               u.display_name AS "parentName", u.email AS "parentEmail",
               b.child_id AS "childId", b.child_name AS "childName",
@@ -222,10 +227,6 @@ export class ProviderOperationsService {
          AND status IN ('pending_payment', 'confirmed')`,
       [classId, original],
     );
-    if (!replacement) {
-      for (const booking of affected) await this.payments.refundBooking(booking.id);
-    }
-
     await this.db.transaction(async (manager) => {
       await manager.query(
         `INSERT INTO class_occurrence_overrides
@@ -258,8 +259,7 @@ export class ProviderOperationsService {
           [classId, replacement, original],
         );
         if (
-          Number(capacity[0]?.replacement_seats ?? 0) +
-            Number(capacity[0]?.moving_seats ?? 0) >
+          Number(capacity[0]?.replacement_seats ?? 0) + Number(capacity[0]?.moving_seats ?? 0) >
           offering.seats
         ) {
           throw new ConflictException('The replacement session does not have enough seats');
@@ -298,11 +298,23 @@ export class ProviderOperationsService {
              AND status IN ('pending_payment', 'confirmed')`,
           [classId, original],
         );
+        for (const booking of affected) {
+          await manager.query(
+            `INSERT INTO operation_jobs
+               (type, payload, status, attempts, max_attempts, next_attempt_at, idempotency_key)
+             VALUES ('refund_booking', jsonb_build_object('bookingId', $1::text),
+                     'pending', 0, 8, now(), 'refund-booking:' || $1::text)
+             ON CONFLICT (idempotency_key) DO NOTHING`,
+            [booking.id],
+          );
+        }
       }
-      const title = replacement ? `${offering.activity} rescheduled` : `${offering.activity} cancelled`;
+      const title = replacement
+        ? `${offering.activity} rescheduled`
+        : `${offering.activity} cancelled`;
       const body = replacement
         ? `Your class now starts ${replacement.toISOString()}. ${input.reason?.trim() || ''}`.trim()
-        : `The provider cancelled this session. Any captured payment is being refunded. ${input.reason?.trim() || ''}`.trim();
+        : `The provider cancelled this session. Any captured payment has been queued for refund. ${input.reason?.trim() || ''}`.trim();
       await manager.query(
         `INSERT INTO customer_notifications (user_id, kind, title, body, read_at)
          SELECT DISTINCT user_id, 'schedule', $3, $4, NULL
@@ -315,6 +327,162 @@ export class ProviderOperationsService {
     return sessions.find(
       (item) => item.classId === classId && item.originalStart === original.toISOString(),
     )!;
+  }
+
+  async listRescheduleRequests(teacherId: string): Promise<BookingRescheduleRequestDto[]> {
+    const rows = await this.db.query<BookingRescheduleRequest[]>(
+      `SELECT r.id, r.booking_id AS "bookingId", r.class_id AS "classId",
+              r.user_id AS "userId", r.child_name AS "childName",
+              r.current_start AS "currentStart", r.requested_start AS "requestedStart",
+              r.reason, r.status, r.provider_note AS "providerNote",
+              r.created_at AS "createdAt", r.updated_at AS "updatedAt"
+       FROM booking_reschedule_requests r
+       JOIN class_offerings c ON c.id = r.class_id
+       WHERE c.teacher_id = $1 ORDER BY r.created_at DESC`,
+      [teacherId],
+    );
+    return rows.map((row) => Object.assign(new BookingRescheduleRequest(), row).toDto());
+  }
+
+  async decideReschedule(
+    teacherId: string,
+    id: string,
+    status: RescheduleRequestStatus.APPROVED | RescheduleRequestStatus.DECLINED,
+    note?: string,
+  ): Promise<BookingRescheduleRequestDto> {
+    return this.db.transaction(async (manager) => {
+      const rows = await manager.query<
+        Array<BookingRescheduleRequest & { seats: number; bookingSeats: number; title: string }>
+      >(
+        `SELECT r.id, r.booking_id AS "bookingId", r.class_id AS "classId",
+                r.user_id AS "userId", r.child_name AS "childName",
+                r.current_start AS "currentStart", r.requested_start AS "requestedStart",
+                r.reason, r.status, r.provider_note AS "providerNote",
+                r.created_at AS "createdAt", r.updated_at AS "updatedAt",
+                c.seats, b.seat_count AS "bookingSeats", c.activity AS title
+         FROM booking_reschedule_requests r
+         JOIN class_offerings c ON c.id = r.class_id
+         JOIN bookings b ON b.id = r.booking_id
+         WHERE r.id = $1 AND c.teacher_id = $2 FOR UPDATE`,
+        [id, teacherId],
+      );
+      const request = rows[0];
+      if (!request) throw new NotFoundException('Reschedule request not found');
+      if (request.status !== RescheduleRequestStatus.REQUESTED) {
+        throw new ConflictException('This reschedule request has already been decided');
+      }
+      if (status === RescheduleRequestStatus.APPROVED) {
+        if (new Date(request.requestedStart) <= new Date()) {
+          throw new ConflictException('The requested session has already started');
+        }
+        const capacity = await manager.query<Array<{ reserved: string }>>(
+          `SELECT COALESCE(SUM(seats), 0)::text AS reserved FROM class_reservations
+           WHERE class_id = $1 AND occurrence_start = $2 AND status = 'reserved'`,
+          [request.classId, request.requestedStart],
+        );
+        if (Number(capacity[0]?.reserved ?? 0) + request.bookingSeats > request.seats) {
+          throw new ConflictException('The requested session is now full');
+        }
+        const conflicts = await manager.query<Array<{ exists: boolean }>>(
+          `SELECT EXISTS(SELECT 1 FROM bookings
+           WHERE user_id = $1 AND class_ref = $2 AND scheduled_start = $3
+             AND id <> $4 AND status IN ('pending_payment', 'confirmed')) AS exists`,
+          [request.userId, request.classId, request.requestedStart, request.bookingId],
+        );
+        if (conflicts[0]?.exists) {
+          throw new ConflictException('This family already has the requested session booked');
+        }
+        const movedReservations = await manager.query<Array<{ id: string }>>(
+          `UPDATE class_reservations SET occurrence_start = $1, updated_at = now()
+           WHERE id::text = (SELECT reservation_id FROM bookings WHERE id = $2)
+             AND status = 'reserved' RETURNING id`,
+          [request.requestedStart, request.bookingId],
+        );
+        if (!movedReservations.length) {
+          throw new ConflictException('The original seat reservation is no longer active');
+        }
+        await manager.query(
+          `UPDATE bookings SET scheduled_start = $1, updated_at = now()
+           WHERE id = $2 AND status = 'confirmed'`,
+          [request.requestedStart, request.bookingId],
+        );
+      }
+      const updated = await manager.query<BookingRescheduleRequest[]>(
+        `UPDATE booking_reschedule_requests
+         SET status = $2, provider_note = $3, updated_at = now()
+         WHERE id = $1
+         RETURNING id, booking_id AS "bookingId", class_id AS "classId",
+                   user_id AS "userId", child_name AS "childName",
+                   current_start AS "currentStart", requested_start AS "requestedStart",
+                   reason, status, provider_note AS "providerNote",
+                   created_at AS "createdAt", updated_at AS "updatedAt"`,
+        [id, status, note?.trim() || null],
+      );
+      await manager.query(
+        `INSERT INTO customer_notifications (user_id, kind, title, body, read_at)
+         VALUES ($1, 'reschedule', $2, $3, NULL)`,
+        [
+          request.userId,
+          `${request.title} reschedule ${status}`,
+          status === RescheduleRequestStatus.APPROVED
+            ? `Your booking now starts ${new Date(request.requestedStart).toLocaleString('en-IN')}.`
+            : note?.trim() || 'The provider could not approve the requested session.',
+        ],
+      );
+      return Object.assign(new BookingRescheduleRequest(), updated[0]).toDto();
+    });
+  }
+
+  async bulkAttendance(
+    teacherId: string,
+    bookingIds: string[],
+    status: AttendanceStatus,
+    notes?: string,
+  ): Promise<ProviderRosterEntryDto[]> {
+    if (!bookingIds.length) throw new BadRequestException('Choose at least one learner');
+    const rows = await this.db.query<
+      Array<{ id: string; class_ref: string; scheduled_start: Date }>
+    >(
+      `SELECT b.id, b.class_ref, b.scheduled_start FROM bookings b
+       JOIN class_offerings c ON b.class_ref = c.id::text
+       WHERE c.teacher_id = $1 AND b.id = ANY($2::uuid[])
+         AND b.status = 'confirmed' AND b.scheduled_start <= now()`,
+      [teacherId, bookingIds],
+    );
+    if (rows.length !== bookingIds.length) {
+      throw new ConflictException('Some learners are not eligible for attendance yet');
+    }
+    if (
+      new Set(rows.map((item) => `${item.class_ref}:${item.scheduled_start.toISOString()}`))
+        .size !== 1
+    ) {
+      throw new BadRequestException('Bulk attendance must contain one class session');
+    }
+    await this.db.query(
+      `UPDATE bookings SET attendance_status = $2, attendance_notes = $3, updated_at = now()
+       WHERE id = ANY($1::uuid[])`,
+      [bookingIds, status, notes?.trim() || null],
+    );
+    return this.roster(teacherId, rows[0].class_ref, rows[0].scheduled_start.toISOString());
+  }
+
+  async messageSession(
+    teacherId: string,
+    classId: string,
+    start: string,
+    message: string,
+  ): Promise<{ recipients: number }> {
+    await this.ownedOffering(teacherId, classId);
+    const occurrence = parseDate(start, 'Session date is invalid');
+    const result = await this.db.query<Array<{ user_id: string }>>(
+      `INSERT INTO customer_notifications (user_id, kind, title, body, read_at)
+       SELECT DISTINCT b.user_id, 'provider_message', c.activity || ' update', $3, NULL
+       FROM bookings b JOIN class_offerings c ON c.id::text = b.class_ref
+       WHERE b.class_ref = $1 AND b.scheduled_start = $2 AND b.status = 'confirmed'
+       RETURNING user_id`,
+      [classId, occurrence, message.trim()],
+    );
+    return { recipients: result.length };
   }
 
   async listReviewsForCustomer(userId: string): Promise<ClassReviewDto[]> {
@@ -334,7 +502,14 @@ export class ProviderOperationsService {
     comment?: string,
   ): Promise<ClassReviewDto> {
     const rows = await this.db.query<
-      Array<{ class_ref: string; scheduled_start: Date; duration_minutes: number; parent_name: string; teacher_id: string; activity: string }>
+      Array<{
+        class_ref: string;
+        scheduled_start: Date;
+        duration_minutes: number;
+        parent_name: string;
+        teacher_id: string;
+        activity: string;
+      }>
     >(
       `SELECT b.class_ref, b.scheduled_start, c.duration_minutes,
               u.display_name AS parent_name, c.teacher_id, c.activity
@@ -346,9 +521,7 @@ export class ProviderOperationsService {
     );
     const booking = rows[0];
     if (!booking) throw new NotFoundException('Completed confirmed booking not found');
-    const endsAt = new Date(
-      booking.scheduled_start.getTime() + booking.duration_minutes * 60_000,
-    );
+    const endsAt = new Date(booking.scheduled_start.getTime() + booking.duration_minutes * 60_000);
     if (endsAt > new Date()) throw new ConflictException('Reviews open after the class ends');
     let review = await this.reviews.findOne({ where: { bookingId, userId } });
     if (review) {

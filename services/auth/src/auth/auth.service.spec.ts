@@ -85,6 +85,7 @@ describe('AuthService', () => {
       email: '  NEW@example.com  ',
       password: 'supersecret',
       displayName: '  New User  ',
+      termsAccepted: true,
     });
 
     expect(result.accessToken).toBe('signed.jwt.token');
@@ -107,6 +108,7 @@ describe('AuthService', () => {
       password: 'supersecret',
       displayName: 'A',
       role: Role.ADMIN,
+      termsAccepted: true,
     });
     expect(asAdmin.user.role).toBe(Role.USER);
 
@@ -115,6 +117,7 @@ describe('AuthService', () => {
       password: 'supersecret',
       displayName: 'B',
       role: Role.TEACHER,
+      termsAccepted: true,
     });
     expect(asTeacher.user.role).toBe(Role.TEACHER);
   });
@@ -126,6 +129,7 @@ describe('AuthService', () => {
         email: 'teacher@example.com',
         password: 'supersecret',
         displayName: 'Dup',
+        termsAccepted: true,
       }),
     ).rejects.toBeInstanceOf(ConflictException);
   });

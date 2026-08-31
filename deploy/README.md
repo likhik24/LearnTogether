@@ -153,3 +153,70 @@ belongs outside the repository at `CLOUDFLARE_CREDENTIALS_PATH`; keep it mode
 - Keep `deploy/.env.production` mode `0600` and outside Git.
 - Build from a clean clone. `.dockerignore` excludes PDF, DOCX, and temporary
   signing directories as an additional safeguard.
+
+## Email production readiness
+
+SES must be moved out of its sandbox before verification, reset, reminder, and
+transactional emails can reach arbitrary customers. In the AWS SES console for
+the production region:
+
+1. Verify `learnandbuild.org`, publish the SES DKIM records in Cloudflare, and
+   configure a custom MAIL FROM domain.
+2. Publish SPF and DMARC records, then confirm the identity status is verified.
+3. Request production access under **Account dashboard → Request production
+   access**. Describe the opt-in account/booking mail, preference controls,
+   bounce/complaint handling, and expected daily volume.
+4. Set `AUTH_EMAIL_FROM` to a verified sender and send verification, reset,
+   booking, reschedule, cancellation, refund, and reminder tests to independent
+   mail providers. Monitor SES bounce and complaint metrics.
+
+Until AWS approves the request, SES sandbox restrictions remain an external
+release dependency; the durable email outbox keeps retryable delivery failures
+visible in the admin operations queue.
+
+## Backups, recovery, and monitoring
+
+- Create a private, versioned S3 bucket matching `BackupsBucket`, with default
+  encryption, public access blocked, and lifecycle rules (for example: 35 days
+  standard, 12 months archive). Set `PRODUCTION_BACKUP_ENABLED=true` and
+  `PRODUCTION_BACKUP_BUCKET` in the GitHub production environment.
+- `.github/workflows/backup-production.yml` creates a nightly encrypted custom
+  PostgreSQL dump over SSM. Review each scheduled workflow run and configure a
+  GitHub Actions failure notification.
+- Test a restore quarterly on an isolated environment. Production restore is
+  intentionally gated:
+
+  ```bash
+  RESTORE_CONFIRM=restore-production \
+    scripts/restore-production-backup.sh s3://BUCKET/production/FILE.dump
+  ```
+
+- `.github/workflows/production-smoke.yml` checks the site and core APIs every
+  15 minutes. Configure GitHub workflow-failure notifications.
+- Deploy `deploy/ec2-origin.yml` with `AlarmEmail` to receive EC2 status and
+  sustained CPU alarms, then confirm the SNS subscription email.
+- If a deployment health check fails, the workflow rolls application code back
+  to the previous commit. Migrations in this repository must remain additive so
+  the prior application can run safely during rollback.
+
+## Operational incident checklist
+
+1. Check the public smoke workflow, CloudWatch alarms, Cloudflare health, and
+   `docker compose ... ps` through SSM.
+2. Inspect service logs and the admin failed-operation queue. Retry only after
+   fixing the underlying dependency or configuration issue.
+3. For payment incidents, reconcile Razorpay order, payment, refund, booking,
+   reservation, and operation-job identifiers before changing state.
+4. For suspected credential exposure, rotate the credential immediately,
+   revoke sessions if needed, review CloudTrail/access logs, and document scope.
+5. After recovery, run customer and provider smoke flows and record timeline,
+   impact, root cause, and prevention work.
+
+## Edge security checklist
+
+Create Cloudflare rate-limit rules for `/api/auth/auth/login`, registration,
+password reset, booking, payment, provider messaging, and admin paths. The app
+also has a per-instance safety limiter, but Cloudflare is the distributed
+control. Enable managed WAF rules and bot protection, exclude webhook routes
+only where provider signatures are strictly verified, and review GitHub secret
+scanning/CodeQL alerts weekly.

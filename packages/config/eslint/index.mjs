@@ -1,6 +1,8 @@
 // Shared flat ESLint config for the Learn&Build monorepo.
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import nextPlugin from '@next/eslint-plugin-next';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 /** @type {import('typescript-eslint').Config} */
 export default tseslint.config(
@@ -18,6 +20,17 @@ export default tseslint.config(
     ],
   },
   ...tseslint.configs.recommended,
+  {
+    files: ['app/**/*.{ts,tsx}'],
+    plugins: {
+      '@next/next': nextPlugin,
+      'react-hooks': reactHooks,
+    },
+    rules: {
+      ...nextPlugin.configs['core-web-vitals'].rules,
+      ...reactHooks.configs.recommended.rules,
+    },
+  },
   {
     files: ['**/*.ts'],
     languageOptions: {

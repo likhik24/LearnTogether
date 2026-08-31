@@ -18,10 +18,19 @@ import type {
   BookingDto,
   ChildProfileDto,
   CustomerNotificationDto,
+  ClassWaitlistDto,
+  BookingRescheduleRequestDto,
   SavedClassDto,
 } from '@learn-and-build/types';
 import { CustomerService } from './customer.service';
-import { CreateBookingDto, CreateChildDto, SaveClassDto, UpdateChildDto } from './customer.dto';
+import {
+  CreateBookingDto,
+  CreateChildDto,
+  JoinWaitlistDto,
+  RequestBookingRescheduleDto,
+  SaveClassDto,
+  UpdateChildDto,
+} from './customer.dto';
 import { ACCESS_COOKIE, readCookie } from '../auth/session-cookies';
 
 /** Per-user customer data (children, saved classes, bookings, notifications). */
@@ -65,7 +74,9 @@ export class CustomerController {
     @Param('classRef') classRef: string,
     @Body() _dto: SaveClassDto,
   ): Promise<SavedClassDto> {
-    return (await this.customer.saveClass(u.sub, downstreamAuthorization(request), classRef)).toDto();
+    return (
+      await this.customer.saveClass(u.sub, downstreamAuthorization(request), classRef)
+    ).toDto();
   }
 
   @Delete('saved-classes/:classRef')
@@ -88,7 +99,9 @@ export class CustomerController {
     @Req() request: Request,
     @Body() dto: CreateBookingDto,
   ): Promise<BookingDto> {
-    return (await this.customer.createBooking(u.sub, downstreamAuthorization(request), dto)).toDto();
+    return (
+      await this.customer.createBooking(u.sub, downstreamAuthorization(request), dto)
+    ).toDto();
   }
 
   @Patch('bookings/:id/cancel')
@@ -121,6 +134,75 @@ export class CustomerController {
   @HttpCode(204)
   async markAllRead(@CurrentUser() u: AuthPrincipal): Promise<void> {
     await this.customer.markAllNotificationsRead(u.sub);
+  }
+
+  @Get('waitlist')
+  async waitlist(@CurrentUser() user: AuthPrincipal): Promise<ClassWaitlistDto[]> {
+    return (await this.customer.listWaitlist(user.sub)).map(({ entry, position }) =>
+      entry.toDto(position),
+    );
+  }
+
+  @Post('waitlist')
+  async joinWaitlist(
+    @CurrentUser() user: AuthPrincipal,
+    @Req() request: Request,
+    @Body() input: JoinWaitlistDto,
+  ): Promise<ClassWaitlistDto> {
+    const { entry, position } = await this.customer.joinWaitlist(
+      user.sub,
+      downstreamAuthorization(request),
+      input,
+    );
+    return entry.toDto(position);
+  }
+
+  @Delete('waitlist/:id')
+  async leaveWaitlist(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+  ): Promise<ClassWaitlistDto> {
+    return (await this.customer.leaveWaitlist(user.sub, id)).toDto();
+  }
+
+  @Get('reschedule-requests')
+  async rescheduleRequests(
+    @CurrentUser() user: AuthPrincipal,
+  ): Promise<BookingRescheduleRequestDto[]> {
+    return (await this.customer.listRescheduleRequests(user.sub)).map((item) => item.toDto());
+  }
+
+  @Post('bookings/:id/reschedule-request')
+  async requestReschedule(
+    @CurrentUser() user: AuthPrincipal,
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Body() input: RequestBookingRescheduleDto,
+  ): Promise<BookingRescheduleRequestDto> {
+    return (
+      await this.customer.requestReschedule(user.sub, downstreamAuthorization(request), id, input)
+    ).toDto();
+  }
+
+  @Get('data-export')
+  dataExport(@CurrentUser() user: AuthPrincipal): Promise<Record<string, unknown>> {
+    return this.customer.exportData(user.sub);
+  }
+
+  @Delete('account')
+  requestAccountDeletion(@CurrentUser() user: AuthPrincipal) {
+    return this.customer.requestAccountDeletion(user.sub);
+  }
+
+  @Get('account/deletion')
+  accountDeletionStatus(@CurrentUser() user: AuthPrincipal) {
+    return this.customer.accountDeletionStatus(user.sub);
+  }
+
+  @Post('account/deletion/cancel')
+  @HttpCode(204)
+  cancelAccountDeletion(@CurrentUser() user: AuthPrincipal): Promise<void> {
+    return this.customer.cancelAccountDeletion(user.sub);
   }
 }
 
