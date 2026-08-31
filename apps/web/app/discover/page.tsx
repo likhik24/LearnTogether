@@ -160,7 +160,7 @@ export default function DiscoverPage() {
           <input
             ref={searchInput}
             aria-label="Search classes"
-            placeholder="Search activities, skills, teachers…"
+            placeholder="Search activities, skills, providers…"
             value={query}
             onChange={(event) => {
               setQuery(event.target.value);

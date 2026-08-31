@@ -357,6 +357,7 @@ const navItems: { href: string; label: string; icon: IconName }[] = [
   { href: '/bookings', label: 'Bookings', icon: 'calendar' },
   { href: '/children', label: 'My Child', icon: 'child' },
   { href: '/profile', label: 'Profile', icon: 'profile' },
+  { href: '/teacher', label: 'Provider', icon: 'star' },
 ];
 
 export function BottomNav() {

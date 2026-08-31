@@ -83,7 +83,7 @@ schema changes must use reviewed migrations.
 
 Pull the reviewed release and rebuild the stack. The one-shot `migrate`
 service runs transactional, idempotent migrations before auth, scheduling, and
-teacher services are allowed to start.
+the provider (`teacher`) services are allowed to start.
 
 ```bash
 docker compose \

@@ -240,7 +240,7 @@ export default function AdminPage() {
                       <li key={document.id}>
                         {document.type}: {document.fileName}{' '}
                         <a
-                          href={`/api/teacher/admin/teachers/${teacher.id}/documents/${document.id}`}
+                          href={`/api/provider/admin/teachers/${teacher.id}/documents/${document.id}`}
                           target="_blank"
                           rel="noreferrer"
                         >

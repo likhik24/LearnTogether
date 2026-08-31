@@ -230,11 +230,12 @@ Cloud: `https://learnandbuild.org/api/auth/auth/oidc/google/callback`. Add
 `https://learnandbuild.org` as an authorized JavaScript origin, then set the
 client ID and secret in `deploy/.env.production` and restart the auth service.
 
-## Teacher service (port 3002)
+## Provider service (port 3002)
 
-Provider (teacher) profiles with PostGIS location, a full onboarding +
-availability questionnaire, S3 document uploads, and an admin-driven
-verification state machine (`pending → submitted → under_review →
+The provider service (the `teacher` service internally; reached from the web app
+under `/api/provider`) manages provider profiles with PostGIS location, a full
+onboarding + availability questionnaire, S3 document uploads, and an
+admin-driven verification state machine (`pending → submitted → under_review →
 approved/rejected`, with resubmit from `rejected`).
 
 | Method | Route                            | Auth          | Purpose                            |
@@ -244,7 +245,7 @@ approved/rejected`, with resubmit from `rejected`).
 | POST   | /teachers/me/documents/presign   | JWT + TEACHER | Get a presigned S3 upload URL      |
 | POST   | /teachers/me/documents           | JWT + TEACHER | Attach an uploaded document        |
 | POST   | /teachers/me/submit              | JWT + TEACHER | Submit profile for review          |
-| GET    | /teachers/nearby?lat&lng&radius  | JWT           | Find approved teachers nearby      |
+| GET    | /teachers/nearby?lat&lng&radius  | JWT           | Find approved providers nearby     |
 | GET    | /admin/teachers?status=submitted | JWT + ADMIN   | List profiles by status            |
 | POST   | /admin/teachers/:id/start-review | JWT + ADMIN   | Move to under_review               |
 | POST   | /admin/teachers/:id/approve      | JWT + ADMIN   | Approve                            |
@@ -292,9 +293,9 @@ service to have AWS credentials and a bucket (`DOCUMENTS_BUCKET`); for local
 dev, point it at MinIO/LocalStack with `S3_ENDPOINT` (path-style addressing is
 enabled automatically when set).
 
-> **AWS credentials for S3 uploads.** Teacher portfolios are stored in the
+> **AWS credentials for S3 uploads.** Provider portfolios are stored in the
 > **`providers-profiles`** S3 bucket in AWS account **960763460353**. The
-> teacher service signs the upload URLs, so it needs credentials for that
+> provider service signs the upload URLs, so it needs credentials for that
 > account: export the profile from
 > [AWS profile setup (macOS)](#aws-profile-setup-macos)
 > (`export AWS_PROFILE=learnbuild`) before starting the service, and set
@@ -323,7 +324,7 @@ use a different account or bucket. Do not commit credentials or put them in
    Keep **Block all public access** enabled. Presigned URLs do not require a
    public bucket.
 
-2. Give the teacher-service IAM identity permission to upload only under the
+2. Give the provider-service IAM identity permission to upload only under the
    provider document prefix. In IAM, open **Users** → `likhilearnbuild` →
    **Add permissions** → **Create inline policy** → **JSON**, and use:
 
@@ -383,8 +384,9 @@ use a different account or bucket. Do not commit credentials or put them in
    administrator can issue an IAM user access key; never create root access
    keys and never commit the secret.
 
-5. Start the teacher service with the bucket and region. `docker-compose.yml`
-   passes these host environment variables into the container:
+5. Start the provider service with the bucket and region. `docker-compose.yml`
+   passes these host environment variables into the container (the compose
+   service is named `teacher`):
 
    ```bash
    export DOCUMENTS_BUCKET=providers-profiles
@@ -392,7 +394,7 @@ use a different account or bucket. Do not commit credentials or put them in
    docker compose up -d --build teacher
    ```
 
-6. Verify identity, bucket access, and the teacher health endpoint:
+6. Verify identity, bucket access, and the provider service health endpoint:
 
    ```bash
    aws sts get-caller-identity --profile learnbuild
@@ -410,14 +412,14 @@ use a different account or bucket. Do not commit credentials or put them in
 
 ## Scheduling service (port 3004)
 
-Verified teachers publish classes (activity, description, instructor gender,
+Verified providers publish classes (activity, description, instructor gender,
 duration, seats) with recurring weekly timings; an availability query expands
 them into concrete upcoming occurrences with seat counts.
 
 | Method | Route                          | Auth          | Purpose                      |
 | ------ | ------------------------------ | ------------- | ---------------------------- |
 | POST   | /classes                       | JWT + TEACHER | Publish a class              |
-| GET    | /classes/mine                  | JWT + TEACHER | A teacher's own classes      |
+| GET    | /classes/mine                  | JWT + TEACHER | A provider's own classes     |
 | GET    | /classes/:id                   | public        | Class details                |
 | GET    | /classes/:id/availability?days | public        | Upcoming occurrences + seats |
 | GET    | /classes/discover              | public        | Discovery cards + live seats |
@@ -494,11 +496,13 @@ re-created as a provider. It has two parts:
   scheduling service, with moderation status. Class approval is blocked until
   the provider profile is approved.
 
-`createTeacherClient()` calls are proxied by the Next server to the teacher
-service at `/api/teacher` (override the origin with `TEACHER_SERVICE_ORIGIN`, or
-the browser base URL with `NEXT_PUBLIC_TEACHER_API_URL`; defaults to
-`http://localhost:3002`). The former standalone `/provider` onboarding page has
-been retired and its features folded into `/teacher`.
+The provider client calls are proxied by the Next server under `/api/provider`
+to the provider (teacher) service (override the origin with
+`PROVIDER_SERVICE_ORIGIN`, falling back to the legacy `TEACHER_SERVICE_ORIGIN`;
+override the browser base URL with `NEXT_PUBLIC_PROVIDER_API_URL`, falling back
+to `NEXT_PUBLIC_TEACHER_API_URL`; defaults to `http://localhost:3002`). The
+former standalone `/provider` onboarding page has been retired and its features
+folded into `/teacher`.
 
 ## Infrastructure (CDK)
 

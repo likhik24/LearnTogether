@@ -169,7 +169,7 @@ export default async function ClassDetailsPage({ params }: { params: { slug: str
               </div>
               <div>
                 <span>✓</span>
-                <strong>Verified teacher</strong>
+                <strong>Verified provider</strong>
                 <small>Approved provider</small>
               </div>
             </div>
