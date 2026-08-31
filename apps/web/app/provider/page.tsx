@@ -989,11 +989,6 @@ export default function ProviderPage() {
             <button className="primary-wide" type="submit" disabled={saving}>
               {saving ? 'Saving…' : 'Save provider profile'}
             </button>
-            {verificationStatus && (
-              <Link className="primary-wide provider-studio-link" href="/teacher">
-                Open Provider Studio
-              </Link>
-            )}
             {(verificationStatus === VerificationStatus.PENDING ||
               verificationStatus === VerificationStatus.REJECTED) && (
               <button
@@ -1032,10 +1027,10 @@ function ProviderWorkflow({ status }: { status: VerificationStatus | null }) {
         <strong>2. Review</strong>
         <small>{reviewLabel}</small>
       </span>
-      <Link href="/teacher">
+      <span>
         <strong>3. Studio</strong>
         <small>Create and manage classes.</small>
-      </Link>
+      </span>
     </div>
   );
 }

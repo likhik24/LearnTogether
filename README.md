@@ -118,7 +118,7 @@ pnpm --filter @learn-and-build/web dev
 ```
 
 Open http://localhost:3100. The customer app, admin console (`/admin`), and the
-provider studio (`/teacher`) are all served here.
+provider page (`/provider`) are all served here.
 
 ## Local infrastructure & services
 
@@ -476,33 +476,31 @@ Discovery reads live cards and availability from Scheduling and uses Search for
 ranked text queries. Its Map and class-detail map use MapLibre with OpenFreeMap
 tiles by default. Set `NEXT_PUBLIC_MAPBOX_TOKEN` to use Mapbox Streets instead.
 
-### Provider studio (`/teacher`)
+### Provider page (`/provider`)
 
-`/teacher` (linked from the home page) is where an educator signs in or creates
-a provider account (role `teacher`). A family account can be signed out and
-re-created as a provider. It has two parts:
+`/provider` (linked from the home page) is the single provider surface where an
+educator signs in or creates a provider account (role `teacher`). A family
+account can be signed out and re-created as a provider. It captures the full
+provider profile:
 
-- **Your provider profile** — teaching category (with subcategories from the
-  shared taxonomy), a two-month availability calendar (specific dates with
-  one-hour 9am–9pm slots and a selected-days summary), home location (browser
-  GPS or address search via OpenStreetMap Nominatim, resolved to coordinates),
-  max commute distance, and public class-profile links (Instagram, Preply,
-  UrbanPro, TeacherOn, plus an other/portfolio link). A profile must be saved
-  before its portfolio PDF can be uploaded, and required fields plus at least
-  one document are enforced by the API before review submission. Reads/writes
-  the shared `TeacherProfile` via `createTeacherClient()`.
-- **Class publishing** — create/edit recurring class offerings (category,
-  ages, price, schedule, cover image, discovery keywords) through the
-  scheduling service, with moderation status. Class approval is blocked until
-  the provider profile is approved.
+- Teaching category (with subcategories from the shared taxonomy), a two-month
+  availability calendar (specific dates with one-hour 9am–9pm slots and a
+  selected-days summary), home location (browser GPS or address search via
+  OpenStreetMap Nominatim, resolved to coordinates), max commute distance, and
+  public class-profile links (Instagram, Preply, UrbanPro, TeacherOn, plus an
+  other/portfolio link).
+- A profile must be saved before its portfolio PDF can be uploaded, and
+  required fields plus at least one document are enforced by the API before
+  review submission. Reads/writes the shared `TeacherProfile` via the provider
+  client.
 
 The provider client calls are proxied by the Next server under `/api/provider`
 to the provider (teacher) service (override the origin with
 `PROVIDER_SERVICE_ORIGIN`, falling back to the legacy `TEACHER_SERVICE_ORIGIN`;
 override the browser base URL with `NEXT_PUBLIC_PROVIDER_API_URL`, falling back
 to `NEXT_PUBLIC_TEACHER_API_URL`; defaults to `http://localhost:3002`). The
-former standalone `/provider` onboarding page has been retired and its features
-folded into `/teacher`.
+former separate `/teacher` studio route has been retired; the provider page now
+lives entirely at `/provider`.
 
 ## Infrastructure (CDK)
 

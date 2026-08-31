@@ -357,7 +357,7 @@ const navItems: { href: string; label: string; icon: IconName }[] = [
   { href: '/bookings', label: 'Bookings', icon: 'calendar' },
   { href: '/children', label: 'My Child', icon: 'child' },
   { href: '/profile', label: 'Profile', icon: 'profile' },
-  { href: '/teacher', label: 'Provider', icon: 'star' },
+  { href: '/provider', label: 'Provider', icon: 'star' },
 ];
 
 export function BottomNav() {
@@ -382,9 +382,7 @@ export function BottomNav() {
 
 const providerNavItems: { href: string; label: string; icon: IconName }[] = [
   { href: '/', label: 'Family app', icon: 'home' },
-  { href: '/teacher', label: 'Provider studio', icon: 'star' },
   { href: '/provider', label: 'Provider profile', icon: 'profile' },
-  { href: '/teacher#earnings', label: 'Earnings', icon: 'calendar' },
 ];
 
 export function ProviderNav() {
