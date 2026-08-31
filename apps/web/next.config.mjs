@@ -17,7 +17,8 @@ const nextConfig = {
   poweredByHeader: false,
   transpilePackages: ['@learn-and-build/api-client', '@learn-and-build/types'],
   // Single-origin proxy: the browser only ever talks to this app's origin,
-  // so one public tunnel (e.g. Cloudflare) exposes the whole platform.
+  // so exposing this one web port (behind a reverse proxy) serves the whole
+  // platform; the backend services stay on the private network.
   async rewrites() {
     return [
       { source: '/api/auth/:path*', destination: `${ORIGINS.auth}/:path*` },

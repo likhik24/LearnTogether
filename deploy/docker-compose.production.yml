@@ -20,8 +20,14 @@ services:
       POSTGRES_USER: learnbuild
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       POSTGRES_DB: learnbuild
+      # Keep data under a subdirectory so the bind-mounted root can hold other
+      # files (e.g. lost+found) without upsetting Postgres' empty-dir check.
+      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Bind-mount the database onto a known host path so all user profiles,
+      # classes, bookings and every other row persist across container
+      # recreation, redeploys, and `docker compose down -v`. Back this path up.
+      - ${POSTGRES_DATA_DIR:-/opt/learn-and-build/postgres}:/var/lib/postgresql/data
     healthcheck:
       test: [CMD-SHELL, pg_isready -U learnbuild -d learnbuild]
       interval: 10s
@@ -45,11 +51,11 @@ services:
       - /bin/sh
       - -ec
       - |
-        base_tables="$$(psql -Atc "SELECT count(*) FROM pg_class WHERE oid IN (to_regclass('public.users'), to_regclass('public.class_offerings'))")"
-        if [ "$$base_tables" != "2" ]; then
-          echo "Base schema is not present; DB_SYNCHRONIZE bootstrap will create the current schema."
-          exit 0
-        fi
+        # The migration set builds the entire schema from empty and is fully
+        # idempotent, so it runs unconditionally: it bootstraps a brand-new
+        # database and is a safe no-op on an already-migrated one. Services
+        # therefore run with DB_SYNCHRONIZE=false and rely on these migrations
+        # as the single source of truth for the schema.
         for migration in /migrations/*.sql; do
           echo "Applying $$(basename "$$migration")"
           psql -v ON_ERROR_STOP=1 -f "$$migration"
@@ -322,6 +328,14 @@ services:
       SCHEDULING_SERVICE_ORIGIN: http://scheduling:3004
       VOICE_SERVICE_ORIGIN: http://voice:3005
       PAYMENTS_SERVICE_ORIGIN: http://payments:3007
+    # Public ingress for the platform. The whole app is served from this single
+    # origin (Next rewrites /api/* to the backend services on the private
+    # network). By default it binds to loopback so a host reverse proxy (nginx,
+    # Caddy, an ALB target, etc.) terminates TLS and forwards to it. Set
+    # WEB_BIND=0.0.0.0 to expose it directly on the host (only behind a firewall
+    # or when something else already provides TLS).
+    ports:
+      - '${WEB_BIND:-127.0.0.1}:3100:3100'
     depends_on:
       auth:
         condition: service_healthy
@@ -348,27 +362,14 @@ services:
       retries: 10
       start_period: 60s
 
-  cloudflared:
-    <<: *app-defaults
-    image: cloudflare/cloudflared:latest
-    command:
-      - tunnel
-      - --no-autoupdate
-      - --config
-      - /etc/cloudflared/config.yml
-      - run
-    volumes:
-      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
-      - ${CLOUDFLARE_CREDENTIALS_PATH:?Set CLOUDFLARE_CREDENTIALS_PATH}:/etc/cloudflared/credentials.json:ro
-    depends_on:
-      web:
-        condition: service_healthy
-
 networks:
   app:
     driver: bridge
 
 volumes:
-  postgres_data:
+  # Postgres now uses a host bind mount (see the postgres service) so the
+  # source-of-truth data lives on a known, backup-friendly host path.
+  # Redis (session/cache) and OpenSearch (search index) are derived state that
+  # rebuilds from Postgres, so named volumes are sufficient for them.
   redis_data:
   opensearch_data:

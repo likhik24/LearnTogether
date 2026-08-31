@@ -140,6 +140,30 @@ The same pattern works for other services via their `*_SERVICE_ORIGIN`
 overrides (see `next.config.mjs`). Use the same `JWT_SECRET` as the rest of the
 stack so tokens interoperate.
 
+### 3b. Apply database migrations
+
+The full schema lives in a single migration, `deploy/migrations/0001_init_schema.sql`.
+It builds every table, enum, index, and foreign key from an empty database and
+is idempotent, so it is safe to run repeatedly. With Postgres up (step 3), apply
+it from the repo root:
+
+```bash
+pnpm db:migrate          # apply pending migrations
+pnpm db:migrate:status   # show applied vs pending, without changing anything
+```
+
+The runner tracks applied migrations in the `schema_migrations` table and skips
+any already applied. It reads `DATABASE_URL` (default
+`postgres://learnbuild:learnbuild@localhost:5432/learnbuild`); set `PGSSLMODE=require`
+when pointing at a TLS-only database such as RDS.
+
+> In local development the services default to TypeORM `synchronize`, so the
+> schema is auto-created and this step is optional for day-to-day work. In
+> production, services run with `DB_SYNCHRONIZE=false` and these migrations are
+> the single source of truth — run `pnpm db:migrate` (or let the deploy stack's
+> `migrate` service run it) before starting the services against a fresh
+> database.
+
 ### 4. Start the web app (separate terminal)
 
 ```bash
@@ -523,8 +547,8 @@ weekday evenings. Create a sample weekend class end to end (stack running):
 `node scripts/create-puppetry-listing.mjs`.
 The reservation transaction takes a row lock on the class offering, validates
 the occurrence, sums active reservations, and rejects requests beyond capacity.
-Production environments with schema sync disabled should apply
-`infra/sql/20260823_discovery_reservations.sql` during deployment.
+This table and index are part of the consolidated schema migration
+(`deploy/migrations/0001_init_schema.sql`), applied by `pnpm db:migrate`.
 
 ## Search service (port 3003)
 
