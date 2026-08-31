@@ -404,6 +404,16 @@ body > section input, body > section select, body > section button { padding: 9p
 .provider-class-actions button.danger { color: #9a493b; }
 .moderation-reason { color: #9a493b !important; }
 
+/* Inline class timings editor */
+.class-timing-summary { display: flex; flex-wrap: wrap; gap: 5px; }
+.class-timing-summary span { padding: 4px 8px; border-radius: 99px; background: var(--paper); color: var(--ink); font-size: 9px; font-weight: 700; }
+.class-timings-editor { display: grid; gap: 8px; margin-top: 6px; padding: 12px; border: 1px dashed #c7bbef; border-radius: 13px; background: #faf8ff; }
+.class-timings-editor .schedule-row { display: flex; align-items: center; gap: 7px; }
+.class-timings-editor select, .class-timings-editor input[type="time"] { padding: 8px; border: 1px solid var(--line); border-radius: 9px; font: inherit; font-size: 11px; }
+.class-timings-editor .add-row { justify-self: start; padding: 7px 11px; border: 1px solid var(--line); border-radius: 9px; background: white; color: var(--purple); font-size: 9px; font-weight: 800; cursor: pointer; }
+.class-timings-actions { display: flex; gap: 8px; }
+.class-timings-actions .primary-wide, .class-timings-actions .secondary-wide { margin-top: 0; width: auto; flex: 1; padding: 10px; }
+
 /* Provider studio tabs */
 .provider-subnav { display: flex; gap: 6px; margin-top: 18px; padding: 4px; border-radius: 12px; background: var(--paper); }
 .provider-subnav a { flex: 1; padding: 9px; border-radius: 9px; color: var(--muted); font-size: 10px; font-weight: 800; text-align: center; text-decoration: none; }
@@ -567,9 +577,11 @@ body > .admin-page { min-height: 100vh; padding: clamp(24px, 5vw, 64px); color: 
   .provider-page .provider-label { align-content: start; }
   .provider-page .provider-form > .primary-wide, .provider-page .provider-form > .secondary-wide, .provider-page .provider-form > .provider-saved, .provider-page .provider-form > .form-error { width: min(680px, 100%); margin-right: auto; margin-left: auto; }
 
-  .teacher-page .provider-form { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 20px; margin-top: 34px; }
+  /* Single centered column: the create-class form reads top-to-bottom
+     (details -> schedule -> keywords) rather than 3 cramped side-by-side cols. */
+  .teacher-page .provider-form { width: min(680px, 100%); margin: 24px auto 0; gap: 20px; }
   .teacher-page .provider-section { margin-top: 0; padding: 24px; }
-  .teacher-page .provider-form > .form-error, .teacher-page .provider-form > .form-success, .teacher-page .provider-form > .primary-wide, .teacher-page .provider-form > .secondary-wide { grid-column: 1 / -1; width: min(680px, 100%); justify-self: center; }
+  .teacher-page .provider-form > .form-error, .teacher-page .provider-form > .form-success, .teacher-page .provider-form > .primary-wide, .teacher-page .provider-form > .secondary-wide { width: 100%; }
   .provider-list { margin-top: 34px; }
   .provider-list article { grid-template-columns: 1fr auto; align-items: center; }
 }

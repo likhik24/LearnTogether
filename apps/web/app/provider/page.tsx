@@ -1233,18 +1233,25 @@ function DateSlotPicker({
   }
 
   function toggleSlot(date: string, slot: DaySlot) {
-    onChange(
-      value.map((e) =>
-        e.date === date ? { ...e, slots: toggle(e.slots, slot) } : e,
-      ),
-    );
+    const nextSlots = toggle(byDate.get(date) ?? [], slot);
+    // A date with no slots isn't real availability — drop it entirely.
+    if (nextSlots.length === 0) {
+      onChange(value.filter((e) => e.date !== date));
+      if (openDate === date) setOpenDate(null);
+      return;
+    }
+    onChange(value.map((e) => (e.date === date ? { ...e, slots: nextSlots } : e)));
   }
 
   function setAll(date: string, all: boolean) {
+    // "Clear" removes the date from the selection; "All day" fills every slot.
+    if (!all) {
+      onChange(value.filter((e) => e.date !== date));
+      if (openDate === date) setOpenDate(null);
+      return;
+    }
     onChange(
-      value.map((e) =>
-        e.date === date ? { ...e, slots: all ? [...ALL_DAY_SLOTS] : [] } : e,
-      ),
+      value.map((e) => (e.date === date ? { ...e, slots: [...ALL_DAY_SLOTS] } : e)),
     );
   }
 

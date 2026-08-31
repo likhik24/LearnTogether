@@ -289,33 +289,6 @@ export default function TeacherPage() {
     setRows([{ weekday: 6, start: '10:00' }]);
   }
 
-  function editClass(item: ClassOfferingDto) {
-    setEditingId(item.id);
-    setActivity(item.activity);
-    setCategory(item.category);
-    const [copy, keywordLine] = (item.description ?? '').split(/\n\nKeywords: /);
-    setDescription(copy ?? '');
-    setKeywords(keywordLine ?? '');
-    setAgeMin(String(item.ageMin));
-    setAgeMax(String(item.ageMax));
-    setPrice(String(item.priceMinor / 100));
-    setDuration(String(item.durationMinutes));
-    setSeats(String(item.seats));
-    setVenueName(item.venueName ?? '');
-    setLatitude(item.location ? String(item.location.lat) : '');
-    setLongitude(item.location ? String(item.location.lng) : '');
-    setVenueQuery(item.venueName ?? '');
-    setVenueResults([]);
-    setImageUrl(item.imageUrl ?? '');
-    setRows(
-      item.timings.map((timing) => ({
-        weekday: timing.weekday,
-        start: `${String(Math.floor(timing.startMinute / 60)).padStart(2, '0')}:${String(timing.startMinute % 60).padStart(2, '0')}`,
-      })),
-    );
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
   async function changeStatus(id: string, status: ClassOfferingStatus) {
     const client = getCustomerSchedulingClient();
     if (!client) return;
@@ -326,6 +299,15 @@ export default function TeacherPage() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not update class status');
     }
+  }
+
+  /** Inline schedule edit: update only a class's recurring weekly timings. */
+  async function saveTimings(id: string, timings: { weekday: number; startMinute: number }[]) {
+    const client = getCustomerSchedulingClient();
+    if (!client) return;
+    setError(null);
+    await client.updateClass(id, { timings });
+    await loadClasses();
   }
 
   async function uploadImage(event: React.ChangeEvent<HTMLInputElement>) {
@@ -463,14 +445,24 @@ export default function TeacherPage() {
               <Link href="/provider/earnings">Earnings</Link>
             </nav>
             <ProviderOperations
-              classControls={{ classes, onEdit: editClass, onChangeStatus: changeStatus }}
+              classControls={{
+                classes,
+                onChangeStatus: changeStatus,
+                onSaveTimings: saveTimings,
+              }}
             />
             <section className="provider-status-line">
               Manage your profile, availability, and verification documents on your{' '}
               <Link href="/provider">provider profile</Link>.
             </section>
 
-            <form className="provider-form" onSubmit={publish}>
+            <form id="class-editor" className="provider-form" onSubmit={publish}>
+              <div className="section-heading">
+                <div>
+                  <span className="eyebrow purple">NEW CLASS</span>
+                  <h2>Create a class</h2>
+                </div>
+              </div>
               <div className="provider-section">
                 <div className="section-heading">
                   <h2>Class details</h2>
