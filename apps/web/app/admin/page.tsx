@@ -3,15 +3,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ClassModerationStatus,
+  ProviderPayoutStatus,
   Role,
   VerificationStatus,
   type ClassOfferingDto,
   type ModerationAuditDto,
   type OidcProviderInfo,
+  type ProviderPayoutDto,
   type PublicUser,
   type TeacherProfileDto,
 } from '@learn-and-build/types';
-import { createAuthClient, createSchedulingClient, createTeacherClient } from '../../lib/api';
+import {
+  createAuthClient,
+  createPaymentsClient,
+  createSchedulingClient,
+  createTeacherClient,
+} from '../../lib/api';
 
 const ROLES: Role[] = [Role.USER, Role.TEACHER, Role.ADMIN];
 const TEACHER_STATUSES = Object.values(VerificationStatus);
@@ -25,12 +32,13 @@ export default function AdminPage() {
   const [classes, setClasses] = useState<ClassOfferingDto[]>([]);
   const [audits, setAudits] = useState<ModerationAuditDto[]>([]);
   const [providers, setProviders] = useState<OidcProviderInfo[]>([]);
+  const [payouts, setPayouts] = useState<ProviderPayoutDto[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadWorkspace = useCallback(async () => {
     try {
-      const [loadedUsers, teacherGroups, classQueue, teacherHistory, classHistory] =
+      const [loadedUsers, teacherGroups, classQueue, teacherHistory, classHistory, payoutQueue] =
         await Promise.all([
           createAuthClient().listUsers(),
           Promise.all(
@@ -41,10 +49,12 @@ export default function AdminPage() {
           createSchedulingClient().listClassesForModeration(),
           createTeacherClient().teacherModerationHistory(),
           createSchedulingClient().classModerationHistory(),
+          createPaymentsClient().listAdminPayouts(),
         ]);
       setUsers(loadedUsers);
       setTeachers(teacherGroups.flat());
       setClasses(classQueue);
+      setPayouts(payoutQueue);
       setAudits(
         [...teacherHistory, ...classHistory].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       );
@@ -119,6 +129,22 @@ export default function AdminPage() {
     await runAction(item.id, () => createSchedulingClient().rejectClass(item.id, reason.trim()));
   }
 
+  async function updatePayout(payout: ProviderPayoutDto, status: ProviderPayoutStatus) {
+    let reference: string | undefined;
+    let note: string | undefined;
+    if (status === ProviderPayoutStatus.PAID) {
+      reference = window.prompt('Bank or transfer reference:')?.trim();
+      if (!reference) return;
+    }
+    if (status === ProviderPayoutStatus.REJECTED) {
+      note = window.prompt('Reason to share with this provider:')?.trim();
+      if (!note) return;
+    }
+    await runAction(payout.id, () =>
+      createPaymentsClient().updateAdminPayout(payout.id, status, reference, note),
+    );
+  }
+
   async function signOut() {
     await createAuthClient().logout();
     setAuthenticated(false);
@@ -182,6 +208,16 @@ export default function AdminPage() {
             </span>
             <span>
               <strong>{users.length}</strong> users
+            </span>
+            <span>
+              <strong>
+                {payouts.filter((item) =>
+                  [ProviderPayoutStatus.REQUESTED, ProviderPayoutStatus.PROCESSING].includes(
+                    item.status,
+                  ),
+                ).length}
+              </strong>{' '}
+              payouts awaiting settlement
             </span>
           </div>
 
@@ -304,6 +340,59 @@ export default function AdminPage() {
                 runAction(id, () => createAuthClient().setUserRole(id, role))
               }
             />
+          </AdminSection>
+
+          <AdminSection title="Provider payouts" count={payouts.length}>
+            <p className="admin-note">
+              Settlement is manual: verify the provider bank details outside this console, make the
+              transfer, then record its reference here.
+            </p>
+            <div className="admin-card-grid">
+              {payouts.length === 0 && <p>No payout requests yet.</p>}
+              {payouts.map((payout) => (
+                <article className="admin-review-card" key={payout.id}>
+                  <div>
+                    <span className="admin-badge">{payout.status}</span>
+                    <h3>₹{(payout.amountMinor / 100).toLocaleString('en-IN')}</h3>
+                    <p>Provider {payout.teacherId}</p>
+                  </div>
+                  <p>
+                    Requested {new Date(payout.createdAt).toLocaleString('en-IN')}
+                    {payout.reference ? ` · reference ${payout.reference}` : ''}
+                  </p>
+                  {payout.note && <p className="admin-note">{payout.note}</p>}
+                  <div className="admin-actions">
+                    {payout.status === ProviderPayoutStatus.REQUESTED && (
+                      <button
+                        disabled={busyId === payout.id}
+                        onClick={() => void updatePayout(payout, ProviderPayoutStatus.PROCESSING)}
+                      >
+                        Start processing
+                      </button>
+                    )}
+                    {[ProviderPayoutStatus.REQUESTED, ProviderPayoutStatus.PROCESSING].includes(
+                      payout.status,
+                    ) && (
+                      <>
+                        <button
+                          disabled={busyId === payout.id}
+                          onClick={() => void updatePayout(payout, ProviderPayoutStatus.PAID)}
+                        >
+                          Mark paid
+                        </button>
+                        <button
+                          className="danger"
+                          disabled={busyId === payout.id}
+                          onClick={() => void updatePayout(payout, ProviderPayoutStatus.REJECTED)}
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
           </AdminSection>
 
           <AdminSection title="Audit history" count={audits.length}>

@@ -25,6 +25,7 @@ interface ApiState {
   savedCalls: number;
   bookingCalls: number;
   bookings: Array<Record<string, unknown>>;
+  reviews?: Array<Record<string, unknown>>;
   discoveryUrls?: string[];
   lastBookingBody?: Record<string, unknown>;
 }
@@ -105,6 +106,35 @@ async function mockCustomerApis(page: Page, state: ApiState) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(state.bookings),
+      });
+      return;
+    }
+    if (path.endsWith('/customer/reviews') && request.method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(state.reviews ?? []),
+      });
+      return;
+    }
+    if (path.includes('/customer/reviews/bookings/') && request.method() === 'POST') {
+      const input = request.postDataJSON() as { rating: number; comment?: string };
+      const review = {
+        id: 'review-1',
+        bookingId: path.split('/').at(-1),
+        classId: '11111111-1111-4111-8111-111111111111',
+        userId: user.id,
+        parentName: user.displayName,
+        rating: input.rating,
+        comment: input.comment ?? null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      state.reviews = [review];
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify(review),
       });
       return;
     }
@@ -319,6 +349,51 @@ test('signed-in parents add a child and return to the interrupted booking flow',
   await page.getByRole('button', { name: 'Save class' }).click();
   await expect(page.getByRole('button', { name: 'Remove saved class' })).toBeVisible();
   expect(state.savedCalls).toBe(1);
+});
+
+test('a parent can publish and edit only a verified completed-booking review', async ({ page }) => {
+  const pastStart = new Date(Date.now() - 2 * 60 * 60_000).toISOString();
+  const state: ApiState = {
+    authenticated: true,
+    hasChild: true,
+    savedCalls: 0,
+    bookingCalls: 0,
+    reviews: [],
+    bookings: [
+      {
+        id: 'booking-past',
+        userId: user.id,
+        classRef: '11111111-1111-4111-8111-111111111111',
+        classSlug: 'build-a-car',
+        reservationId: 'reservation-past',
+        childId: child.id,
+        childName: child.name,
+        title: 'Build-a-Car STEM Workshop',
+        scheduledStart: pastStart,
+        amountMinor: 49900,
+        currency: 'INR',
+        status: 'confirmed',
+        attendanceStatus: 'present',
+        attendanceNotes: null,
+        createdAt: pastStart,
+        updatedAt: pastStart,
+      },
+    ],
+  };
+  await mockCustomerApis(page, state);
+
+  await page.goto('/bookings');
+  await expect(page.getByRole('button', { name: 'Cancel booking' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Review class' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Review class' });
+  await dialog.getByRole('button', { name: '4 stars' }).click();
+  await dialog.getByPlaceholder('What did your child enjoy?').fill('Patient teacher and a great project.');
+  await dialog.getByRole('button', { name: 'Publish verified review' }).click();
+
+  await expect(page.getByRole('button', { name: 'Edit 4-star review' })).toBeVisible();
+  expect(state.reviews?.[0]).toEqual(
+    expect.objectContaining({ rating: 4, comment: 'Patient teacher and a great project.' }),
+  );
 });
 
 test('sign-in returns an anonymous customer to the interrupted class', async ({ page }) => {

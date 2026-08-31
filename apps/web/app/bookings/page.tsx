@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import type { BookingDto } from '@learn-and-build/types';
+import type { BookingDto, ClassReviewDto } from '@learn-and-build/types';
 import { BookingStatus } from '@learn-and-build/types';
 import { getCustomerClient, hydrateCustomerSession } from '../../lib/customer-session';
 import { runPaymentCheckout } from '../../lib/payment-checkout';
@@ -13,11 +13,16 @@ type PageState = 'checking' | 'anonymous' | 'loading' | 'ready' | 'error';
 
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<BookingDto[]>([]);
+  const [reviews, setReviews] = useState<ClassReviewDto[]>([]);
   const [pageState, setPageState] = useState<PageState>('checking');
   const [cancelTarget, setCancelTarget] = useState<BookingDto | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<BookingDto | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewing, setReviewing] = useState(false);
 
   const loadBookings = useCallback(async () => {
     setError(null);
@@ -34,8 +39,12 @@ export default function BookingsPage() {
     }
     setPageState('loading');
     try {
-      const items = await client.listBookings();
+      const [items, loadedReviews] = await Promise.all([
+        client.listBookings(),
+        client.listMyReviews(),
+      ]);
       setBookings(items.filter((item) => item.status !== BookingStatus.CANCELLED));
+      setReviews(loadedReviews);
       setPageState('ready');
     } catch {
       setPageState('error');
@@ -83,6 +92,34 @@ export default function BookingsPage() {
       setError(caught instanceof Error ? caught.message : 'Payment could not be completed.');
     } finally {
       setPayingId(null);
+    }
+  }
+
+  function openReview(booking: BookingDto) {
+    const existing = reviews.find((item) => item.bookingId === booking.id);
+    setReviewTarget(booking);
+    setReviewRating(existing?.rating ?? 5);
+    setReviewComment(existing?.comment ?? '');
+  }
+
+  async function submitReview() {
+    if (!reviewTarget || reviewing) return;
+    const client = getCustomerClient();
+    if (!client) {
+      setReviewTarget(null);
+      setPageState('anonymous');
+      return;
+    }
+    setReviewing(true);
+    setError(null);
+    try {
+      const saved = await client.reviewBooking(reviewTarget.id, reviewRating, reviewComment);
+      setReviews((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+      setReviewTarget(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Your review could not be saved.');
+    } finally {
+      setReviewing(false);
     }
   }
 
@@ -149,6 +186,9 @@ export default function BookingsPage() {
           <section className="bookings-list" aria-label="Upcoming bookings">
             {bookings.map((booking) => {
               const start = new Date(booking.scheduledStart);
+              const existingReview = reviews.find((item) => item.bookingId === booking.id);
+              const canReview =
+                booking.status === BookingStatus.CONFIRMED && start.getTime() < Date.now();
               const month = new Intl.DateTimeFormat('en-IN', { month: 'short' })
                 .format(start)
                 .toUpperCase();
@@ -190,7 +230,14 @@ export default function BookingsPage() {
                     <Link href={`/classes/${booking.classSlug ?? booking.classRef}`}>
                       View details
                     </Link>
-                    <button onClick={() => setCancelTarget(booking)}>Cancel booking</button>
+                    {start.getTime() > Date.now() && (
+                      <button onClick={() => setCancelTarget(booking)}>Cancel booking</button>
+                    )}
+                    {canReview && (
+                      <button className="review-booking-action" onClick={() => openReview(booking)}>
+                        {existingReview ? `Edit ${existingReview.rating}-star review` : 'Review class'}
+                      </button>
+                    )}
                   </div>
                 </article>
               );
@@ -240,6 +287,52 @@ export default function BookingsPage() {
               onClick={() => setCancelTarget(null)}
             >
               Keep booking
+            </button>
+          </section>
+        </div>
+      )}
+      {reviewTarget && (
+        <div className="app-overlay" role="dialog" aria-modal="true" aria-label="Review class">
+          <button
+            className="overlay-backdrop"
+            aria-label="Close review"
+            onClick={() => setReviewTarget(null)}
+          />
+          <section className="app-sheet customer-access-sheet review-sheet">
+            <div className="sheet-heading">
+              <div>
+                <span className="eyebrow purple">VERIFIED REVIEW</span>
+                <h2>How was {reviewTarget.title}?</h2>
+              </div>
+              <button aria-label="Close" onClick={() => setReviewTarget(null)}>×</button>
+            </div>
+            <fieldset className="review-rating-picker">
+              <legend>Your rating</legend>
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <button
+                  key={rating}
+                  type="button"
+                  className={rating <= reviewRating ? 'active' : ''}
+                  aria-label={`${rating} star${rating === 1 ? '' : 's'}`}
+                  aria-pressed={reviewRating === rating}
+                  onClick={() => setReviewRating(rating)}
+                >
+                  ★
+                </button>
+              ))}
+            </fieldset>
+            <label className="provider-label">
+              <span>Share something helpful (optional)</span>
+              <textarea
+                maxLength={2000}
+                rows={4}
+                value={reviewComment}
+                onChange={(event) => setReviewComment(event.target.value)}
+                placeholder="What did your child enjoy?"
+              />
+            </label>
+            <button className="primary-wide" disabled={reviewing} onClick={() => void submitReview()}>
+              {reviewing ? 'Saving…' : 'Publish verified review'}
             </button>
           </section>
         </div>

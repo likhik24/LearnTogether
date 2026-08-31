@@ -62,7 +62,11 @@ export default async function ClassDetailsPage({ params }: { params: { slug: str
               <span>
                 <Icon name="star" size={17} /> {item.rating}
               </span>
-              <ReviewsButton count={item.reviews} />
+              <ReviewsButton
+                classId={offering.id}
+                count={item.reviews}
+                rating={offering.rating}
+              />
               <span>•</span>
               <span>{item.age}</span>
             </div>

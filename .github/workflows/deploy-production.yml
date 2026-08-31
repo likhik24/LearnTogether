@@ -1,0 +1,59 @@
+name: Deploy production
+
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    if: >-
+      vars.PRODUCTION_DEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Rebuild production through SSM
+        env:
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          REPO_PATH: ${{ vars.PRODUCTION_REPO_PATH }}
+        run: |
+          set -euo pipefail
+          commands=$(jq -cn --arg path "$REPO_PATH" '[
+            "set -euo pipefail",
+            "cd " + ($path | @sh),
+            "git fetch origin main",
+            "git checkout main",
+            "git pull --ff-only origin main",
+            "docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml up -d --build --remove-orphans",
+            "docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml ps",
+            "curl --fail --retry 12 --retry-delay 5 https://learnandbuild.org/"
+          ]')
+          command_id=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "Deploy Learn & Build ${GITHUB_SHA}" \
+            --parameters "{\"commands\":$commands}" \
+            --query 'Command.CommandId' \
+            --output text)
+          aws ssm wait command-executed --command-id "$command_id" --instance-id "$INSTANCE_ID"
+          aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "$INSTANCE_ID" \
+            --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}'

@@ -6,7 +6,11 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { BookingStatus, type BookingDto } from '@learn-and-build/types';
+import {
+  AttendanceStatus,
+  BookingStatus,
+  type BookingDto,
+} from '@learn-and-build/types';
 
 @Entity({ name: 'bookings' })
 export class Booking {
@@ -48,6 +52,12 @@ export class Booking {
   @Column({ type: 'enum', enum: BookingStatus, default: BookingStatus.PENDING_PAYMENT })
   status!: BookingStatus;
 
+  @Column({ name: 'attendance_status', type: 'varchar', nullable: true })
+  attendanceStatus!: AttendanceStatus | null;
+
+  @Column({ name: 'attendance_notes', type: 'text', nullable: true })
+  attendanceNotes!: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
@@ -68,6 +78,8 @@ export class Booking {
       amountMinor: this.amountMinor,
       currency: this.currency,
       status: this.status,
+      attendanceStatus: this.attendanceStatus ?? null,
+      attendanceNotes: this.attendanceNotes ?? null,
       createdAt: this.createdAt?.toISOString() ?? new Date().toISOString(),
       updatedAt: this.updatedAt?.toISOString() ?? new Date().toISOString(),
     };

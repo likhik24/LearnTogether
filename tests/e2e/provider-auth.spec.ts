@@ -79,9 +79,41 @@ test('provider entry, password sign-in, studio session, logout and re-login work
   page,
 }) => {
   let authenticated = false;
+  let attendanceMarked = false;
+  let occurrenceChanged = false;
+  let payoutRequested = false;
   const classes = [classOffering('Existing Robotics Club')];
+  const upcomingStart = '2031-05-17T05:00:00.000Z';
+  const recentStart = '2026-08-29T05:00:00.000Z';
+  const sessions = [
+    {
+      classId: 'class-1',
+      classTitle: 'Upcoming Robotics Lab',
+      originalStart: upcomingStart,
+      start: upcomingStart,
+      end: '2031-05-17T06:00:00.000Z',
+      status: 'scheduled',
+      reason: null,
+      seatsTotal: 8,
+      seatsAvailable: 7,
+      bookedSeats: 1,
+    },
+    {
+      classId: 'class-1',
+      classTitle: 'Recent Robotics Lab',
+      originalStart: recentStart,
+      start: recentStart,
+      end: '2026-08-29T06:00:00.000Z',
+      status: 'scheduled',
+      reason: null,
+      seatsTotal: 8,
+      seatsAvailable: 7,
+      bookedSeats: 1,
+    },
+  ];
   await silenceSharedShellApis(page);
   await page.route('**/api/auth/**', async (route) => {
+    const request = route.request();
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith('/auth/oidc/providers')) return route.fulfill({ status: 200, body: '[]' });
     if (path.endsWith('/auth/password-reset/request')) {
@@ -106,6 +138,63 @@ test('provider entry, password sign-in, studio session, logout and re-login work
         body: authenticated ? JSON.stringify(provider) : '{"message":"Unauthorized"}',
       });
     }
+    if (path.endsWith('/provider/sessions')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(sessions),
+      });
+    }
+    if (path.includes('/provider/classes/class-1/roster')) {
+      const start = new URL(request.url()).searchParams.get('start') ?? upcomingStart;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            bookingId: 'booking-1',
+            classId: 'class-1',
+            parentName: 'Ananya Rao',
+            parentEmail: 'family@example.com',
+            childId: 'child-1',
+            childName: 'Ari',
+            scheduledStart: start,
+            bookingStatus: 'confirmed',
+            paymentStatus: 'succeeded',
+            attendanceStatus: attendanceMarked ? 'present' : null,
+            attendanceNotes: null,
+          },
+        ]),
+      });
+    }
+    if (path.includes('/provider/bookings/booking-1/attendance')) {
+      attendanceMarked = true;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          bookingId: 'booking-1',
+          classId: 'class-1',
+          parentName: 'Ananya Rao',
+          parentEmail: 'family@example.com',
+          childId: 'child-1',
+          childName: 'Ari',
+          scheduledStart: recentStart,
+          bookingStatus: 'confirmed',
+          paymentStatus: 'succeeded',
+          attendanceStatus: 'present',
+          attendanceNotes: null,
+        }),
+      });
+    }
+    if (path.includes('/provider/classes/class-1/occurrences/change')) {
+      occurrenceChanged = true;
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify(sessions[0]),
+      });
+    }
     if (path.includes('/customer/notifications')) return route.fulfill({ status: 200, body: '[]' });
     return route.fulfill({ status: 404, body: '{}' });
   });
@@ -119,10 +208,41 @@ test('provider entry, password sign-in, studio session, logout and re-login work
   await page.route('**/api/scheduling/**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(classes) }),
   );
+  await page.route('**/api/payments/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith('/payments/provider/earnings')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          currency: 'INR',
+          platformFeeBps: 1000,
+          grossMinor: 20000,
+          refundedMinor: 0,
+          feeMinor: 2000,
+          netMinor: 18000,
+          requestedMinor: 0,
+          paidMinor: 0,
+          availableMinor: 18000,
+          classes: [],
+        }),
+      });
+    }
+    if (path.endsWith('/payments/provider/payouts') && request.method() === 'POST') {
+      payoutRequested = true;
+      return route.fulfill({ status: 201, contentType: 'application/json', body: '{}' });
+    }
+    if (path.endsWith('/payments/provider/payouts')) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    }
+    return route.fulfill({ status: 404, body: '{}' });
+  });
 
   await page.goto('/');
   await page.getByRole('link', { name: 'Provider sign in or apply' }).click();
-  await expect(page).toHaveURL(/\/provider$/);
+  await expect(page).toHaveURL(/\/teacher$/);
+  await page.goto('/provider');
   await expect(page.getByRole('button', { name: 'Provider sign in' })).toHaveAttribute(
     'class',
     /active/,
@@ -142,6 +262,23 @@ test('provider entry, password sign-in, studio session, logout and re-login work
   await page.getByRole('link', { name: 'Provider studio', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Class details' })).toBeVisible();
   await expect(page.getByText('Existing Robotics Club', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sessions, families & earnings' })).toBeVisible();
+  await page.getByRole('button', { name: 'Request payout' }).click();
+  await expect(page.getByText(/Payout requested/)).toBeVisible();
+  expect(payoutRequested).toBe(true);
+
+  await page.getByText('Recent Robotics Lab', { exact: true }).locator('..').locator('..').getByRole('button', { name: 'Open roster' }).click();
+  await expect(page.getByText('family@example.com')).toBeVisible();
+  await page.getByRole('button', { name: 'Present' }).click();
+  expect(attendanceMarked).toBe(true);
+  await page.getByRole('button', { name: 'Close session manager' }).click();
+
+  await page.getByText('Upcoming Robotics Lab', { exact: true }).locator('..').locator('..').getByRole('button', { name: 'Manage session' }).click();
+  await page.getByLabel('Replacement date and time').fill('2031-05-24T10:30');
+  await page.getByLabel('Message to families').fill('Venue maintenance');
+  await page.getByRole('button', { name: 'Reschedule session' }).click();
+  await expect(page.getByText(/Session rescheduled and families notified/)).toBeVisible();
+  expect(occurrenceChanged).toBe(true);
   await page.getByRole('button', { name: 'Sign out of Provider Studio' }).click();
   await expect(page.getByRole('button', { name: 'Open provider studio' })).toBeVisible();
   await page.getByLabel('Email').fill(provider.email);
@@ -312,6 +449,73 @@ test('a family account can complete provider onboarding, review submission, and 
     page.getByText('Class submitted. It will appear in discovery after moderation.'),
   ).toBeVisible();
   await expect(page.getByText('Saturday Robotics Lab', { exact: true })).toBeVisible();
+});
+
+test('an administrator can process a provider payout with a required transfer reference', async ({
+  page,
+}) => {
+  const admin = { ...customer, id: 'admin-1', email: 'admin@example.com', role: 'admin' };
+  let payout = {
+    id: 'payout-1',
+    teacherId: provider.id,
+    amountMinor: 18000,
+    currency: 'INR',
+    status: 'requested',
+    reference: null as string | null,
+    note: null,
+    createdAt: '2026-08-30T10:00:00.000Z',
+    updatedAt: '2026-08-30T10:00:00.000Z',
+  };
+  await page.route('**/api/auth/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/auth/me')) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(admin) });
+    }
+    if (path.endsWith('/auth/oidc/providers')) return route.fulfill({ status: 200, body: '[]' });
+    if (path.endsWith('/admin/users')) return route.fulfill({ status: 200, body: '[]' });
+    return route.fulfill({ status: 404, body: '{}' });
+  });
+  await page.route('**/api/teacher/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  );
+  await page.route('**/api/scheduling/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  );
+  await page.route('**/api/payments/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith('/payments/admin/payouts') && request.method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([payout]),
+      });
+    }
+    if (path.includes('/payments/admin/payouts/payout-1') && request.method() === 'POST') {
+      const input = request.postDataJSON() as { status: string; reference?: string };
+      payout = {
+        ...payout,
+        status: input.status,
+        reference: input.reference ?? payout.reference,
+        updatedAt: new Date().toISOString(),
+      };
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify(payout),
+      });
+    }
+    return route.fulfill({ status: 404, body: '{}' });
+  });
+
+  await page.goto('/admin');
+  await expect(page.getByRole('heading', { name: 'Provider payouts' })).toBeVisible();
+  await page.getByRole('button', { name: 'Start processing' }).click();
+  await expect(page.getByText('processing', { exact: true })).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept('bank-transfer-123'));
+  await page.getByRole('button', { name: 'Mark paid' }).click();
+  await expect(page.getByText('paid', { exact: true })).toBeVisible();
+  await expect(page.getByText(/reference bank-transfer-123/)).toBeVisible();
 });
 
 test('provider UI hydrates a secure cookie session after social sign-in', async ({ page }) => {

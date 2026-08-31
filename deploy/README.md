@@ -101,6 +101,26 @@ docker compose \
 operator-run migration or recovery. A failed migration exits non-zero and
 prevents dependent services from starting; do not bypass that gate.
 
+### Automatic deployment after merge
+
+`.github/workflows/deploy-production.yml` rebuilds this stack only after the
+`CI` workflow succeeds on `main` (or on a manual dispatch) through AWS Systems
+Manager—no inbound SSH port or long-lived AWS access key is required. Configure the GitHub `production`
+environment with:
+
+- variable `PRODUCTION_DEPLOY_ENABLED=true`;
+- variable `AWS_REGION` (for example `ap-southeast-2`);
+- variable `EC2_INSTANCE_ID`;
+- variable `PRODUCTION_REPO_PATH` (the absolute clean-clone path on EC2);
+- secret `AWS_DEPLOY_ROLE_ARN`, trusted for GitHub OIDC and permitted to call
+  `ssm:SendCommand`/`ssm:GetCommandInvocation` for that instance.
+
+The EC2 instance must be managed by SSM and its instance role must include
+`AmazonSSMManagedInstanceCore`. Leave `PRODUCTION_DEPLOY_ENABLED` unset until
+the role, instance variables, and a manual `workflow_dispatch` run have been
+verified. The production environment should require reviewer approval if you
+want a human gate between merge and deployment.
+
 ## Razorpay activation
 
 In the Razorpay dashboard, create a webhook pointing to:

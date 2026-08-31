@@ -381,8 +381,9 @@ export function BottomNav() {
 
 const providerNavItems: { href: string; label: string; icon: IconName }[] = [
   { href: '/', label: 'Family app', icon: 'home' },
-  { href: '/provider', label: 'Provider profile', icon: 'profile' },
   { href: '/teacher', label: 'Provider studio', icon: 'star' },
+  { href: '/provider', label: 'Provider profile', icon: 'profile' },
+  { href: '/teacher#earnings', label: 'Earnings', icon: 'calendar' },
 ];
 
 export function ProviderNav() {
@@ -391,7 +392,7 @@ export function ProviderNav() {
     <nav className="bottom-nav provider-nav" aria-label="Provider navigation">
       {providerNavItems.map((item) => (
         <Link
-          className={pathname === item.href ? 'active' : ''}
+          className={pathname === item.href.split('#')[0] ? 'active' : ''}
           href={item.href}
           key={item.label}
         >

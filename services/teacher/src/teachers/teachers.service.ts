@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { VerificationStatus } from '@learn-and-build/types';
 import { TeacherProfile } from './entities/teacher-profile.entity';
 import { TeacherDocument } from './entities/teacher-document.entity';
@@ -23,6 +23,7 @@ export class TeachersService {
     private readonly documents: Repository<TeacherDocument>,
     @InjectRepository(TeacherModerationAudit)
     private readonly audits: Repository<TeacherModerationAudit>,
+    private readonly db: DataSource,
   ) {}
 
   /** Applies a state-machine transition, mapping invalid ones to HTTP 409. */
@@ -234,6 +235,19 @@ export class TeachersService {
         action: to,
         note: rejectionReason,
       }),
+    );
+    await this.db.query(
+      `INSERT INTO customer_notifications (user_id, kind, title, body, read_at)
+       VALUES ($1, 'verification', $2, $3, NULL)`,
+      [
+        profile.userId,
+        `Provider profile ${to.replaceAll('_', ' ')}`,
+        to === VerificationStatus.APPROVED
+          ? 'Your provider identity is approved. Eligible classes can now be approved for families.'
+          : to === VerificationStatus.REJECTED
+            ? `Your provider profile needs changes.${rejectionReason ? ` ${rejectionReason}` : ''}`
+            : 'An administrator has started reviewing your provider profile.',
+      ],
     );
     return saved;
   }

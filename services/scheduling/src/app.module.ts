@@ -8,6 +8,7 @@ import { ClassOffering } from './scheduling/class-offering.entity';
 import { ClassReservation } from './scheduling/class-reservation.entity';
 import { SchedulingModule } from './scheduling/scheduling.module';
 import { ClassModerationAudit } from './scheduling/moderation-audit.entity';
+import { ClassOccurrenceOverride } from './scheduling/class-occurrence-override.entity';
 
 @Module({
   imports: [
@@ -21,7 +22,7 @@ import { ClassModerationAudit } from './scheduling/moderation-audit.entity';
           'DATABASE_URL',
           'postgres://learnbuild:learnbuild@localhost:5432/learnbuild',
         ),
-        entities: [ClassOffering, ClassReservation, ClassModerationAudit],
+        entities: [ClassOffering, ClassReservation, ClassModerationAudit, ClassOccurrenceOverride],
         synchronize:
           config.get<string>('DB_SYNCHRONIZE') === 'true' ||
           (config.get<string>('DB_SYNCHRONIZE') == null &&

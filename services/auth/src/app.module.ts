@@ -12,6 +12,7 @@ import { CustomerNotification } from './customer/entities/customer-notification.
 import { SavedClass } from './customer/entities/saved-class.entity';
 import { AuthSession } from './auth/auth-session.entity';
 import { AccountToken } from './auth/account-token.entity';
+import { ClassReview } from './customer/entities/class-review.entity';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { AccountToken } from './auth/account-token.entity';
           CustomerNotification,
           AuthSession,
           AccountToken,
+          ClassReview,
         ],
         // Production bootstrap may opt in exactly once on an empty database.
         // Keep it disabled afterwards and use reviewed migrations for changes.

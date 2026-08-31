@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BookingStatus } from '@learn-and-build/types';
-import type { ObjectLiteral, Repository } from 'typeorm';
+import type { DataSource, ObjectLiteral, Repository } from 'typeorm';
 import { CustomerService } from './customer.service';
 import { Booking } from './entities/booking.entity';
 import { ChildProfile } from './entities/child-profile.entity';
@@ -32,6 +32,7 @@ describe('CustomerService', () => {
   let scheduling: jest.Mocked<Pick<SchedulingGateway, 'getClass' | 'reserve' | 'release'>>;
   let payments: jest.Mocked<Pick<PaymentsGateway, 'assertReady' | 'refund'>>;
   let service: CustomerService;
+  const db = { query: jest.fn().mockResolvedValue([]) };
 
   beforeEach(() => {
     children = repository();
@@ -47,6 +48,7 @@ describe('CustomerService', () => {
       notifications as unknown as Repository<CustomerNotification>,
       scheduling as unknown as SchedulingGateway,
       payments as unknown as PaymentsGateway,
+      db as unknown as DataSource,
     );
   });
 
@@ -120,6 +122,7 @@ describe('CustomerService', () => {
       id: 'booking-1',
       userId: 'user-1',
       reservationId: 'reservation-1',
+      scheduledStart: new Date(Date.now() + 86_400_000),
       status: BookingStatus.CONFIRMED,
     });
     bookings.create.mockReturnValue(booking);

@@ -7,6 +7,7 @@ import { HealthController } from './health/health.controller';
 import { Payment } from './payments/payment.entity';
 import { PaymentWebhookEvent } from './payments/payment-webhook-event.entity';
 import { PaymentsModule } from './payments/payments.module';
+import { ProviderPayout } from './payments/provider-payout.entity';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { PaymentsModule } from './payments/payments.module';
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
         url: config.get<string>('DATABASE_URL', 'postgres://learnbuild:learnbuild@localhost:5432/learnbuild'),
-        entities: [Payment, PaymentWebhookEvent],
+        entities: [Payment, PaymentWebhookEvent, ProviderPayout],
         synchronize:
           config.get<string>('DB_SYNCHRONIZE') === 'true' ||
           (config.get<string>('DB_SYNCHRONIZE') == null &&

@@ -13,9 +13,26 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
-import { CurrentUser, JwtAuthGuard, type AuthPrincipal } from '@learn-and-build/nest-auth';
-import type { PaymentDto, PaymentIntentResponse } from '@learn-and-build/types';
-import { CreatePaymentDto, VerifyPaymentDto } from './payment.dto';
+import {
+  CurrentUser,
+  JwtAuthGuard,
+  Role,
+  Roles,
+  RolesGuard,
+  type AuthPrincipal,
+} from '@learn-and-build/nest-auth';
+import type {
+  PaymentDto,
+  PaymentIntentResponse,
+  ProviderEarningsDto,
+  ProviderPayoutDto,
+} from '@learn-and-build/types';
+import {
+  CreatePaymentDto,
+  RequestPayoutDto,
+  UpdatePayoutDto,
+  VerifyPaymentDto,
+} from './payment.dto';
 import { PaymentsService } from './payments.service';
 import { RazorpayGateway } from './razorpay.gateway';
 
@@ -76,6 +93,58 @@ export class PaymentsController {
     return (await this.payments.refund(user.sub, bookingId))?.toDto() ?? null;
   }
 
+  @Post('internal/bookings/:bookingId/refund')
+  async internalRefund(
+    @Param('bookingId') bookingId: string,
+    @Headers('x-internal-service-token') internalToken = '',
+  ): Promise<PaymentDto | null> {
+    this.assertInternal(internalToken);
+    return (await this.payments.refundByBooking(bookingId))?.toDto() ?? null;
+  }
+
+  @Get('provider/earnings')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TEACHER)
+  earnings(@CurrentUser() user: AuthPrincipal): Promise<ProviderEarningsDto> {
+    return this.payments.providerEarnings(user.sub);
+  }
+
+  @Get('provider/payouts')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TEACHER)
+  async providerPayouts(@CurrentUser() user: AuthPrincipal): Promise<ProviderPayoutDto[]> {
+    return (await this.payments.listProviderPayouts(user.sub)).map((item) => item.toDto());
+  }
+
+  @Post('provider/payouts')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TEACHER)
+  async requestPayout(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: RequestPayoutDto,
+  ): Promise<ProviderPayoutDto> {
+    return (await this.payments.requestProviderPayout(user.sub, dto.amountMinor)).toDto();
+  }
+
+  @Get('admin/payouts')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async payoutQueue(): Promise<ProviderPayoutDto[]> {
+    return (await this.payments.listPayoutQueue()).map((item) => item.toDto());
+  }
+
+  @Post('admin/payouts/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async updatePayout(
+    @Param('id') id: string,
+    @Body() dto: UpdatePayoutDto,
+  ): Promise<ProviderPayoutDto> {
+    return (
+      await this.payments.updatePayout(id, dto.status, dto.reference, dto.note)
+    ).toDto();
+  }
+
   @Post('webhooks/razorpay')
   async webhook(
     @Req() request: RawBodyRequest<Request>,
@@ -87,5 +156,15 @@ export class PaymentsController {
     this.gateway.verifyWebhook(request.rawBody, signature);
     await this.payments.webhook(eventId, JSON.parse(request.rawBody.toString('utf8')) as never);
     return { received: true };
+  }
+
+  private assertInternal(token: string): void {
+    const expected = this.config.get<string>(
+      'INTERNAL_SERVICE_SECRET',
+      'dev-insecure-internal-secret',
+    );
+    if (!token || token !== expected) {
+      throw new UnauthorizedException('Internal service authorization is required');
+    }
   }
 }
