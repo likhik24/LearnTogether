@@ -7,7 +7,12 @@ import { toClassCard } from '../../lib/class-data';
 import { categories, type ClassCardData } from '../data';
 import { AppHeader, BottomNav, ClassCard, Icon } from '../ui';
 import { RealDiscoveryMap } from './real-discovery-map';
-import { readCustomerLocation, subscribeCustomerLocation } from '../../lib/customer-location';
+import {
+  customerDiscoveryCoordinates,
+  defaultCustomerLocation,
+  readCustomerLocation,
+  subscribeCustomerLocation,
+} from '../../lib/customer-location';
 
 const filters = ['All', 'Today', 'Tomorrow', 'Weekend', 'Nearby'];
 const viewModes = ['Categories', 'List', 'Map'] as const;
@@ -31,6 +36,7 @@ export default function DiscoverPage() {
   useEffect(() => {
     return subscribeCustomerLocation((location) => {
       setOrigin(location);
+      if (!location) setActiveFilter('All');
       setRecenterKey((value) => value + 1);
     });
   }, []);
@@ -73,14 +79,16 @@ export default function DiscoverPage() {
       const scheduling = createSchedulingClient();
       const search = createSearchClient();
       const typed = query.trim();
+      const coordinates = customerDiscoveryCoordinates(origin);
+      const searchCoordinates = origin ? customerDiscoveryCoordinates(origin) : undefined;
       // With no typed query, rank by the child's interests so relevant classes
       // surface first (personalized discovery).
       const rankQuery = typed || childInterests.join(' ');
       setDataStatus('loading');
       void Promise.all([
-        scheduling.discoverClasses({ ...origin, radiusMeters: 5000, days: 21 }),
+        scheduling.discoverClasses({ ...coordinates, days: 21 }),
         rankQuery
-          ? search.searchClasses(rankQuery, { ...origin, radiusMeters: 5000 }).catch(() => null)
+          ? search.searchClasses(rankQuery, searchCoordinates).catch(() => null)
           : Promise.resolve(null),
       ])
         .then(([offerings, searchResponse]) => {
@@ -124,8 +132,7 @@ export default function DiscoverPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, childInterests.join(','), origin.lat, origin.lng]);
+  }, [query, childInterests.join(','), origin?.lat, origin?.lng]);
 
   const visibleClasses = useMemo(
     () =>
@@ -151,8 +158,12 @@ export default function DiscoverPage() {
           </h1>
           <p>
             {childInterests.length
-              ? `Classes close to home for ${childInterests.slice(0, 3).join(', ')}.`
-              : 'Classes close to home, picked for your family.'}
+              ? origin
+                ? `Classes close to home for ${childInterests.slice(0, 3).join(', ')}.`
+                : `Classes for ${childInterests.slice(0, 3).join(', ')} across all locations.`
+              : origin
+                ? 'Classes close to home, picked for your family.'
+                : 'Explore every available class, or choose an area for nearby results.'}
           </p>
         </section>
         <label className="search-field">
@@ -186,6 +197,7 @@ export default function DiscoverPage() {
           {filters.map((filter) => (
             <button
               className={activeFilter === filter ? 'active' : ''}
+              disabled={filter === 'Nearby' && !origin}
               key={filter}
               type="button"
               onClick={() => setActiveFilter(filter)}
@@ -254,9 +266,10 @@ export default function DiscoverPage() {
                 <strong>Quick filters</strong>
                 <button
                   className={activeFilter === 'Nearby' ? 'active' : ''}
+                  disabled={!origin}
                   onClick={() => setActiveFilter('Nearby')}
                 >
-                  Within 2 km
+                  {origin ? 'Within 2 km' : 'Choose an area for nearby classes'}
                 </button>
                 <button
                   className={activeFilter === 'Weekend' ? 'active' : ''}
@@ -296,9 +309,15 @@ export default function DiscoverPage() {
             <div className="section-heading">
               <div>
                 <span className="eyebrow coral">
-                  {dataStatus === 'loading' ? 'LOADING NEARBY CLASSES' : 'NEAR YOU'}
+                  {dataStatus === 'loading'
+                    ? 'LOADING CLASSES'
+                    : origin
+                      ? 'NEAR YOU'
+                      : 'ALL LOCATIONS'}
                 </span>
-                <h2>{visibleClasses.length} classes around you</h2>
+                <h2>
+                  {visibleClasses.length} {origin ? 'classes around you' : 'classes available'}
+                </h2>
               </div>
               <button className="filter-link" onClick={() => setRecenterKey((value) => value + 1)}>
                 Recenter
@@ -309,7 +328,7 @@ export default function DiscoverPage() {
               selectedSlug={selectedClass?.slug}
               onSelect={selectClass}
               recenterKey={recenterKey}
-              origin={origin}
+              origin={origin ?? defaultCustomerLocation}
             />
             {selectedClass ? (
               <div className="map-preview">

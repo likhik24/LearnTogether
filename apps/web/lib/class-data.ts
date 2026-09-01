@@ -32,7 +32,7 @@ export function toClassCard(item: DiscoverClassDto): ClassCardData {
       : 'Schedule coming soon',
     distance:
       item.distanceMeters === null
-        ? 'Location TBA'
+        ? compactVenue(item.venueName)
         : `${(item.distanceMeters / 1_000).toFixed(1)} km`,
     rating: item.rating.toFixed(1),
     reviews: item.reviewCount,
@@ -48,4 +48,14 @@ export function toClassCard(item: DiscoverClassDto): ClassCardData {
     durationMinutes: item.durationMinutes,
     description: item.description ?? undefined,
   };
+}
+
+function compactVenue(venueName: string | null): string {
+  if (!venueName) return 'Location TBA';
+  return venueName
+    .split(',')
+    .slice(0, 2)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(', ');
 }

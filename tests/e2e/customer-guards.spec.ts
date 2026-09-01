@@ -291,7 +291,9 @@ test('anonymous customers are never given false save, booking, profile, or booki
   await expect(page.getByRole('heading', { name: 'Sign in to see saved classes' })).toBeVisible();
 });
 
-test('changing area changes the coordinates sent to live discovery', async ({ page }) => {
+test('discovery starts broad and only applies coordinates after a customer chooses an area', async ({
+  page,
+}) => {
   const state: ApiState = {
     authenticated: false,
     hasChild: false,
@@ -302,14 +304,39 @@ test('changing area changes the coordinates sent to live discovery', async ({ pa
   };
   await mockCustomerApis(page, state);
   await page.goto('/discover');
+  await expect
+    .poll(() =>
+      state.discoveryUrls?.some((url) => {
+        const params = new URL(url).searchParams;
+        return !params.has('lat') && !params.has('lng') && !params.has('radius');
+      }),
+    )
+    .toBe(true);
+  await expect(page.getByRole('button', { name: 'Nearby' })).toBeDisabled();
+
   await page.getByRole('button', { name: 'Change location' }).click();
   await page.getByRole('button', { name: /Gachibowli, Hyderabad/ }).click();
   await expect
     .poll(() =>
       state.discoveryUrls?.some(
-        (url) => url.includes('lat=17.4401') && url.includes('lng=78.3489'),
+        (url) =>
+          url.includes('lat=17.4401') &&
+          url.includes('lng=78.3489') &&
+          url.includes('radius=25000'),
       ),
     )
+    .toBe(true);
+  await expect(page.getByRole('button', { name: 'Nearby' })).toBeEnabled();
+
+  await page.getByRole('button', { name: 'Change location' }).click();
+  await page.getByRole('button', { name: /All locations/ }).click();
+  await expect
+    .poll(() => {
+      const latest = state.discoveryUrls?.at(-1);
+      if (!latest) return false;
+      const params = new URL(latest).searchParams;
+      return !params.has('lat') && !params.has('lng') && !params.has('radius');
+    })
     .toBe(true);
 });
 
