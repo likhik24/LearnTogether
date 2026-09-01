@@ -317,7 +317,7 @@ export class ProviderOperationsService {
         : `The provider cancelled this session. Any captured payment has been queued for refund. ${input.reason?.trim() || ''}`.trim();
       await manager.query(
         `INSERT INTO customer_notifications (user_id, kind, title, body, read_at)
-         SELECT DISTINCT user_id, 'schedule', $3, $4, NULL
+         SELECT DISTINCT user_id, 'schedule', $3, $4, NULL::timestamptz
          FROM bookings WHERE class_ref = $1 AND scheduled_start = $2`,
         [classId, replacement ?? original, title, body],
       );
@@ -476,7 +476,7 @@ export class ProviderOperationsService {
     const occurrence = parseDate(start, 'Session date is invalid');
     const result = await this.db.query<Array<{ user_id: string }>>(
       `INSERT INTO customer_notifications (user_id, kind, title, body, read_at)
-       SELECT DISTINCT b.user_id, 'provider_message', c.activity || ' update', $3, NULL
+       SELECT DISTINCT b.user_id, 'provider_message', c.activity || ' update', $3, NULL::timestamptz
        FROM bookings b JOIN class_offerings c ON c.id::text = b.class_ref
        WHERE b.class_ref = $1 AND b.scheduled_start = $2 AND b.status = 'confirmed'
        RETURNING user_id`,

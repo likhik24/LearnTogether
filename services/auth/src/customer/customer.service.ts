@@ -263,7 +263,7 @@ export class CustomerService {
       );
       await manager.query(
         `INSERT INTO customer_notifications (user_id, kind, title, body, read_at)
-         SELECT teacher_id, 'booking', $2, $3, NULL
+         SELECT teacher_id, 'booking', $2, $3, NULL::timestamptz
          FROM class_offerings WHERE id::text = $1`,
         [
           booking.classRef,
