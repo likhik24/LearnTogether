@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Private Learn and Build Docker origin reached only through Cloudflare Tunnel.
+Description: Learn and Build Docker origin. A reverse proxy on the host terminates TLS and forwards to the web container.
 
 Parameters:
   InstanceType:
@@ -19,6 +19,12 @@ Parameters:
     Type: String
     Default: ''
     Description: Optional operations email. AWS requires subscription confirmation.
+  IngressCidr:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: >-
+      CIDR allowed to reach the public HTTPS port. Restrict this to your load
+      balancer or trusted network; the default is open to the internet.
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
@@ -88,9 +94,19 @@ Resources:
   OriginSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: No inbound traffic; Cloudflare Tunnel connects outbound.
+      GroupDescription: Allow inbound HTTP/HTTPS to the host reverse proxy; all egress.
       VpcId: !Ref Vpc
-      SecurityGroupIngress: []
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref IngressCidr
+          Description: HTTP for ACME challenge and http to https redirect.
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref IngressCidr
+          Description: Public HTTPS to the host reverse proxy forwarding to web port 3100.
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -128,15 +144,6 @@ Resources:
                   - s3:PutObject
                   - s3:DeleteObject
                 Resource: !Sub arn:${AWS::Partition}:s3:::${DocumentsBucket}/teachers/*
-        - PolicyName: CloudflareTunnelCredentials
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ssm:GetParameter
-                Resource:
-                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/learn-and-build/production/cloudflare-tunnel-credentials
         - PolicyName: AccountEmail
           PolicyDocument:
             Version: '2012-10-17'
@@ -262,7 +269,7 @@ Outputs:
     Description: Use this ID with AWS Systems Manager Session Manager.
     Value: !Ref OriginInstance
   PublicIp:
-    Description: Diagnostic only; the security group permits no inbound traffic.
+    Description: Public IP of the origin; point your DNS/load balancer at it (HTTPS 443).
     Value: !GetAtt OriginInstance.PublicIp
   VpcId:
     Value: !Ref Vpc

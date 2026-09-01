@@ -12,6 +12,8 @@
     "test": "turbo run test",
     "test:e2e": "playwright test",
     "dev": "turbo run dev",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:migrate:status": "node scripts/migrate.mjs --status",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
   },
   "devDependencies": {

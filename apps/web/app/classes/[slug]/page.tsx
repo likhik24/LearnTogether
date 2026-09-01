@@ -26,10 +26,7 @@ async function loadClass(slug: string): Promise<DiscoverClassDto | null> {
 }
 
 async function loadProvider(userId: string): Promise<PublicTeacherProfileDto | null> {
-  const origin =
-    process.env.PROVIDER_SERVICE_ORIGIN ??
-    process.env.TEACHER_SERVICE_ORIGIN ??
-    'http://localhost:3002';
+  const origin = process.env.PROVIDER_SERVICE_ORIGIN ?? 'http://localhost:3002';
   try {
     const response = await fetch(`${origin}/teachers/public/${encodeURIComponent(userId)}`, {
       cache: 'no-store',

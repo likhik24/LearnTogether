@@ -12,16 +12,15 @@ import {
   type PublicUser,
 } from '@learn-and-build/types';
 import { ApiError } from '@learn-and-build/api-client';
-import { createAuthClient, createTeacherClient } from '../../lib/api';
+import { createAuthClient, createTeacherClient } from '../../../lib/api';
 import {
   getCustomerSchedulingClient,
   hydrateCustomerSession,
   saveCustomerSession,
   signOutCustomerSession,
-} from '../../lib/customer-session';
-import { AppHeader, ProviderNav } from '../ui';
-import { OidcButtons } from '../oidc-buttons';
-import { ProviderProfileForm } from './provider-profile';
+} from '../../../lib/customer-session';
+import { AppHeader, ProviderNav } from '../../ui';
+import { OidcButtons } from '../../oidc-buttons';
 import { ProviderOperations } from './provider-operations';
 
 type ScheduleRow = { weekday: number; start: string };
@@ -55,8 +54,14 @@ export default function TeacherPage() {
   const [duration, setDuration] = useState('60');
   const [seats, setSeats] = useState('8');
   const [venueName, setVenueName] = useState('');
-  const [latitude, setLatitude] = useState('17.4485');
-  const [longitude, setLongitude] = useState('78.3915');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
+  const [venueQuery, setVenueQuery] = useState('');
+  const [venueResults, setVenueResults] = useState<
+    Array<{ label: string; lat: string; lng: string }>
+  >([]);
+  const [venueSearching, setVenueSearching] = useState(false);
+  const [venueSearchError, setVenueSearchError] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState('');
   const [imageUploading, setImageUploading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -168,6 +173,49 @@ export default function TeacherPage() {
     );
   }
 
+  /** Search venues/addresses via OpenStreetMap Nominatim. */
+  async function searchVenue() {
+    const q = venueQuery.trim();
+    if (!q) return;
+    setVenueSearching(true);
+    setVenueSearchError(null);
+    setVenueResults([]);
+    try {
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error(`Search failed (${res.status})`);
+      const { results } = (await res.json()) as {
+        results: Array<{ label: string; lat: string; lng: string }>;
+      };
+      setVenueResults(results);
+      if (results.length === 0) setVenueSearchError('No matching venue found.');
+    } catch (caught) {
+      setVenueSearchError(caught instanceof Error ? caught.message : 'Venue search failed');
+    } finally {
+      setVenueSearching(false);
+    }
+  }
+
+  /** Pick a venue result: fills the venue name and locks in its coordinates. */
+  function pickVenue(result: { label: string; lat: string; lng: string }) {
+    setVenueName(result.label);
+    setLatitude(result.lat);
+    setLongitude(result.lng);
+    setVenueQuery(result.label);
+    setVenueResults([]);
+  }
+
+  /** Clears the selected venue so the provider can search again. */
+  function clearVenue() {
+    setVenueName('');
+    setLatitude('');
+    setLongitude('');
+    setVenueQuery('');
+    setVenueResults([]);
+    setVenueSearchError(null);
+  }
+
   async function publish(event: React.FormEvent) {
     event.preventDefault();
     const client = getCustomerSchedulingClient();
@@ -210,6 +258,8 @@ export default function TeacherPage() {
       };
       if (Number(ageMin) > Number(ageMax))
         throw new Error('Minimum age cannot exceed maximum age.');
+      if (!venueName || !latitude || !longitude)
+        throw new Error('Search and select a venue before submitting.');
       if (editingId) await client.updateClass(editingId, input);
       else await client.createClass(input);
       setMessage(
@@ -239,34 +289,12 @@ export default function TeacherPage() {
     setKeywords('');
     setImageUrl('');
     setVenueName('');
-    setLatitude('17.4485');
-    setLongitude('78.3915');
+    setLatitude('');
+    setLongitude('');
+    setVenueQuery('');
+    setVenueResults([]);
+    setVenueSearchError(null);
     setRows([{ weekday: 6, start: '10:00' }]);
-  }
-
-  function editClass(item: ClassOfferingDto) {
-    setEditingId(item.id);
-    setActivity(item.activity);
-    setCategory(item.category);
-    const [copy, keywordLine] = (item.description ?? '').split(/\n\nKeywords: /);
-    setDescription(copy ?? '');
-    setKeywords(keywordLine ?? '');
-    setAgeMin(String(item.ageMin));
-    setAgeMax(String(item.ageMax));
-    setPrice(String(item.priceMinor / 100));
-    setDuration(String(item.durationMinutes));
-    setSeats(String(item.seats));
-    setVenueName(item.venueName ?? '');
-    setLatitude(item.location ? String(item.location.lat) : '');
-    setLongitude(item.location ? String(item.location.lng) : '');
-    setImageUrl(item.imageUrl ?? '');
-    setRows(
-      item.timings.map((timing) => ({
-        weekday: timing.weekday,
-        start: `${String(Math.floor(timing.startMinute / 60)).padStart(2, '0')}:${String(timing.startMinute % 60).padStart(2, '0')}`,
-      })),
-    );
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function changeStatus(id: string, status: ClassOfferingStatus) {
@@ -279,6 +307,15 @@ export default function TeacherPage() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not update class status');
     }
+  }
+
+  /** Inline schedule edit: update only a class's recurring weekly timings. */
+  async function saveTimings(id: string, timings: { weekday: number; startMinute: number }[]) {
+    const client = getCustomerSchedulingClient();
+    if (!client) return;
+    setError(null);
+    await client.updateClass(id, { timings });
+    await loadClasses();
   }
 
   async function uploadImage(event: React.ChangeEvent<HTMLInputElement>) {
@@ -333,7 +370,7 @@ export default function TeacherPage() {
           </section>
         ) : !user ? (
           <>
-            <OidcButtons returnTo="/teacher" providerAccount />
+            <OidcButtons returnTo="/provider/classes" providerAccount />
             <form className="customer-auth-form" onSubmit={authenticate}>
               <div className="auth-tabs">
                 <button
@@ -389,8 +426,9 @@ export default function TeacherPage() {
                     required
                   />
                   <span>
-                    I agree to the <a href="/terms">Terms</a>, <a href="/privacy">Privacy Policy</a>
-                    , and <a href="/provider-agreement">Provider Agreement</a>.
+                    I agree to the <Link href="/terms">Terms</Link>,{' '}
+                    <Link href="/privacy">Privacy Policy</Link>, and{' '}
+                    <Link href="/provider-agreement">Provider Agreement</Link>.
                   </span>
                 </label>
               )}
@@ -423,22 +461,31 @@ export default function TeacherPage() {
               prepare classes now; a class cannot be approved for families until your identity
               review is approved.
             </section>
-            <ProviderOperations />
-            <section className="provider-profile-block">
-              <div className="section-heading">
-                <h2>Your provider profile</h2>
-              </div>
-              <p className="section-hint">
-                Set what you teach, your availability over the next two months, your home location,
-                how far you’ll travel, and links to your public class profiles.
-              </p>
-              <ProviderProfileForm />
-              <Link className="secondary-wide" href="/provider">
-                Open complete profile and verification documents
+            <nav className="provider-subnav" aria-label="Provider studio tabs">
+              <Link className="active" href="/provider/classes">
+                Classes
               </Link>
+              <Link href="/provider/earnings">Earnings</Link>
+            </nav>
+            <ProviderOperations
+              classControls={{
+                classes,
+                onChangeStatus: changeStatus,
+                onSaveTimings: saveTimings,
+              }}
+            />
+            <section className="provider-status-line">
+              Manage your profile, availability, and verification documents on your{' '}
+              <Link href="/provider">provider profile</Link>.
             </section>
 
-            <form className="provider-form" onSubmit={publish}>
+            <form id="class-editor" className="provider-form" onSubmit={publish}>
+              <div className="section-heading">
+                <div>
+                  <span className="eyebrow purple">NEW CLASS</span>
+                  <h2>Create a class</h2>
+                </div>
+              </div>
               <div className="provider-section">
                 <div className="section-heading">
                   <h2>Class details</h2>
@@ -525,40 +572,62 @@ export default function TeacherPage() {
                     />
                   </label>
                 </div>
-                <label>
-                  Venue name
-                  <input
-                    value={venueName}
-                    onChange={(event) => setVenueName(event.target.value)}
-                    placeholder="Studio name or neighbourhood"
-                    required
-                  />
-                </label>
-                <div className="form-grid">
-                  <label>
-                    Latitude
-                    <input
-                      type="number"
-                      min="-90"
-                      max="90"
-                      step="any"
-                      value={latitude}
-                      onChange={(event) => setLatitude(event.target.value)}
-                      required
-                    />
-                  </label>
-                  <label>
-                    Longitude
-                    <input
-                      type="number"
-                      min="-180"
-                      max="180"
-                      step="any"
-                      value={longitude}
-                      onChange={(event) => setLongitude(event.target.value)}
-                      required
-                    />
-                  </label>
+                <div className="provider-label venue-search">
+                  <span>Venue</span>
+                  <small className="section-hint">
+                    Search for the venue or address. Selecting a result fills the coordinates
+                    automatically (they can’t be edited by hand).
+                  </small>
+                  {venueName && latitude && longitude ? (
+                    <div className="venue-selected">
+                      <div>
+                        <strong>{venueName}</strong>
+                        <small>
+                          {Number(latitude).toFixed(5)}, {Number(longitude).toFixed(5)}
+                        </small>
+                      </div>
+                      <button type="button" className="venue-clear" onClick={clearVenue}>
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="home-loc-row">
+                        <input
+                          type="text"
+                          value={venueQuery}
+                          placeholder="Search a studio, address or landmark"
+                          onChange={(event) => setVenueQuery(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              void searchVenue();
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="home-loc-btn"
+                          onClick={() => void searchVenue()}
+                          disabled={venueSearching}
+                        >
+                          {venueSearching ? '…' : 'Search'}
+                        </button>
+                      </div>
+                      {venueResults.length > 0 && (
+                        <ul className="home-loc-results">
+                          {venueResults.map((r, i) => (
+                            <li key={`${r.lat},${r.lng},${i}`}>
+                              <button type="button" onClick={() => pickVenue(r)}>
+                                {r.label}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {venueSearchError && <p className="form-error">{venueSearchError}</p>}
+                    </>
+                  )}
                 </div>
                 <label className="class-image-upload">
                   Class cover image
@@ -666,64 +735,6 @@ export default function TeacherPage() {
                 </button>
               )}
             </form>
-            <section className="provider-list">
-              <div className="section-heading">
-                <h2>Your classes</h2>
-                <span>{classes.length}</span>
-              </div>
-              {classes.map((item) => (
-                <article key={item.id}>
-                  <div className="provider-class-copy">
-                    <strong>{item.activity}</strong>
-                    <small>
-                      {item.category} · ages {item.ageMin}–{item.ageMax} · ₹{item.priceMinor / 100}{' '}
-                      · {item.timings.length} recurring slot{item.timings.length === 1 ? '' : 's'}
-                    </small>
-                    <div className="provider-statuses">
-                      <span data-status={item.status}>{item.status}</span>
-                      <span data-status={item.moderationStatus}>{item.moderationStatus}</span>
-                    </div>
-                    {item.moderationReason && (
-                      <small className="moderation-reason">
-                        Moderator note: {item.moderationReason}
-                      </small>
-                    )}
-                  </div>
-                  <div className="provider-class-actions">
-                    <button type="button" onClick={() => editClass(item)}>
-                      Edit
-                    </button>
-                    {item.status === ClassOfferingStatus.ACTIVE ? (
-                      <button
-                        type="button"
-                        onClick={() => changeStatus(item.id, ClassOfferingStatus.PAUSED)}
-                      >
-                        Pause
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => changeStatus(item.id, ClassOfferingStatus.ACTIVE)}
-                      >
-                        Resume
-                      </button>
-                    )}
-                    {item.status !== ClassOfferingStatus.UNPUBLISHED && (
-                      <button
-                        className="danger"
-                        type="button"
-                        onClick={() => changeStatus(item.id, ClassOfferingStatus.UNPUBLISHED)}
-                      >
-                        Unpublish
-                      </button>
-                    )}
-                  </div>
-                </article>
-              ))}
-              {!classes.length && (
-                <p className="section-hint">Your submitted classes will appear here.</p>
-              )}
-            </section>
             <button
               className="secondary-wide provider-studio-link"
               type="button"

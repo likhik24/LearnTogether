@@ -197,11 +197,11 @@ export class ClassesService {
   ): Promise<ClassOffering> {
     const offering = await this.getOrThrow(id);
     if (status === ClassModerationStatus.APPROVED) {
-      const rows = await this.dataSource.query<Array<{ verification_status: string }>>(
-        'SELECT verification_status FROM teacher_profiles WHERE user_id = $1',
+      const rows = await this.dataSource.query<Array<{ verificationStatus: string }>>(
+        'SELECT "verificationStatus" FROM teacher_profiles WHERE user_id = $1',
         [offering.teacherId],
       );
-      if (rows[0]?.verification_status !== 'approved') {
+      if (rows[0]?.verificationStatus !== 'approved') {
         throw new ConflictException(
           'The provider must be identity-approved before this class can be approved',
         );

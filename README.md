@@ -112,6 +112,59 @@ docker compose up --build
 Boots Postgres+PostGIS, OpenSearch, Redis, and all NestJS services (see the
 port table below). Wait until the services report healthy.
 
+> **After changing service code, rebuild that container** so the running image
+> isn’t stale, e.g. `docker compose up -d --build auth`. A stale container is a
+> common cause of `Cannot GET /…` (route missing) or `… is not exported`
+> (outdated bundle) errors.
+
+#### Running a service natively (when Docker is unavailable)
+
+If Docker Desktop is locked or you want a service on current code without
+rebuilding its image, run it directly against the host Postgres (which the
+compose stack already publishes on `localhost:5432`). Example for the auth
+service on a spare port so it doesn’t clash with the container on 3001:
+
+```bash
+PORT=3011 NODE_ENV=development \
+  DATABASE_URL=postgres://learnbuild:learnbuild@localhost:5432/learnbuild \
+  JWT_SECRET=dev-insecure-secret \
+  pnpm --filter @learn-and-build/auth-service dev
+```
+
+Then point the web app’s proxy at it when starting the dev server:
+
+```bash
+AUTH_SERVICE_ORIGIN=http://localhost:3011 pnpm --filter @learn-and-build/web dev
+```
+
+The same pattern works for other services via their `*_SERVICE_ORIGIN`
+overrides (see `next.config.mjs`). Use the same `JWT_SECRET` as the rest of the
+stack so tokens interoperate.
+
+### 3b. Apply database migrations
+
+The full schema lives in a single migration, `deploy/migrations/0001_init_schema.sql`.
+It builds every table, enum, index, and foreign key from an empty database and
+is idempotent, so it is safe to run repeatedly. With Postgres up (step 3), apply
+it from the repo root:
+
+```bash
+pnpm db:migrate          # apply pending migrations
+pnpm db:migrate:status   # show applied vs pending, without changing anything
+```
+
+The runner tracks applied migrations in the `schema_migrations` table and skips
+any already applied. It reads `DATABASE_URL` (default
+`postgres://learnbuild:learnbuild@localhost:5432/learnbuild`); set `PGSSLMODE=require`
+when pointing at a TLS-only database such as RDS.
+
+> In local development the services default to TypeORM `synchronize`, so the
+> schema is auto-created and this step is optional for day-to-day work. In
+> production, services run with `DB_SYNCHRONIZE=false` and these migrations are
+> the single source of truth — run `pnpm db:migrate` (or let the deploy stack's
+> `migrate` service run it) before starting the services against a fresh
+> database.
+
 ### 4. Start the web app (separate terminal)
 
 ```bash
@@ -119,7 +172,7 @@ pnpm --filter @learn-and-build/web dev
 ```
 
 Open http://localhost:3100. The customer app, admin console (`/admin`), provider
-onboarding (`/provider`), and provider studio (`/teacher`) are all served here.
+onboarding (`/provider`), and provider studio (`/provider/classes`) are all served here.
 
 ## Local infrastructure & services
 
@@ -294,15 +347,84 @@ service to have AWS credentials and a bucket (`DOCUMENTS_BUCKET`); for local
 dev, point it at MinIO/LocalStack with `S3_ENDPOINT` (path-style addressing is
 enabled automatically when set).
 
+#### Local uploads against real S3 (no MinIO)
+
+The provider (`teacher`) service signs S3 presigned upload URLs, so it needs AWS
+credentials, the bucket name, and the bucket's region. Provide all three through
+the git-ignored root `.env` file so the `docker compose` teacher container reads
+them — do not rely on your shell's ambient AWS variables. To exercise real
+uploads locally against the `providers-profiles` bucket (region `ap-southeast-2`):
+
+1. **Put the credentials, bucket, and region in `.env`** (repo root, git-ignored).
+   `docker-compose.yml` passes these into the teacher container:
+
+   ```bash
+   # .env  (never commit this)
+   DOCUMENTS_BUCKET=providers-profiles
+   AWS_REGION=ap-southeast-2
+   AWS_ACCESS_KEY_ID=<key for the account that owns the bucket>
+   AWS_SECRET_ACCESS_KEY=<secret>
+   # AWS_SESSION_TOKEN=<only for temporary/STS credentials>
+   ```
+
+   > **Do not let stale shell variables win.** Docker Compose gives variables
+   > already exported in your shell precedence over the `.env` file. A leftover
+   > `AWS_REGION=us-east-1` (or old `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`,
+   > or an `AWS_PROFILE` with no matching profile) will silently override `.env`,
+   > and the teacher will sign URLs for the wrong region/keys — the browser `PUT`
+   > then fails. Check with `env | grep -i aws` and clear them, or run compose
+   > with a clean environment:
+   >
+   > ```bash
+   > env -u AWS_REGION -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN -u AWS_PROFILE \
+   >   docker compose up -d --build teacher
+   > ```
+
+2. **Recreate the teacher container** so it picks up the `.env` values, then
+   confirm the region and credentials landed:
+
+   ```bash
+   docker compose up -d --force-recreate teacher
+   docker compose exec teacher sh -c 'echo region=$AWS_REGION bucket=$DOCUMENTS_BUCKET key=${AWS_ACCESS_KEY_ID:+set}'
+   # expect: region=ap-southeast-2 bucket=providers-profiles key=set
+   ```
+
+3. **Bucket CORS.** The browser `PUT`s straight to S3, so the bucket must allow
+   the dev origin or the upload fails with a browser `Failed to fetch`. Add
+   `http://localhost:3100` (and `http://localhost:3000`) to the bucket CORS
+   alongside the production origins:
+
+   ```bash
+   aws s3api put-bucket-cors --bucket providers-profiles \
+     --region ap-southeast-2 --profile default \
+     --cors-configuration file://deploy/s3-cors.json
+   ```
+
+   Use a CORS document that keeps the production origins and adds the localhost
+   dev origins (`PUT`, `GET`, `HEAD`). Verify with
+   `aws s3api get-bucket-cors --bucket providers-profiles --region ap-southeast-2`.
+
+**Auto-submit on upload.** Confirming a document (`POST /teachers/me/documents`)
+automatically submits the profile for review — a `PENDING` or `REJECTED`
+profile transitions to `SUBMITTED` as soon as a document is attached, provided
+all required fields are complete (full name, phone, email, locality, city,
+primary category, teaching skills, skill description, and reason for joining).
+An incomplete profile is left as-is so the provider can finish it; a `REJECTED`
+profile has its rejection reason cleared on resubmit. The move is recorded in
+the moderation audit and sends the provider an in-app notification. The manual
+`POST /teachers/me/submit` endpoint remains as an explicit resubmit/fallback,
+and admins still drive `start-review → approve/reject` from there.
+
 > **AWS credentials for S3 uploads.** Provider portfolios are stored in the
-> **`providers-profiles`** S3 bucket in AWS account **960763460353**. The
-> provider service signs the upload URLs, so it needs credentials for that
-> account: export the profile from
-> [AWS profile setup (macOS)](#aws-profile-setup-macos)
-> (`export AWS_PROFILE=learnbuild`) before starting the service, and set
-> `DOCUMENTS_BUCKET=providers-profiles`. Without valid credentials, presigning
-> fails with `Could not load credentials from any providers` (HTTP 500 on the
-> presign call). See the step-by-step setup below.
+> **`providers-profiles`** S3 bucket. The provider service signs the upload
+> URLs, so it needs credentials for the account that owns the bucket. Set
+> `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION=ap-southeast-2`, and
+> `DOCUMENTS_BUCKET=providers-profiles` in the git-ignored root `.env` (see the
+> step above), not via ambient shell variables — Compose lets stale shell
+> exports override `.env`. Without valid credentials, presigning fails with
+> `Could not load credentials from any providers` (HTTP 500 on the presign
+> call). In production on EC2, leave the keys unset and attach an instance role
+> instead.
 
 #### Configure real AWS S3 for local development
 
@@ -435,8 +557,8 @@ weekday evenings. Create a sample weekend class end to end (stack running):
 `node scripts/create-puppetry-listing.mjs`.
 The reservation transaction takes a row lock on the class offering, validates
 the occurrence, sums active reservations, and rejects requests beyond capacity.
-Production environments with schema sync disabled should apply
-`infra/sql/20260823_discovery_reservations.sql` during deployment.
+This table and index are part of the consolidated schema migration
+(`deploy/migrations/0001_init_schema.sql`), applied by `pnpm db:migrate`.
 
 ## Search service (port 3003)
 
@@ -489,19 +611,37 @@ family account can add provider access without losing its family data.
   OpenStreetMap Nominatim, resolved to coordinates), max commute distance, and
   public class-profile links (Instagram, Preply, UrbanPro, TeacherOn, plus an
   other/portfolio link).
-- A profile must be saved before its portfolio PDF can be uploaded, and
-  required fields plus at least one document are enforced by the API before
-  review submission. Reads/writes the shared `TeacherProfile` via the provider
+- A profile must be saved before its portfolio PDF can be uploaded. Uploading a
+  document auto-submits the profile for review once required fields are complete
+  (see “Auto-submit on upload” above), so there is no separate submit step in
+  the common case. Reads/writes the shared `TeacherProfile` via the provider
   client.
-- After onboarding, `/teacher` provides class publishing, session calendar,
-  rosters, attendance, family messaging, reschedule decisions, earnings,
-  payout setup, and CSV exports.
+  The provider client calls are proxied by the Next server under `/api/provider`
+  to the provider (teacher) service (override the origin with
+  `PROVIDER_SERVICE_ORIGIN`, or the browser base URL with
+  `NEXT_PUBLIC_PROVIDER_API_URL`; defaults to `http://localhost:3002`). The former
+  separate `/teacher` studio route has been retired; the provider page now lives
+  entirely at `/provider`.
 
-The provider client calls are proxied by the Next server under `/api/provider`
-to the provider (teacher) service (override the origin with
-`PROVIDER_SERVICE_ORIGIN`, falling back to the legacy `TEACHER_SERVICE_ORIGIN`;
-override the browser base URL with `NEXT_PUBLIC_PROVIDER_API_URL`, falling back
-to `NEXT_PUBLIC_TEACHER_API_URL`; defaults to `http://localhost:3002`).
+### Class studio (`/provider/classes`)
+
+Once a provider is signed in, `/provider/classes` is the class-management and
+operations studio (linked from `/provider` and the provider bottom nav):
+
+- **Class publishing** — create/edit recurring class offerings (name, category,
+  ages, price, duration, seats, venue + coordinates, cover image, weekend
+  schedule, discovery keywords) through the scheduling service, with a list
+  showing moderation/status and pause/resume/unpublish actions.
+- **Operations & earnings** — upcoming/recent sessions, session roster and
+  attendance, reschedule/cancel, plus an earnings panel (`#earnings` anchor)
+  with available payout, net earnings, and payout history.
+
+Class data uses the scheduling service; operations use the auth service’s
+provider routes (`/provider/sessions`, `/provider/classes/:id/roster`,
+`/provider/bookings/:id/attendance`, `/provider/classes/:id/occurrences/change`)
+and the payments service (`/payments/provider/earnings`,
+`/payments/provider/payouts`). A class cannot be approved for families until the
+provider profile is approved.
 
 ## Infrastructure (CDK)
 

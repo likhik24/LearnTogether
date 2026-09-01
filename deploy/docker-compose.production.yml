@@ -20,8 +20,14 @@ services:
       POSTGRES_USER: learnbuild
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       POSTGRES_DB: learnbuild
+      # Keep data under a subdirectory so the bind-mounted root can hold other
+      # files (e.g. lost+found) without upsetting Postgres' empty-dir check.
+      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Bind-mount the database onto a known host path so all user profiles,
+      # classes, bookings and every other row persist across container
+      # recreation, redeploys, and `docker compose down -v`. Back this path up.
+      - ${POSTGRES_DATA_DIR:-/opt/learn-and-build/postgres}:/var/lib/postgresql/data
     healthcheck:
       test: [CMD-SHELL, pg_isready -U learnbuild -d learnbuild]
       interval: 10s
@@ -45,11 +51,11 @@ services:
       - /bin/sh
       - -ec
       - |
-        base_tables="$$(psql -Atc "SELECT count(*) FROM pg_class WHERE oid IN (to_regclass('public.users'), to_regclass('public.class_offerings'))")"
-        if [ "$$base_tables" != "2" ]; then
-          echo "Base schema is not present; DB_SYNCHRONIZE bootstrap will create the current schema."
-          exit 0
-        fi
+        # The migration set builds the entire schema from empty and is fully
+        # idempotent, so it runs unconditionally: it bootstraps a brand-new
+        # database and is a safe no-op on an already-migrated one. Services
+        # therefore run with DB_SYNCHRONIZE=false and rely on these migrations
+        # as the single source of truth for the schema.
         for migration in /migrations/*.sql; do
           echo "Applying $$(basename "$$migration")"
           psql -v ON_ERROR_STOP=1 -f "$$migration"
@@ -103,7 +109,7 @@ services:
       <<: *database-environment
       PORT: 3004
       SEED_DEMO_CLASSES: ${SEED_DEMO_CLASSES:-false}
-      CORS_ORIGIN: https://learnandbuild.org
+      CORS_ORIGIN: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}
     depends_on:
       postgres:
         condition: service_healthy
@@ -169,16 +175,16 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD}
       ADMIN_NAME: ${ADMIN_NAME:-Administrator}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
-      APP_URL: https://learnandbuild.org
+      APP_URL: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}
       AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM:-}
       AWS_REGION: ${AWS_REGION:-ap-southeast-2}
       DOCUMENTS_BUCKET: ${DOCUMENTS_BUCKET:?Set DOCUMENTS_BUCKET}
       SCHEDULING_API_URL: http://scheduling:3004
       PAYMENTS_API_URL: http://payments:3007
       INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?Set INTERNAL_SERVICE_SECRET}
-      CORS_ORIGIN: https://learnandbuild.org
-      OIDC_REDIRECT_BASE: https://learnandbuild.org/api/auth
-      OIDC_SUCCESS_REDIRECT: ${OIDC_SUCCESS_REDIRECT:-https://learnandbuild.org/profile}
+      CORS_ORIGIN: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}
+      OIDC_REDIRECT_BASE: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}/api/auth
+      OIDC_SUCCESS_REDIRECT: ${OIDC_SUCCESS_REDIRECT:-https://www.learnandbuild.org/profile}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       AWS_COGNITO_ISSUER: ${AWS_COGNITO_ISSUER:-}
@@ -217,8 +223,16 @@ services:
       AUTH_SERVICE_URL: http://auth:3001
       DOCUMENTS_BUCKET: ${DOCUMENTS_BUCKET:?Set DOCUMENTS_BUCKET}
       AWS_REGION: ${AWS_REGION:-ap-southeast-2}
+      # The teacher service signs S3 presigned upload URLs, so it needs AWS
+      # credentials. On EC2 leave these unset and grant an instance role
+      # (the SDK reads it from IMDS). Off EC2 — a new machine, a non-AWS host —
+      # set them in .env.production so presign works; without any credentials
+      # presign returns HTTP 500 and portfolio/class-image uploads fail.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       UPLOAD_URL_TTL: ${UPLOAD_URL_TTL:-900}
-      CORS_ORIGIN: https://learnandbuild.org
+      CORS_ORIGIN: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}
     depends_on:
       postgres:
         condition: service_healthy
@@ -250,7 +264,7 @@ services:
       <<: *database-environment
       PORT: 3003
       OPENSEARCH_URL: http://opensearch:9200
-      CORS_ORIGIN: https://learnandbuild.org
+      CORS_ORIGIN: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}
     depends_on:
       postgres:
         condition: service_healthy
@@ -283,7 +297,7 @@ services:
       PORT: 3005
       REDIS_URL: redis://redis:6379
       SEARCH_SERVICE_URL: http://search:3003
-      CORS_ORIGIN: https://learnandbuild.org
+      CORS_ORIGIN: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}
     depends_on:
       redis:
         condition: service_healthy
@@ -310,14 +324,12 @@ services:
       args:
         NEXT_PUBLIC_AUTH_API_URL: /api/auth
         NEXT_PUBLIC_PROVIDER_API_URL: /api/provider
-        NEXT_PUBLIC_TEACHER_API_URL: /api/teacher
         NEXT_PUBLIC_SEARCH_API_URL: /api/search
         NEXT_PUBLIC_SCHEDULING_API_URL: /api/scheduling
         NEXT_PUBLIC_VOICE_API_URL: /api/voice
         NEXT_PUBLIC_PAYMENTS_API_URL: /api/payments
         AUTH_SERVICE_ORIGIN: http://auth:3001
         PROVIDER_SERVICE_ORIGIN: http://teacher:3002
-        TEACHER_SERVICE_ORIGIN: http://teacher:3002
         SEARCH_SERVICE_ORIGIN: http://search:3003
         SCHEDULING_SERVICE_ORIGIN: http://scheduling:3004
         VOICE_SERVICE_ORIGIN: http://voice:3005
@@ -327,11 +339,18 @@ services:
       PORT: 3100
       AUTH_SERVICE_ORIGIN: http://auth:3001
       PROVIDER_SERVICE_ORIGIN: http://teacher:3002
-      TEACHER_SERVICE_ORIGIN: http://teacher:3002
       SEARCH_SERVICE_ORIGIN: http://search:3003
       SCHEDULING_SERVICE_ORIGIN: http://scheduling:3004
       VOICE_SERVICE_ORIGIN: http://voice:3005
       PAYMENTS_SERVICE_ORIGIN: http://payments:3007
+    # Public ingress for the platform. The whole app is served from this single
+    # origin (Next rewrites /api/* to the backend services on the private
+    # network). By default it binds to loopback so a host reverse proxy (nginx,
+    # Caddy, an ALB target, etc.) terminates TLS and forwards to it. Set
+    # WEB_BIND=0.0.0.0 to expose it directly on the host (only behind a firewall
+    # or when something else already provides TLS).
+    ports:
+      - '${WEB_BIND:-127.0.0.1}:3100:3100'
     depends_on:
       auth:
         condition: service_healthy
@@ -358,27 +377,14 @@ services:
       retries: 10
       start_period: 60s
 
-  cloudflared:
-    <<: *app-defaults
-    image: cloudflare/cloudflared:latest
-    command:
-      - tunnel
-      - --no-autoupdate
-      - --config
-      - /etc/cloudflared/config.yml
-      - run
-    volumes:
-      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
-      - ${CLOUDFLARE_CREDENTIALS_PATH:?Set CLOUDFLARE_CREDENTIALS_PATH}:/etc/cloudflared/credentials.json:ro
-    depends_on:
-      web:
-        condition: service_healthy
-
 networks:
   app:
     driver: bridge
 
 volumes:
-  postgres_data:
+  # Postgres now uses a host bind mount (see the postgres service) so the
+  # source-of-truth data lives on a known, backup-friendly host path.
+  # Redis (session/cache) and OpenSearch (search index) are derived state that
+  # rebuilds from Postgres, so named volumes are sufficient for them.
   redis_data:
   opensearch_data:

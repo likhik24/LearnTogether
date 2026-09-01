@@ -28,4 +28,4 @@ contents = contents
 await writeFile(outputPath, contents, { mode: 0o600 });
 await chmod(outputPath, 0o600);
 console.log('Created deploy/.env.production with mode 0600.');
-console.log('Install the Cloudflare Tunnel credentials JSON outside the repository.');
+console.log('Put a TLS-terminating reverse proxy (nginx/Caddy/ALB) in front of the web port (WEB_BIND:3100).');

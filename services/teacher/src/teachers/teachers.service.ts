@@ -157,7 +157,70 @@ export class TeachersService {
       storageKey: dto.storageKey,
     });
     await this.documents.save(doc);
-    return this.getByUserIdOrThrow(userId);
+    const updated = await this.getByUserIdOrThrow(userId);
+
+    // Automate review: once a document is uploaded, submit the profile for
+    // review without a separate manual step — but only when it is awaiting
+    // submission (PENDING/REJECTED) and all required fields are present. An
+    // incomplete profile is left untouched so the provider can finish it.
+    const awaitingSubmission =
+      updated.verificationStatus === VerificationStatus.PENDING ||
+      updated.verificationStatus === VerificationStatus.REJECTED;
+    if (awaitingSubmission && this.missingRequiredFields(updated).length === 0) {
+      return this.recordSubmission(updated, 'Auto-submitted after document upload');
+    }
+    return updated;
+  }
+
+  /** Required profile fields that must be present before review submission. */
+  private missingRequiredFields(profile: TeacherProfile): string[] {
+    return [
+      !profile.displayName && 'full name',
+      !profile.phone && 'phone number',
+      !profile.email && 'email address',
+      !profile.locality && 'locality',
+      !profile.city && 'city',
+      !profile.category && 'primary category',
+      !(profile.skills ?? []).length && 'teaching skills',
+      !profile.skillDescription && 'skill description',
+      !profile.whyJoin && 'reason for joining',
+    ].filter(Boolean) as string[];
+  }
+
+  /** Transitions a profile to SUBMITTED, records the audit, and notifies. */
+  private async recordSubmission(
+    profile: TeacherProfile,
+    note: string,
+  ): Promise<TeacherProfile> {
+    profile.verificationStatus = this.transition(
+      profile.verificationStatus,
+      VerificationStatus.SUBMITTED,
+    );
+    profile.rejectionReason = null;
+    const saved = await this.profiles.save(profile);
+    await this.audits.save(
+      this.audits.create({
+        teacherProfileId: profile.id,
+        actorId: profile.userId,
+        action: VerificationStatus.SUBMITTED,
+        note,
+      }),
+    );
+    await this.notify(
+      profile.userId,
+      'Provider profile submitted',
+      'Your provider profile was submitted for review. We will notify you once an administrator has reviewed it.',
+    );
+    return saved;
+  }
+
+  /** Inserts an in-app customer notification. */
+  private async notify(userId: string, title: string, body: string): Promise<void> {
+    await this.db.query(
+      `INSERT INTO customer_notifications (user_id, kind, title, body, read_at)
+       VALUES ($1, 'verification', $2, $3, NULL)`,
+      [userId, title, body],
+    );
   }
 
   /** Finds APPROVED teachers within radiusMeters of a point, nearest first. */
@@ -178,20 +241,14 @@ export class TeachersService {
       .getMany();
   }
 
-  /** Teacher submits their profile for review (PENDING/REJECTED -> SUBMITTED). */
+  /**
+   * Teacher submits their profile for review (PENDING/REJECTED -> SUBMITTED).
+   * Uploading a document normally auto-submits (see addDocument); this remains
+   * for explicit resubmission and as a fallback.
+   */
   async submitForReview(userId: string): Promise<TeacherProfile> {
     const profile = await this.getByUserIdOrThrow(userId);
-    const missing = [
-      !profile.displayName && 'full name',
-      !profile.phone && 'phone number',
-      !profile.email && 'email address',
-      !profile.locality && 'locality',
-      !profile.city && 'city',
-      !profile.category && 'primary category',
-      !(profile.skills ?? []).length && 'teaching skills',
-      !profile.skillDescription && 'skill description',
-      !profile.whyJoin && 'reason for joining',
-    ].filter(Boolean);
+    const missing = this.missingRequiredFields(profile);
     if (missing.length) {
       throw new BadRequestException(
         `Complete these required profile fields before submitting: ${missing.join(', ')}`,
@@ -202,12 +259,7 @@ export class TeachersService {
         'At least one document is required before submitting for review',
       );
     }
-    profile.verificationStatus = this.transition(
-      profile.verificationStatus,
-      VerificationStatus.SUBMITTED,
-    );
-    profile.rejectionReason = null;
-    return this.profiles.save(profile);
+    return this.recordSubmission(profile, 'Submitted for review');
   }
 
   /** Admin moves a submitted profile into review. */
@@ -261,18 +313,14 @@ export class TeachersService {
         note: rejectionReason,
       }),
     );
-    await this.db.query(
-      `INSERT INTO customer_notifications (user_id, kind, title, body, read_at)
-       VALUES ($1, 'verification', $2, $3, NULL)`,
-      [
-        profile.userId,
-        `Provider profile ${to.replaceAll('_', ' ')}`,
-        to === VerificationStatus.APPROVED
-          ? 'Your provider identity is approved. Eligible classes can now be approved for families.'
-          : to === VerificationStatus.REJECTED
-            ? `Your provider profile needs changes.${rejectionReason ? ` ${rejectionReason}` : ''}`
-            : 'An administrator has started reviewing your provider profile.',
-      ],
+    await this.notify(
+      profile.userId,
+      `Provider profile ${to.replaceAll('_', ' ')}`,
+      to === VerificationStatus.APPROVED
+        ? 'Your provider identity is approved. Eligible classes can now be approved for families.'
+        : to === VerificationStatus.REJECTED
+          ? `Your provider profile needs changes.${rejectionReason ? ` ${rejectionReason}` : ''}`
+          : 'An administrator has started reviewing your provider profile.',
     );
     return saved;
   }

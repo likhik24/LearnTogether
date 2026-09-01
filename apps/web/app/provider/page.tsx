@@ -1016,26 +1016,30 @@ export default function ProviderPage() {
                 {saving ? 'Saving…' : 'Save provider profile'}
               </button>
               {verificationStatus && (
-                <Link className="primary-wide provider-studio-link" href="/teacher">
-                  Open Provider Studio
+                <Link className="primary-wide provider-studio-link" href="/provider/classes">
+                  Open class studio
                 </Link>
               )}
               {(verificationStatus === VerificationStatus.PENDING ||
-                verificationStatus === VerificationStatus.REJECTED) && (
-                <button
-                  className="secondary-wide"
-                  type="button"
-                  onClick={submitForReview}
-                  disabled={submittingReview || documents.length === 0}
-                >
-                  {submittingReview ? 'Submitting…' : 'Submit profile for review'}
-                </button>
-              )}
-              {verificationStatus === VerificationStatus.PENDING && documents.length === 0 && (
-                <p className="section-hint">
-                  Upload at least one PDF before submitting for review.
-                </p>
-              )}
+                verificationStatus === VerificationStatus.REJECTED) &&
+                documents.length === 0 && (
+                  <p className="section-hint">
+                    Save your profile and upload a PDF document above — your profile is submitted
+                    for review automatically once a document is added.
+                  </p>
+                )}
+              {(verificationStatus === VerificationStatus.PENDING ||
+                verificationStatus === VerificationStatus.REJECTED) &&
+                documents.length > 0 && (
+                  <button
+                    className="secondary-wide"
+                    type="button"
+                    onClick={submitForReview}
+                    disabled={submittingReview}
+                  >
+                    {submittingReview ? 'Submitting…' : 'Submit profile for review now'}
+                  </button>
+                )}
               <button className="secondary-wide" type="button" onClick={signOut}>
                 Sign out of provider account
               </button>
@@ -1060,7 +1064,7 @@ function ProviderWorkflow({ status }: { status: VerificationStatus | null }) {
         <strong>2. Review</strong>
         <small>{reviewLabel}</small>
       </span>
-      <Link href="/teacher">
+      <Link href="/provider/classes">
         <strong>3. Studio</strong>
         <small>Create and manage classes.</small>
       </Link>
@@ -1255,13 +1259,24 @@ function DateSlotPicker({
   }
 
   function toggleSlot(date: string, slot: DaySlot) {
-    onChange(value.map((e) => (e.date === date ? { ...e, slots: toggle(e.slots, slot) } : e)));
+    const nextSlots = toggle(byDate.get(date) ?? [], slot);
+    // A date with no slots isn't real availability — drop it entirely.
+    if (nextSlots.length === 0) {
+      onChange(value.filter((e) => e.date !== date));
+      if (openDate === date) setOpenDate(null);
+      return;
+    }
+    onChange(value.map((e) => (e.date === date ? { ...e, slots: nextSlots } : e)));
   }
 
   function setAll(date: string, all: boolean) {
-    onChange(
-      value.map((e) => (e.date === date ? { ...e, slots: all ? [...ALL_DAY_SLOTS] : [] } : e)),
-    );
+    // "Clear" removes the date from the selection; "All day" fills every slot.
+    if (!all) {
+      onChange(value.filter((e) => e.date !== date));
+      if (openDate === date) setOpenDate(null);
+      return;
+    }
+    onChange(value.map((e) => (e.date === date ? { ...e, slots: [...ALL_DAY_SLOTS] } : e)));
   }
 
   const selected = [...value].sort((a, b) => a.date.localeCompare(b.date));
@@ -1386,20 +1401,21 @@ function HomeLocationField({
     setError(null);
     setResults([]);
     try {
-      const url =
-        'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=' +
-        encodeURIComponent(q);
-      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, {
+        headers: { Accept: 'application/json' },
+      });
       if (!res.ok) throw new Error(`Search failed (${res.status})`);
-      const data: Array<{ display_name: string; lat: string; lon: string }> = await res.json();
+      const { results } = (await res.json()) as {
+        results: Array<{ label: string; lat: string; lng: string }>;
+      };
       setResults(
-        data.map((r) => ({
-          label: r.display_name,
+        results.map((r) => ({
+          label: r.label,
           lat: Number(r.lat),
-          lng: Number(r.lon),
+          lng: Number(r.lng),
         })),
       );
-      if (data.length === 0) setError('No matching address found.');
+      if (results.length === 0) setError('No matching address found.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Address search failed');
     } finally {

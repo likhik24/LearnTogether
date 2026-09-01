@@ -192,7 +192,7 @@ test.describe.serial('live production journeys', () => {
     await expect(page.getByText(/Verification status: submitted/i)).toBeVisible();
     await page.screenshot({ path: `${screenshotDir}/provider-profile.png`, fullPage: true });
 
-    await page.getByRole('link', { name: 'Open Provider Studio' }).click();
+    await page.getByRole('link', { name: 'Open class studio' }).click();
     await expect(page.getByRole('heading', { name: 'Class details' })).toBeVisible();
     await page.getByLabel('Class name').fill(className);
     await page
@@ -220,7 +220,7 @@ test.describe.serial('live production journeys', () => {
     await expect(page.getByLabel(/Phone \/ WhatsApp number/)).toHaveValue('9000000000');
     await expect(page.getByText(`smoke-portfolio-${runId}.pdf`)).toBeVisible();
 
-    await page.goto('/teacher');
+    await page.goto('/provider/classes');
     await expect(page.getByRole('heading', { name: 'Class details' })).toBeVisible();
     await expect(page.getByText(className, { exact: true })).toBeVisible();
     expect(pageErrors).toEqual([]);
@@ -252,7 +252,8 @@ test.describe.serial('live production journeys', () => {
       '/children',
       '/profile',
       '/provider',
-      '/teacher',
+      '/provider/classes',
+      '/provider/earnings',
       '/admin',
     ]) {
       await page.goto(route);
