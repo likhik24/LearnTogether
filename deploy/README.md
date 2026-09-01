@@ -134,6 +134,89 @@ DATABASE_URL="postgres://learnbuild:<password>@<host>:5432/learnbuild" \
 alternative. A failed migration exits non-zero and prevents dependent services
 from starting; do not bypass that gate.
 
+### Shipping a change to www.learnandbuild.org (UI or backend)
+
+The live host (`i-081c400c498760ed3`, `52.62.168.113`) deploys from the git
+remote, so **git is the source of truth**: commit and push first, then pull and
+rebuild on the host. Only rebuild the containers you changed — the rest keep
+running, and Postgres data is untouched (bind-mounted, `synchronize` off).
+
+**1. Commit and push from your machine** (this must come from a network with
+GitHub access):
+
+```bash
+git add <changed files>
+git commit -m "…"
+git push origin main
+```
+
+**2. Pull on the host, then rebuild the affected services.** Which services to
+rebuild:
+
+| Change | Rebuild |
+| --- | --- |
+| Web UI (`apps/web/**`, Next routes incl. `/api/geocode`) | `web` |
+| A backend service (`services/<name>/**`) | that service, e.g. `auth`, `teacher`, `scheduling`, `payments`, `search`, `voice` |
+| Shared package (`packages/**`) | every service that depends on it (safest: all app services) |
+| New SQL migration (`deploy/migrations/**`) | `migrate` runs automatically on `up`; then the dependent services |
+| Compose/env/origin change (`docker-compose.production.yml`, `.env.production`) | `--force-recreate` the affected services (no `--build` needed for env-only) |
+| Caddy/TLS (`deploy/caddy/Caddyfile`) | not a container — copy to `/etc/caddy/Caddyfile` and `sudo systemctl reload caddy` |
+
+Run the pull + targeted rebuild directly on the host (SSM Session Manager):
+
+```bash
+cd /opt/learn-and-build/app
+git pull --ff-only origin main
+
+# Always run compose with a clean environment so .env.production wins over any
+# stale shell AWS_* vars (see the AWS note in "First deployment").
+env -u AWS_REGION -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN -u AWS_PROFILE \
+  docker compose --env-file deploy/.env.production \
+  -f deploy/docker-compose.production.yml up -d --build web        # e.g. a UI change
+```
+
+Replace `web` with the changed service name(s); omit it to rebuild everything.
+
+**Driving it remotely over SSM** (no SSH), from a machine with AWS access to
+account `960763460353`:
+
+```bash
+env -u AWS_PROFILE -u AWS_ACCOUNT_ID aws ssm send-command \
+  --instance-ids i-081c400c498760ed3 \
+  --document-name AWS-RunShellScript \
+  --profile default --region ap-southeast-2 \
+  --comment "deploy update" \
+  --timeout-seconds 1800 \
+  --parameters 'commands=[
+    "set -e",
+    "cd /opt/learn-and-build/app",
+    "sudo -u ec2-user git pull --ff-only origin main",
+    "env -u AWS_REGION -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN -u AWS_PROFILE docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml up -d --build web",
+    "docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml ps --format \"{{.Service}} {{.Status}}\""
+  ]'
+```
+
+Poll the result with `aws ssm get-command-invocation --command-id <id>
+--instance-id i-081c400c498760ed3`. A Next.js `web` rebuild on t3.large takes a
+few minutes; the container is replaced only after the new image builds, so
+downtime is brief.
+
+> If a change is committed locally but cannot be pushed (e.g. no GitHub access
+> from where you are), you can hotfix the host by shipping the changed files
+> directly: `base64` each file locally, pass the string via `ssm send-command`,
+> and `echo "$B64" | base64 -d | sudo tee <path>` on the host, then rebuild.
+> This leaves the host ahead of the remote — reconcile by pushing and pulling
+> as soon as you can so git stays authoritative.
+
+**3. Verify** the live site after the rebuild:
+
+```bash
+curl -sSI https://www.learnandbuild.org/ | head -n 1        # 200
+curl -sf  https://www.learnandbuild.org/api/auth/health     # backend via proxy
+# plus any endpoint specific to the change, e.g.:
+curl -sf "https://www.learnandbuild.org/api/geocode?q=hyderabad"
+```
+
 ### Automatic deployment after merge
 
 `.github/workflows/deploy-production.yml` rebuilds this stack only after the
