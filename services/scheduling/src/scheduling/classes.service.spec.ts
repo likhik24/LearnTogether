@@ -185,7 +185,7 @@ describe('ClassesService', () => {
       moderationReason: null,
     });
     classes.findOne.mockResolvedValue(offering);
-    dataSource.query.mockResolvedValue([{ verification_status: 'approved' }]);
+    dataSource.query.mockResolvedValue([{ verificationStatus: 'approved' }]);
 
     const result = await service.moderate(
       'admin-1',
@@ -206,7 +206,7 @@ describe('ClassesService', () => {
         moderationStatus: ClassModerationStatus.PENDING,
       }),
     );
-    dataSource.query.mockResolvedValue([{ verification_status: 'submitted' }]);
+    dataSource.query.mockResolvedValue([{ verificationStatus: 'submitted' }]);
 
     await expect(
       service.moderate('admin-1', 'c-1', ClassModerationStatus.APPROVED),
