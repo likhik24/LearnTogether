@@ -33,6 +33,7 @@ export class UsersService {
     displayName: string;
     role?: Role;
     emailVerified?: boolean;
+    termsAccepted?: boolean;
   }): Promise<User> {
     const user = this.users.create({
       email: normalizeEmail(input.email),
@@ -41,6 +42,7 @@ export class UsersService {
       role: input.role ?? Role.USER,
       provider: AuthProvider.LOCAL,
       emailVerifiedAt: input.emailVerified ? new Date() : null,
+      termsAcceptedAt: input.termsAccepted ? new Date() : null,
     });
     return this.users.save(user);
   }

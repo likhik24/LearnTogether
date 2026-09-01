@@ -12,6 +12,14 @@ test('anonymous identity and register, logout, login, and reload session flow', 
   page,
 }) => {
   let authenticated = false;
+  let deletionRequestedAt: string | null = null;
+
+  const deletionStatus = () => ({
+    requestedAt: deletionRequestedAt,
+    scheduledFor: deletionRequestedAt
+      ? new Date(new Date(deletionRequestedAt).getTime() + 7 * 86_400_000).toISOString()
+      : null,
+  });
 
   await page.route('**/api/auth/**', async (route) => {
     const request = route.request();
@@ -76,6 +84,41 @@ test('anonymous identity and register, logout, login, and reload session flow', 
       await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
       return;
     }
+    if (path.endsWith('/customer/notification-preferences')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          emailEnabled: true,
+          bookingReminders: true,
+          productUpdates: false,
+          updatedAt: new Date().toISOString(),
+        }),
+      });
+      return;
+    }
+    if (path.endsWith('/customer/account/deletion/cancel')) {
+      deletionRequestedAt = null;
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    if (path.endsWith('/customer/account/deletion')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(deletionStatus()),
+      });
+      return;
+    }
+    if (path.endsWith('/customer/account') && request.method() === 'DELETE') {
+      deletionRequestedAt = new Date().toISOString();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(deletionStatus()),
+      });
+      return;
+    }
     await route.continue();
   });
 
@@ -93,13 +136,14 @@ test('anonymous identity and register, logout, login, and reload session flow', 
   await page.goto('/profile');
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.getByLabel('Your name').fill(`  ${user.displayName}  `);
-  await page.getByLabel('Email').fill(`  ${user.email.toUpperCase()}  `);
+  await page.getByLabel('Email', { exact: true }).fill(`  ${user.email.toUpperCase()}  `);
   await page.getByLabel('Password').fill('Secure-password-2026!');
+  await page.getByRole('checkbox', { name: /I agree to the Terms/ }).check();
   await page.getByRole('button', { name: 'Create account & sync' }).click();
   await expect(page.getByText('API CONNECTED')).toBeVisible();
 
   await page.getByRole('button', { name: 'Sign out' }).click();
-  await page.getByLabel('Email').fill(user.email.toUpperCase());
+  await page.getByLabel('Email', { exact: true }).fill(user.email.toUpperCase());
   await page.getByLabel('Password').fill('Secure-password-2026!');
   await page.getByRole('button', { name: 'Sign in & sync' }).click();
   await expect(
@@ -109,8 +153,14 @@ test('anonymous identity and register, logout, login, and reload session flow', 
   await page.reload();
   await expect(page.getByText('API CONNECTED')).toBeVisible();
 
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Delete account' }).click();
+  await expect(page.getByRole('button', { name: 'Cancel account deletion' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel account deletion' }).click();
+  await expect(page.getByText('Account deletion was cancelled.')).toBeVisible();
+
   await page.getByRole('button', { name: 'Sign out' }).click();
-  await page.getByLabel('Email').fill(user.email);
+  await page.getByLabel('Email', { exact: true }).fill(user.email);
   await page.getByLabel('Password').fill('incorrect-password');
   await page.getByRole('button', { name: 'Sign in & sync' }).click();
   await expect(page.getByText('Email or password is incorrect.')).toBeVisible();

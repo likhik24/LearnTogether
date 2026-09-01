@@ -6,11 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import {
-  AttendanceStatus,
-  BookingStatus,
-  type BookingDto,
-} from '@learn-and-build/types';
+import { AttendanceStatus, BookingStatus, type BookingDto } from '@learn-and-build/types';
 
 @Entity({ name: 'bookings' })
 export class Booking {
@@ -36,6 +32,9 @@ export class Booking {
 
   @Column({ name: 'child_name', type: 'varchar', nullable: true })
   childName!: string | null;
+
+  @Column({ name: 'seat_count', type: 'int', default: 1 })
+  seatCount!: number;
 
   @Column()
   title!: string;
@@ -73,6 +72,7 @@ export class Booking {
       reservationId: this.reservationId ?? null,
       childId: this.childId ?? null,
       childName: this.childName ?? null,
+      seatCount: this.seatCount ?? 1,
       title: this.title,
       scheduledStart: this.scheduledStart?.toISOString() ?? new Date().toISOString(),
       amountMinor: this.amountMinor,

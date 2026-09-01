@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { Equals, IsBoolean, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 import { Role } from '@learn-and-build/types';
 import { IsEnum } from 'class-validator';
 import { Transform } from 'class-transformer';
@@ -16,6 +16,10 @@ export class RegisterDto {
   @IsString()
   @MinLength(1)
   displayName!: string;
+
+  @IsBoolean()
+  @Equals(true, { message: 'You must accept the Terms and Privacy Policy' })
+  termsAccepted!: boolean;
 
   /**
    * Optional self-selected role at signup. Only USER and TEACHER are allowed

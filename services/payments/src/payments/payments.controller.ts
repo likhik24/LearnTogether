@@ -26,10 +26,13 @@ import type {
   PaymentIntentResponse,
   ProviderEarningsDto,
   ProviderPayoutDto,
+  ProviderPayoutProfileDto,
 } from '@learn-and-build/types';
 import {
   CreatePaymentDto,
   RequestPayoutDto,
+  ReviewPayoutProfileDto,
+  UpsertPayoutProfileDto,
   UpdatePayoutDto,
   VerifyPaymentDto,
 } from './payment.dto';
@@ -126,6 +129,52 @@ export class PaymentsController {
     return (await this.payments.requestProviderPayout(user.sub, dto.amountMinor)).toDto();
   }
 
+  @Get('provider/payout-profile')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TEACHER)
+  async payoutProfile(
+    @CurrentUser() user: AuthPrincipal,
+  ): Promise<ProviderPayoutProfileDto | null> {
+    return (await this.payments.getPayoutProfile(user.sub))?.toDto() ?? null;
+  }
+
+  @Post('provider/payout-profile')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TEACHER)
+  async savePayoutProfile(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: UpsertPayoutProfileDto,
+  ): Promise<ProviderPayoutProfileDto> {
+    return (
+      await this.payments.upsertPayoutProfile(user.sub, {
+        ...dto,
+        bankName: dto.bankName ?? null,
+        ifsc: dto.ifsc ?? null,
+        accountLast4: dto.accountLast4 ?? null,
+        upiIdMasked: dto.upiIdMasked ?? null,
+      })
+    ).toDto();
+  }
+
+  @Get('admin/payout-profiles')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async payoutProfiles(): Promise<ProviderPayoutProfileDto[]> {
+    return (await this.payments.listPayoutProfiles()).map((item) => item.toDto());
+  }
+
+  @Post('admin/payout-profiles/:teacherId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async reviewPayoutProfile(
+    @Param('teacherId') teacherId: string,
+    @Body() dto: ReviewPayoutProfileDto,
+  ): Promise<ProviderPayoutProfileDto> {
+    return (
+      await this.payments.reviewPayoutProfile(teacherId, dto.status, dto.externalFundAccountId)
+    ).toDto();
+  }
+
   @Get('admin/payouts')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -140,9 +189,7 @@ export class PaymentsController {
     @Param('id') id: string,
     @Body() dto: UpdatePayoutDto,
   ): Promise<ProviderPayoutDto> {
-    return (
-      await this.payments.updatePayout(id, dto.status, dto.reference, dto.note)
-    ).toDto();
+    return (await this.payments.updatePayout(id, dto.status, dto.reference, dto.note)).toDto();
   }
 
   @Post('webhooks/razorpay')

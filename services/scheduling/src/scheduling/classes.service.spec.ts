@@ -39,9 +39,11 @@ describe('ClassesService', () => {
     audits.save.mockImplementation(async (value) => value as ClassModerationAudit);
     dataSource = {
       transaction: jest.fn(),
-      query: jest.fn().mockImplementation(async (sql: string) =>
-        sql.includes('FROM teacher_profiles') ? [{ exists: 1 }] : [],
-      ),
+      query: jest
+        .fn()
+        .mockImplementation(async (sql: string) =>
+          sql.includes('FROM teacher_profiles') ? [{ exists: 1 }] : [],
+        ),
     };
     classes.create.mockImplementation((value) => Object.assign(new ClassOffering(), value));
     classes.save.mockImplementation(async (value) => value as ClassOffering);
@@ -99,7 +101,8 @@ describe('ClassesService', () => {
 
   it('computes availability after subtracting reservations', async () => {
     const now = new Date();
-    const daysUntilMonday = (8 - (now.getUTCDay() || 7)) % 7 || 7;
+    const isoDay = now.getUTCDay() || 7;
+    const daysUntilMonday = isoDay === 1 && now.getUTCHours() < 18 ? 0 : (8 - isoDay) % 7 || 7;
     const occurrenceStart = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilMonday, 18),
     );
@@ -123,7 +126,8 @@ describe('ClassesService', () => {
 
   it('rejects a reservation when the locked occurrence is full', async () => {
     const now = new Date();
-    const daysUntilMonday = (8 - (now.getUTCDay() || 7)) % 7 || 7;
+    const isoDay = now.getUTCDay() || 7;
+    const daysUntilMonday = isoDay === 1 && now.getUTCHours() < 18 ? 0 : (8 - isoDay) % 7 || 7;
     const occurrence = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilMonday, 18),
     );

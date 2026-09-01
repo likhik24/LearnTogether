@@ -14,11 +14,13 @@ import {
   ProviderPayoutStatus,
   type PaymentIntentResponse,
   type ProviderEarningsDto,
+  type ProviderPayoutProfileDto,
 } from '@learn-and-build/types';
 import { Payment } from './payment.entity';
 import { PaymentWebhookEvent } from './payment-webhook-event.entity';
 import { RazorpayGateway } from './razorpay.gateway';
 import { ProviderPayout } from './provider-payout.entity';
+import { ProviderPayoutProfile } from './provider-payout-profile.entity';
 
 interface BookingRow {
   id: string;
@@ -43,6 +45,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(Payment) private readonly payments: Repository<Payment>,
     @InjectRepository(PaymentWebhookEvent) private readonly events: Repository<PaymentWebhookEvent>,
     @InjectRepository(ProviderPayout) private readonly payouts: Repository<ProviderPayout>,
+    @InjectRepository(ProviderPayoutProfile)
+    private readonly payoutProfiles: Repository<ProviderPayoutProfile>,
     private readonly db: DataSource,
     private readonly gateway: RazorpayGateway,
   ) {}
@@ -212,6 +216,12 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async requestProviderPayout(teacherId: string, amountMinor?: number): Promise<ProviderPayout> {
+    const payoutProfile = await this.payoutProfiles.findOne({ where: { teacherId } });
+    if (!payoutProfile || payoutProfile.kycStatus !== 'verified') {
+      throw new ConflictException(
+        'Complete and verify your payout profile before requesting a payout',
+      );
+    }
     const active = await this.payouts.findOne({
       where: [
         { teacherId, status: ProviderPayoutStatus.REQUESTED },
@@ -244,6 +254,57 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  getPayoutProfile(teacherId: string): Promise<ProviderPayoutProfile | null> {
+    return this.payoutProfiles.findOne({ where: { teacherId } });
+  }
+
+  async upsertPayoutProfile(
+    teacherId: string,
+    input: Omit<
+      ProviderPayoutProfileDto,
+      'teacherId' | 'externalFundAccountId' | 'kycStatus' | 'updatedAt'
+    >,
+  ): Promise<ProviderPayoutProfile> {
+    if (input.payoutMethod === 'bank' && (!input.ifsc || !input.accountLast4)) {
+      throw new BadRequestException(
+        'Bank name, IFSC and the last four account digits are required',
+      );
+    }
+    if (input.payoutMethod === 'upi' && !input.upiIdMasked) {
+      throw new BadRequestException('A masked UPI ID is required');
+    }
+    const existing = await this.payoutProfiles.findOne({ where: { teacherId } });
+    const profile = existing ?? this.payoutProfiles.create({ teacherId });
+    Object.assign(profile, {
+      accountHolderName: input.accountHolderName.trim(),
+      payoutMethod: input.payoutMethod,
+      bankName: input.payoutMethod === 'bank' ? input.bankName?.trim() || null : null,
+      ifsc: input.payoutMethod === 'bank' ? input.ifsc?.trim().toUpperCase() || null : null,
+      accountLast4: input.payoutMethod === 'bank' ? input.accountLast4 || null : null,
+      upiIdMasked: input.payoutMethod === 'upi' ? input.upiIdMasked?.trim() || null : null,
+      kycStatus: 'submitted',
+    });
+    return this.payoutProfiles.save(profile);
+  }
+
+  listPayoutProfiles(): Promise<ProviderPayoutProfile[]> {
+    return this.payoutProfiles.find({ order: { updatedAt: 'DESC' } });
+  }
+
+  async reviewPayoutProfile(
+    teacherId: string,
+    status: 'submitted' | 'verified' | 'rejected',
+    externalFundAccountId?: string,
+  ): Promise<ProviderPayoutProfile> {
+    const profile = await this.payoutProfiles.findOne({ where: { teacherId } });
+    if (!profile) throw new NotFoundException('Provider payout profile not found');
+    profile.kycStatus = status;
+    if (externalFundAccountId !== undefined) {
+      profile.externalFundAccountId = externalFundAccountId.trim() || null;
+    }
+    return this.payoutProfiles.save(profile);
+  }
+
   listPayoutQueue(): Promise<ProviderPayout[]> {
     return this.payouts.find({ order: { createdAt: 'DESC' } });
   }
@@ -262,10 +323,7 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         ProviderPayoutStatus.PAID,
         ProviderPayoutStatus.REJECTED,
       ],
-      [ProviderPayoutStatus.PROCESSING]: [
-        ProviderPayoutStatus.PAID,
-        ProviderPayoutStatus.REJECTED,
-      ],
+      [ProviderPayoutStatus.PROCESSING]: [ProviderPayoutStatus.PAID, ProviderPayoutStatus.REJECTED],
       [ProviderPayoutStatus.PAID]: [],
       [ProviderPayoutStatus.REJECTED]: [],
     };

@@ -156,6 +156,7 @@ export function BookingBar({
   const [selectedStart, setSelectedStart] = useState('');
   const [children, setChildren] = useState<ChildProfileDto[]>([]);
   const [selectedChildId, setSelectedChildId] = useState('');
+  const [selectedChildIds, setSelectedChildIds] = useState<string[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(true);
 
   useEffect(() => {
@@ -169,15 +170,15 @@ export function BookingBar({
       }))
       .then(({ offering, occurrences }) => {
         if (cancelled) return;
-        const available = occurrences.filter((item) => item.seatsAvailable > 0);
-        if (available.length) {
+        if (occurrences.length) {
+          const available = occurrences.filter((item) => item.seatsAvailable > 0);
           setInventory({
             classId: offering.id,
             ageMin: offering.ageMin,
             ageMax: offering.ageMax,
-            occurrences: available,
+            occurrences,
           });
-          setSelectedStart(available[0].start);
+          setSelectedStart((available[0] ?? occurrences[0]).start);
         }
       })
       .catch(() => undefined)
@@ -211,6 +212,7 @@ export function BookingBar({
       }
       setChildren(children);
       setSelectedChildId((current) => current || children[0].id);
+      setSelectedChildIds((current) => (current.length ? current : [children[0].id]));
       setStep('held');
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) setAccessReason('book');
@@ -233,8 +235,9 @@ export function BookingBar({
       return;
     }
     const occurrence = inventory?.occurrences.find((item) => item.start === selectedStart);
-    const selectedChild = children.find((child) => child.id === selectedChildId);
-    if (!inventory || !occurrence || !selectedChild) {
+    const selectedChildren = children.filter((child) => selectedChildIds.includes(child.id));
+    const selectedChild = selectedChildren[0];
+    if (!inventory || !occurrence || !selectedChild || !selectedChildren.length) {
       setBookingError(
         'Live availability could not be confirmed. Please try again when Scheduling is online.',
       );
@@ -242,8 +245,18 @@ export function BookingBar({
       return;
     }
     try {
+      if (occurrence.seatsAvailable < 1) {
+        await customerClient.joinWaitlist({
+          childId: selectedChild.id,
+          classId: inventory.classId,
+          occurrenceStart: occurrence.start,
+        });
+        setStep('booked');
+        return;
+      }
       const booking = await customerClient.createBooking({
         childId: selectedChild.id,
+        childIds: selectedChildIds,
         classRef: inventory.classId,
         classSlug: classRef,
         title,
@@ -284,10 +297,18 @@ export function BookingBar({
       }).format(new Date(selectedOccurrence.start))
     : 'Next Saturday • 10:30 AM';
   const selectedChild = children.find((child) => child.id === selectedChildId);
+  const selectedChildren = children.filter((child) => selectedChildIds.includes(child.id));
   const eligibility =
-    selectedChild && inventory
-      ? childEligibility(selectedChild, selectedStart, inventory.ageMin, inventory.ageMax)
+    selectedChildren.length && inventory
+      ? (selectedChildren
+          .map((child) =>
+            childEligibility(child, selectedStart, inventory.ageMin, inventory.ageMax),
+          )
+          .find((item) => !item.eligible) ?? { eligible: true, reason: '' })
       : null;
+  const availableOccurrences =
+    inventory?.occurrences.filter((item) => item.seatsAvailable > 0) ?? [];
+  const isWaitlist = Boolean(selectedOccurrence && selectedOccurrence.seatsAvailable < 1);
 
   return (
     <>
@@ -299,10 +320,12 @@ export function BookingBar({
           <small>
             {inventoryLoading ? (
               'Checking live availability…'
-            ) : inventory ? (
+            ) : availableOccurrences.length ? (
               <>
-                <b>{inventory.occurrences[0].seatsAvailable} spots</b> left for the next class
+                <b>{availableOccurrences[0].seatsAvailable} spots</b> left for the next class
               </>
+            ) : inventory ? (
+              'Sessions are full — join the waitlist'
             ) : (
               'Live booking is temporarily unavailable'
             )}
@@ -322,7 +345,7 @@ export function BookingBar({
             'Checking…'
           ) : inventory ? (
             <>
-              Book trial <span>→</span>
+              {availableOccurrences.length ? 'Book trial' : 'Join waitlist'} <span>→</span>
             </>
           ) : (
             'Unavailable'
@@ -366,9 +389,18 @@ export function BookingBar({
                     <button
                       type="button"
                       key={child.id}
-                      aria-pressed={selectedChildId === child.id}
-                      className={selectedChildId === child.id ? 'active' : ''}
-                      onClick={() => setSelectedChildId(child.id)}
+                      aria-pressed={selectedChildIds.includes(child.id)}
+                      className={selectedChildIds.includes(child.id) ? 'active' : ''}
+                      onClick={() => {
+                        setSelectedChildId(child.id);
+                        setSelectedChildIds((current) =>
+                          current.includes(child.id)
+                            ? current.length > 1
+                              ? current.filter((id) => id !== child.id)
+                              : current
+                            : [...current, child.id],
+                        );
+                      }}
                     >
                       {child.name}
                     </button>
@@ -376,7 +408,7 @@ export function BookingBar({
                 </fieldset>
                 <fieldset className="booking-options">
                   <legend>Date &amp; time</legend>
-                  {inventory?.occurrences.slice(0, 6).map((occurrence) => (
+                  {inventory?.occurrences.slice(0, 8).map((occurrence) => (
                     <button
                       type="button"
                       key={occurrence.start}
@@ -399,22 +431,47 @@ export function BookingBar({
                 )}
                 <button
                   className="primary-wide"
-                  disabled={bookingPending || !eligibility?.eligible}
+                  disabled={
+                    bookingPending ||
+                    !eligibility?.eligible ||
+                    (!isWaitlist &&
+                      (selectedOccurrence?.seatsAvailable ?? 0) < selectedChildIds.length)
+                  }
                   onClick={() => void confirmBooking()}
                 >
                   {bookingPending
-                    ? 'Opening secure payment…'
-                    : `Pay ₹${price} & reserve for ${selectedChild?.name ?? 'child'}`}
+                    ? isWaitlist
+                      ? 'Joining waitlist…'
+                      : 'Opening secure payment…'
+                    : isWaitlist
+                      ? `Join waitlist for ${selectedChild?.name ?? 'child'}`
+                      : `Pay ₹${price * selectedChildIds.length} & reserve ${selectedChildIds.length} ${selectedChildIds.length === 1 ? 'seat' : 'seats'}`}
                 </button>
+                {!isWaitlist &&
+                  selectedOccurrence &&
+                  selectedOccurrence.seatsAvailable < selectedChildIds.length && (
+                    <p className="booking-error">
+                      Only {selectedOccurrence.seatsAvailable} seats remain. Select fewer children
+                      or another session.
+                    </p>
+                  )}
                 {bookingError && <small className="booking-error">{bookingError}</small>}
-                <small>Secure online checkout. Your seat is confirmed after payment succeeds.</small>
+                <small>
+                  {isWaitlist
+                    ? 'No charge now. We will notify you when a seat opens.'
+                    : 'Secure online checkout. Your seat is confirmed after payment succeeds.'}
+                </small>
               </>
             ) : (
               <>
-                <span className="eyebrow purple">BOOKING CONFIRMED</span>
-                <h2>You’re all set.</h2>
+                <span className="eyebrow purple">
+                  {isWaitlist ? 'WAITLIST JOINED' : 'BOOKING CONFIRMED'}
+                </span>
+                <h2>{isWaitlist ? 'We’ll keep watch.' : 'You’re all set.'}</h2>
                 <p>
-                  Payment received and the workshop is in your bookings.
+                  {isWaitlist
+                    ? 'We will notify you when a place becomes available.'
+                    : 'Payment received and the workshop is in your bookings.'}
                   <br />
                   {scheduleLabel}
                 </p>
@@ -532,7 +589,8 @@ export function ReviewsButton({
               reviews.map((review) => (
                 <article key={review.id}>
                   <strong aria-label={`${review.rating} out of 5 stars`}>
-                    {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
+                    {'★'.repeat(review.rating)}
+                    {'☆'.repeat(5 - review.rating)}
                   </strong>
                   {review.comment && <p>{review.comment}</p>}
                   <small>

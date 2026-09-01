@@ -6,9 +6,12 @@ import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { RazorpayGateway } from './razorpay.gateway';
 import { ProviderPayout } from './provider-payout.entity';
+import { ProviderPayoutProfile } from './provider-payout-profile.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Payment, PaymentWebhookEvent, ProviderPayout])],
+  imports: [
+    TypeOrmModule.forFeature([Payment, PaymentWebhookEvent, ProviderPayout, ProviderPayoutProfile]),
+  ],
   controllers: [PaymentsController],
   providers: [PaymentsService, RazorpayGateway],
 })

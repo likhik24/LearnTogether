@@ -85,6 +85,7 @@ pnpm install
 > whose token is expired, `pnpm install` fails with `ERR_PNPM_FETCH_401`. Since
 > nothing here is private, install from the public registry instead — this does
 > not modify your `~/.npmrc`:
+>
 > ```bash
 > pnpm install --registry=https://registry.npmjs.org/ --config.always-auth=false
 > ```
@@ -170,8 +171,8 @@ when pointing at a TLS-only database such as RDS.
 pnpm --filter @learn-and-build/web dev
 ```
 
-Open http://localhost:3100. The customer app, admin console (`/admin`), and the
-provider page (`/provider`) are all served here.
+Open http://localhost:3100. The customer app, admin console (`/admin`), provider
+onboarding (`/provider`), and provider studio (`/provider/classes`) are all served here.
 
 ## Local infrastructure & services
 
@@ -205,14 +206,14 @@ All `/health` endpoints return HTTP 200 with `{ "status": "ok", "service": "<nam
 
 Roles: `user`, `teacher`, `admin` (shared `Role` enum in `@learn-and-build/types`).
 
-| Method | Route                  | Auth        | Purpose                              |
-| ------ | ---------------------- | ----------- | ------------------------------------ |
-| POST   | /auth/register         | public      | Sign up (USER or TEACHER only)       |
-| POST   | /auth/login            | public      | Start a secure cookie session        |
-| GET    | /auth/me               | JWT         | Current user                         |
+| Method | Route                  | Auth        | Purpose                               |
+| ------ | ---------------------- | ----------- | ------------------------------------- |
+| POST   | /auth/register         | public      | Sign up (USER or TEACHER only)        |
+| POST   | /auth/login            | public      | Start a secure cookie session         |
+| GET    | /auth/me               | JWT         | Current user                          |
 | POST   | /auth/provider-account | JWT + USER  | Continue a family account as provider |
-| GET    | /admin/users           | JWT + ADMIN | List users                           |
-| PATCH  | /admin/users/:id/role  | JWT + ADMIN | Change a user's role                 |
+| GET    | /admin/users           | JWT + ADMIN | List users                            |
+| PATCH  | /admin/users/:id/role  | JWT + ADMIN | Change a user's role                  |
 
 Set `ADMIN_EMAIL` / `ADMIN_PASSWORD` to seed an initial admin on first boot.
 
@@ -600,10 +601,9 @@ tiles by default. Set `NEXT_PUBLIC_MAPBOX_TOKEN` to use Mapbox Streets instead.
 
 ### Provider page (`/provider`)
 
-`/provider` (linked from the home page) is the single provider surface where an
-educator signs in or creates a provider account (role `teacher`). A family
-account can be signed out and re-created as a provider. It captures the full
-provider profile:
+`/provider` (linked from the home page) is where an educator signs in or creates
+a provider account (role `teacher`) and completes the full provider profile. A
+family account can add provider access without losing its family data.
 
 - Teaching category (with subcategories from the shared taxonomy), a two-month
   availability calendar (specific dates with one-hour 9am–9pm slots and a
@@ -616,13 +616,12 @@ provider profile:
   (see “Auto-submit on upload” above), so there is no separate submit step in
   the common case. Reads/writes the shared `TeacherProfile` via the provider
   client.
-
-The provider client calls are proxied by the Next server under `/api/provider`
-to the provider (teacher) service (override the origin with
-`PROVIDER_SERVICE_ORIGIN`, or the browser base URL with
-`NEXT_PUBLIC_PROVIDER_API_URL`; defaults to `http://localhost:3002`). The former
-separate `/teacher` studio route has been retired; the provider page now lives
-entirely at `/provider`.
+  The provider client calls are proxied by the Next server under `/api/provider`
+  to the provider (teacher) service (override the origin with
+  `PROVIDER_SERVICE_ORIGIN`, or the browser base URL with
+  `NEXT_PUBLIC_PROVIDER_API_URL`; defaults to `http://localhost:3002`). The former
+  separate `/teacher` studio route has been retired; the provider page now lives
+  entirely at `/provider`.
 
 ### Class studio (`/provider/classes`)
 

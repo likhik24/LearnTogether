@@ -109,6 +109,10 @@ async function mockCustomerApis(page: Page, state: ApiState) {
       });
       return;
     }
+    if (path.endsWith('/customer/waitlist') || path.endsWith('/customer/reschedule-requests')) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      return;
+    }
     if (path.endsWith('/customer/reviews') && request.method() === 'GET') {
       await route.fulfill({
         status: 200,
@@ -149,6 +153,7 @@ async function mockCustomerApis(page: Page, state: ApiState) {
         reservationId: 'reservation-1',
         childId: child.id,
         childName: child.name,
+        seatCount: 1,
         title: 'Build-a-Car STEM Workshop',
         scheduledStart: occurrenceStart,
         amountMinor: 49900,
@@ -228,20 +233,47 @@ async function mockCustomerApis(page: Page, state: ApiState) {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (path.endsWith('/payments/ready')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ready: true, provider: 'mock' }) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ready: true, provider: 'mock' }),
+      });
       return;
     }
     if (path.endsWith('/payments/intents')) {
       const bookingId = (request.postDataJSON() as { bookingId: string }).bookingId;
-      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
-        payment: { id: 'payment-1', userId: user.id, bookingId, classId: '11111111-1111-4111-8111-111111111111', amountMinor: 49900, currency: 'INR', status: 'pending', provider: 'mock', providerRef: null, providerOrderId: `order_mock_${bookingId}`, failureReason: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-        publicKey: 'mock_key', providerOrderId: `order_mock_${bookingId}`,
-      }) });
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          payment: {
+            id: 'payment-1',
+            userId: user.id,
+            bookingId,
+            classId: '11111111-1111-4111-8111-111111111111',
+            amountMinor: 49900,
+            currency: 'INR',
+            status: 'pending',
+            provider: 'mock',
+            providerRef: null,
+            providerOrderId: `order_mock_${bookingId}`,
+            failureReason: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          publicKey: 'mock_key',
+          providerOrderId: `order_mock_${bookingId}`,
+        }),
+      });
       return;
     }
     if (path.endsWith('/verify')) {
       state.bookings = state.bookings.map((booking) => ({ ...booking, status: 'confirmed' }));
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'payment-1', status: 'succeeded' }) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'payment-1', status: 'succeeded' }),
+      });
       return;
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: 'null' });
@@ -414,7 +446,9 @@ test('a parent can publish and edit only a verified completed-booking review', a
   await page.getByRole('button', { name: 'Review class' }).click();
   const dialog = page.getByRole('dialog', { name: 'Review class' });
   await dialog.getByRole('button', { name: '4 stars' }).click();
-  await dialog.getByPlaceholder('What did your child enjoy?').fill('Patient teacher and a great project.');
+  await dialog
+    .getByPlaceholder('What did your child enjoy?')
+    .fill('Patient teacher and a great project.');
   await dialog.getByRole('button', { name: 'Publish verified review' }).click();
 
   await expect(page.getByRole('button', { name: 'Edit 4-star review' })).toBeVisible();
@@ -465,7 +499,7 @@ test('eligible customer can reserve, view, and deliberately cancel a booking', a
   const confirmation = page.getByRole('dialog', { name: 'Confirm trial booking' });
   await expect(confirmation).toBeVisible();
   await expect(confirmation.getByText('Secure online checkout')).toBeVisible();
-  await confirmation.getByRole('button', { name: 'Pay ₹499 & reserve for Ari' }).click();
+  await confirmation.getByRole('button', { name: 'Pay ₹499 & reserve 1 seat' }).click();
   await expect(page.getByRole('dialog', { name: 'Booking confirmed' })).toBeVisible();
   expect(state.bookingCalls).toBe(1);
 
@@ -494,7 +528,7 @@ test('customer can choose a later occurrence and the booking keeps child and tim
   await page.getByRole('button', { name: 'Book trial' }).click();
   const confirmation = page.getByRole('dialog', { name: 'Confirm trial booking' });
   await confirmation.getByRole('button', { name: /Sat, 24 May/ }).click();
-  await confirmation.getByRole('button', { name: 'Pay ₹499 & reserve for Ari' }).click();
+  await confirmation.getByRole('button', { name: 'Pay ₹499 & reserve 1 seat' }).click();
   await expect(page.getByRole('dialog', { name: 'Booking confirmed' })).toBeVisible();
   expect(state.lastBookingBody).toMatchObject({
     childId: child.id,

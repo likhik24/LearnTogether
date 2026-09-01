@@ -5,7 +5,7 @@ import { ProviderOperationsService } from './provider-operations.service';
 import { Booking } from './entities/booking.entity';
 import { ClassReview } from './entities/class-review.entity';
 import { CustomerNotification } from './entities/customer-notification.entity';
-import type { PaymentsGateway } from './payments.gateway';
+import { BookingRescheduleRequest } from './entities/booking-reschedule-request.entity';
 
 describe('ProviderOperationsService', () => {
   const bookings = { update: jest.fn() };
@@ -18,8 +18,8 @@ describe('ProviderOperationsService', () => {
     create: jest.fn((value) => Object.assign(new CustomerNotification(), value)),
     save: jest.fn(async (value: CustomerNotification) => value),
   };
+  const reschedules = {};
   const db = { query: jest.fn(), transaction: jest.fn() };
-  const payments = { refundBooking: jest.fn() };
   let service: ProviderOperationsService;
 
   beforeEach(() => {
@@ -28,8 +28,8 @@ describe('ProviderOperationsService', () => {
       bookings as unknown as Repository<Booking>,
       reviews as unknown as Repository<ClassReview>,
       notifications as unknown as Repository<CustomerNotification>,
+      reschedules as unknown as Repository<BookingRescheduleRequest>,
       db as unknown as DataSource,
-      payments as unknown as PaymentsGateway,
     );
   });
 

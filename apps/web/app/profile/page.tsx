@@ -13,6 +13,7 @@ import {
 } from '../../lib/customer-session';
 import { AppHeader, BottomNav, Icon } from '../ui';
 import { OidcButtons } from '../oidc-buttons';
+import { AccountControls } from './account-controls';
 
 type Mode = 'login' | 'register' | 'forgot' | 'reset';
 
@@ -22,6 +23,7 @@ export default function ProfilePage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [resetToken, setResetToken] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -99,6 +101,7 @@ export default function ProfilePage() {
               email: email.trim().toLowerCase(),
               password,
               displayName: displayName.trim(),
+              termsAccepted,
             });
       saveCustomerSession(response.accessToken, response.user);
       setUser(response.user);
@@ -168,6 +171,7 @@ export default function ProfilePage() {
               </button>
             )}
             <button onClick={signOut}>Sign out</button>
+            <AccountControls />
           </section>
         ) : (
           <>
@@ -227,6 +231,20 @@ export default function ProfilePage() {
                     autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                     required
                   />
+                </label>
+              )}
+              {mode === 'register' && (
+                <label className="terms-consent">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(event) => setTermsAccepted(event.target.checked)}
+                    required
+                  />
+                  <span>
+                    I agree to the <a href="/terms">Terms</a> and{' '}
+                    <a href="/privacy">Privacy Policy</a>.
+                  </span>
                 </label>
               )}
               <button className="primary-wide" type="submit" disabled={loading}>

@@ -10,6 +10,9 @@ import {
   type ModerationAuditDto,
   type OidcProviderInfo,
   type ProviderPayoutDto,
+  type ProviderPayoutProfileDto,
+  type OperationJobDto,
+  type EmailReadinessDto,
   type PublicUser,
   type TeacherProfileDto,
 } from '@learn-and-build/types';
@@ -33,28 +36,44 @@ export default function AdminPage() {
   const [audits, setAudits] = useState<ModerationAuditDto[]>([]);
   const [providers, setProviders] = useState<OidcProviderInfo[]>([]);
   const [payouts, setPayouts] = useState<ProviderPayoutDto[]>([]);
+  const [payoutProfiles, setPayoutProfiles] = useState<ProviderPayoutProfileDto[]>([]);
+  const [failedOperations, setFailedOperations] = useState<OperationJobDto[]>([]);
+  const [emailReadiness, setEmailReadiness] = useState<EmailReadinessDto | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadWorkspace = useCallback(async () => {
     try {
-      const [loadedUsers, teacherGroups, classQueue, teacherHistory, classHistory, payoutQueue] =
-        await Promise.all([
-          createAuthClient().listUsers(),
-          Promise.all(
-            TEACHER_STATUSES.map((status) =>
-              createTeacherClient().listTeachersForModeration(status),
-            ),
-          ),
-          createSchedulingClient().listClassesForModeration(),
-          createTeacherClient().teacherModerationHistory(),
-          createSchedulingClient().classModerationHistory(),
-          createPaymentsClient().listAdminPayouts(),
-        ]);
+      const [
+        loadedUsers,
+        teacherGroups,
+        classQueue,
+        teacherHistory,
+        classHistory,
+        payoutQueue,
+        payoutProfileQueue,
+        failedQueue,
+        loadedEmailReadiness,
+      ] = await Promise.all([
+        createAuthClient().listUsers(),
+        Promise.all(
+          TEACHER_STATUSES.map((status) => createTeacherClient().listTeachersForModeration(status)),
+        ),
+        createSchedulingClient().listClassesForModeration(),
+        createTeacherClient().teacherModerationHistory(),
+        createSchedulingClient().classModerationHistory(),
+        createPaymentsClient().listAdminPayouts(),
+        createPaymentsClient().listAdminPayoutProfiles(),
+        createAuthClient().listFailedOperations(),
+        createAuthClient().emailReadiness(),
+      ]);
       setUsers(loadedUsers);
       setTeachers(teacherGroups.flat());
       setClasses(classQueue);
       setPayouts(payoutQueue);
+      setPayoutProfiles(payoutProfileQueue);
+      setFailedOperations(failedQueue);
+      setEmailReadiness(loadedEmailReadiness);
       setAudits(
         [...teacherHistory, ...classHistory].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       );
@@ -211,11 +230,13 @@ export default function AdminPage() {
             </span>
             <span>
               <strong>
-                {payouts.filter((item) =>
-                  [ProviderPayoutStatus.REQUESTED, ProviderPayoutStatus.PROCESSING].includes(
-                    item.status,
-                  ),
-                ).length}
+                {
+                  payouts.filter((item) =>
+                    [ProviderPayoutStatus.REQUESTED, ProviderPayoutStatus.PROCESSING].includes(
+                      item.status,
+                    ),
+                  ).length
+                }
               </strong>{' '}
               payouts awaiting settlement
             </span>
@@ -393,6 +414,119 @@ export default function AdminPage() {
                 </article>
               ))}
             </div>
+          </AdminSection>
+
+          <AdminSection title="Payout profile verification" count={payoutProfiles.length}>
+            <div className="admin-card-grid">
+              {payoutProfiles.map((profile) => (
+                <article className="admin-review-card" key={profile.teacherId}>
+                  <div>
+                    <span className="admin-badge">{profile.kycStatus}</span>
+                    <h3>{profile.accountHolderName}</h3>
+                    <p>
+                      {profile.payoutMethod === 'bank'
+                        ? `${profile.bankName ?? 'Bank'} · •••• ${profile.accountLast4 ?? '----'} · ${profile.ifsc ?? 'IFSC missing'}`
+                        : profile.upiIdMasked}
+                    </p>
+                  </div>
+                  <p>Provider {profile.teacherId}</p>
+                  {profile.externalFundAccountId && (
+                    <p className="admin-note">Payout account: {profile.externalFundAccountId}</p>
+                  )}
+                  <div className="admin-actions">
+                    {profile.kycStatus !== 'verified' && (
+                      <button
+                        disabled={busyId === profile.teacherId}
+                        onClick={() => {
+                          const external = window
+                            .prompt('Verified Razorpay/bank fund account reference:')
+                            ?.trim();
+                          if (external)
+                            void runAction(profile.teacherId, () =>
+                              createPaymentsClient().reviewAdminPayoutProfile(
+                                profile.teacherId,
+                                'verified',
+                                external,
+                              ),
+                            );
+                        }}
+                      >
+                        Verify
+                      </button>
+                    )}
+                    {profile.kycStatus !== 'rejected' && (
+                      <button
+                        className="danger"
+                        disabled={busyId === profile.teacherId}
+                        onClick={() =>
+                          void runAction(profile.teacherId, () =>
+                            createPaymentsClient().reviewAdminPayoutProfile(
+                              profile.teacherId,
+                              'rejected',
+                            ),
+                          )
+                        }
+                      >
+                        Reject
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </AdminSection>
+
+          <AdminSection title="Failed background operations" count={failedOperations.length}>
+            <p className="admin-note">
+              Refund and notification retries appear here only after automatic retry attempts are
+              exhausted.
+            </p>
+            <div className="admin-card-grid">
+              {failedOperations.length === 0 && <p>No failed operations.</p>}
+              {failedOperations.map((job) => (
+                <article className="admin-review-card" key={job.id}>
+                  <div>
+                    <span className="admin-badge">{job.type}</span>
+                    <h3>
+                      {job.attempts}/{job.maxAttempts} attempts
+                    </h3>
+                    <p>{new Date(job.updatedAt).toLocaleString('en-IN')}</p>
+                  </div>
+                  <p className="admin-note">{job.lastError ?? 'No error detail recorded.'}</p>
+                  <div className="admin-actions">
+                    <button
+                      disabled={busyId === job.id}
+                      onClick={() =>
+                        void runAction(job.id, () => createAuthClient().retryOperation(job.id))
+                      }
+                    >
+                      Retry operation
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </AdminSection>
+
+          <AdminSection
+            title="Transactional email"
+            count={emailReadiness?.productionAccessEnabled ? 1 : 0}
+          >
+            <article className="admin-review-card">
+              <div>
+                <span className="admin-badge">
+                  {emailReadiness?.productionAccessEnabled ? 'PRODUCTION READY' : 'ACTION REQUIRED'}
+                </span>
+                <h3>{emailReadiness?.fromAddress ?? 'Sender not configured'}</h3>
+                <p>AWS SES · {emailReadiness?.region ?? 'region unavailable'}</p>
+              </div>
+              <p>
+                Sending {emailReadiness?.sendingEnabled ? 'enabled' : 'not confirmed'} · production
+                access{' '}
+                {emailReadiness?.productionAccessEnabled ? 'enabled' : 'sandboxed or unavailable'}
+              </p>
+              {emailReadiness?.error && <p className="admin-note">{emailReadiness.error}</p>}
+            </article>
           </AdminSection>
 
           <AdminSection title="Audit history" count={audits.length}>

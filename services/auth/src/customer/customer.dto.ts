@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   MinLength,
 } from 'class-validator';
 
@@ -57,6 +58,11 @@ export class CreateBookingDto {
   @IsUUID()
   childId!: string;
 
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  childIds?: string[];
+
   @IsString()
   @MinLength(1)
   classRef!: string;
@@ -83,4 +89,15 @@ export class CreateBookingDto {
   @IsOptional()
   @IsString()
   currency?: string;
+}
+
+export class JoinWaitlistDto {
+  @IsUUID() childId!: string;
+  @IsUUID() classId!: string;
+  @IsISO8601() occurrenceStart!: string;
+}
+
+export class RequestBookingRescheduleDto {
+  @IsISO8601() requestedStart!: string;
+  @IsOptional() @IsString() @MaxLength(500) reason?: string;
 }

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { VerificationStatus } from '@learn-and-build/types';
+import { type PublicTeacherProfileDto, VerificationStatus } from '@learn-and-build/types';
 import { TeacherProfile } from './entities/teacher-profile.entity';
 import { TeacherDocument } from './entities/teacher-document.entity';
 import { TeacherModerationAudit } from './entities/teacher-moderation-audit.entity';
@@ -52,6 +52,31 @@ export class TeachersService {
 
   findById(id: string): Promise<TeacherProfile | null> {
     return this.profiles.findOne({ where: { id } });
+  }
+
+  async getPublicProfile(userId: string): Promise<PublicTeacherProfileDto> {
+    const profile = await this.profiles.findOne({
+      where: { userId, verificationStatus: VerificationStatus.APPROVED },
+    });
+    if (!profile) throw new NotFoundException('Approved provider profile not found');
+    return {
+      id: profile.id,
+      userId: profile.userId,
+      displayName: profile.displayName,
+      bio: profile.bio ?? null,
+      subjects: profile.subjects ?? [],
+      locality: profile.locality ?? null,
+      city: profile.city ?? null,
+      skills: profile.skills ?? [],
+      skillDescription: profile.skillDescription ?? null,
+      yearsExperience: profile.yearsExperience ?? null,
+      portfolio: profile.portfolio ?? null,
+      instagramUrl: profile.instagramUrl ?? null,
+      preplyUrl: profile.preplyUrl ?? null,
+      urbanproUrl: profile.urbanproUrl ?? null,
+      teacheronUrl: profile.teacheronUrl ?? null,
+      verificationStatus: profile.verificationStatus,
+    };
   }
 
   async getDocumentForReview(profileId: string, documentId: string): Promise<TeacherDocument> {

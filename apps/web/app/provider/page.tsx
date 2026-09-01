@@ -322,6 +322,7 @@ export default function ProviderPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -389,7 +390,9 @@ export default function ProviderPage() {
         email: current.email || response.user.email,
       }));
     } catch (caught) {
-      setAuthError(caught instanceof Error ? caught.message : 'Could not start provider onboarding');
+      setAuthError(
+        caught instanceof Error ? caught.message : 'Could not start provider onboarding',
+      );
     } finally {
       setAuthLoading(false);
     }
@@ -427,6 +430,7 @@ export default function ProviderPage() {
               password,
               displayName: displayName.trim(),
               role: Role.TEACHER,
+              termsAccepted,
             });
       saveCustomerSession(response.accessToken, response.user);
       if (response.user.role !== Role.TEACHER) {
@@ -582,7 +586,9 @@ export default function ProviderPage() {
         </p>
 
         {!sessionReady ? (
-          <p className="section-hint" role="status">Checking your secure provider session…</p>
+          <p className="section-hint" role="status">
+            Checking your secure provider session…
+          </p>
         ) : customerAccount ? (
           <section className="provider-account-choice">
             <span className="eyebrow purple">CONTINUE WITH THIS ACCOUNT</span>
@@ -658,6 +664,20 @@ export default function ProviderPage() {
                   required
                 />
               </label>
+              {mode === 'register' && (
+                <label className="terms-consent">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(event) => setTermsAccepted(event.target.checked)}
+                    required
+                  />
+                  <span>
+                    I agree to the <a href="/terms">Terms</a>, <a href="/privacy">Privacy Policy</a>
+                    , and <a href="/provider-agreement">Provider Agreement</a>.
+                  </span>
+                </label>
+              )}
               {authError && <p className="form-error">{authError}</p>}
               <button className="primary-wide" type="submit" disabled={authLoading}>
                 {authLoading
@@ -677,346 +697,352 @@ export default function ProviderPage() {
           <>
             <ProviderWorkflow status={verificationStatus} />
             <form className="provider-form" onSubmit={saveProfile}>
-            {/* Section 1 — About you */}
-            <ProviderSection eyebrow="SECTION 1" title="About you">
-              <TextField
-                label="Full name"
-                required
-                value={form.fullName}
-                onChange={(v) => set('fullName', v)}
-              />
-              <TextField
-                label="Phone / WhatsApp number"
-                required
-                value={form.phone}
-                onChange={(v) => set('phone', v)}
-              />
-              <TextField
-                label="Email address"
-                required
-                type="email"
-                value={form.email}
-                onChange={(v) => set('email', v)}
-              />
-              <ChoiceGroup
-                label="Your age"
-                options={Object.values(ProviderAgeBand).map((v) => ({
-                  value: v,
-                  label: AGE_BAND_LABELS[v],
-                }))}
-                value={form.ageBand}
-                onChange={(v) => set('ageBand', v as ProviderAgeBand)}
-              />
-              <TextField
-                label="Which area/locality do you live in?"
-                required
-                placeholder="Nanakramguda, Kondapur, Gachibowli, Jubilee Hills"
-                value={form.locality}
-                onChange={(v) => set('locality', v)}
-              />
-              <TextField
-                label="Your city"
-                required
-                value={form.city}
-                onChange={(v) => set('city', v)}
-              />
-            </ProviderSection>
+              {/* Section 1 — About you */}
+              <ProviderSection eyebrow="SECTION 1" title="About you">
+                <TextField
+                  label="Full name"
+                  required
+                  value={form.fullName}
+                  onChange={(v) => set('fullName', v)}
+                />
+                <TextField
+                  label="Phone / WhatsApp number"
+                  required
+                  value={form.phone}
+                  onChange={(v) => set('phone', v)}
+                />
+                <TextField
+                  label="Email address"
+                  required
+                  type="email"
+                  value={form.email}
+                  onChange={(v) => set('email', v)}
+                />
+                <ChoiceGroup
+                  label="Your age"
+                  options={Object.values(ProviderAgeBand).map((v) => ({
+                    value: v,
+                    label: AGE_BAND_LABELS[v],
+                  }))}
+                  value={form.ageBand}
+                  onChange={(v) => set('ageBand', v as ProviderAgeBand)}
+                />
+                <TextField
+                  label="Which area/locality do you live in?"
+                  required
+                  placeholder="Nanakramguda, Kondapur, Gachibowli, Jubilee Hills"
+                  value={form.locality}
+                  onChange={(v) => set('locality', v)}
+                />
+                <TextField
+                  label="Your city"
+                  required
+                  value={form.city}
+                  onChange={(v) => set('city', v)}
+                />
+              </ProviderSection>
 
-            {/* Section 2 — What would you love to share? */}
-            <ProviderSection eyebrow="SECTION 2" title="What would you love to share?">
-              <ChoiceGroup
-                label="Primary category"
-                hint="Maps your profile to how families browse on Discover."
-                options={PROVIDER_CATEGORY_TAXONOMY.map((c) => ({
-                  value: c.category,
-                  label: c.label,
-                }))}
-                value={form.category}
-                onChange={(v) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    category: v as ProviderCategory,
-                    subcategories: [],
-                  }))
-                }
-              />
-              {activeSubcategories.length > 0 && (
-                <CheckGroup
-                  label="Subcategory you can teach"
-                  options={activeSubcategories.map((s) => ({ value: s, label: s }))}
-                  values={form.subcategories}
-                  onToggle={(v) => set('subcategories', toggle(form.subcategories, v))}
+              {/* Section 2 — What would you love to share? */}
+              <ProviderSection eyebrow="SECTION 2" title="What would you love to share?">
+                <ChoiceGroup
+                  label="Primary category"
+                  hint="Maps your profile to how families browse on Discover."
+                  options={PROVIDER_CATEGORY_TAXONOMY.map((c) => ({
+                    value: c.category,
+                    label: c.label,
+                  }))}
+                  value={form.category}
+                  onChange={(v) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      category: v as ProviderCategory,
+                      subcategories: [],
+                    }))
+                  }
                 />
-              )}
-              <CheckGroup
-                label="What skills would you like to teach/share with children?"
-                required
-                options={SKILL_OPTIONS.map((s) => ({ value: s, label: s }))}
-                values={form.skills}
-                onToggle={(v) => set('skills', toggle(form.skills, v))}
-              />
-              <TextArea
-                label="Tell us about your skill in your own words"
-                required
-                hint="What do you love about it? How long have you been practising it? What would you enjoy sharing with children?"
-                value={form.skillDescription}
-                onChange={(v) => set('skillDescription', v)}
-              />
-              <ChoiceGroup
-                label="How many years have you been practising this skill?"
-                options={Object.values(ProviderExperience).map((v) => ({
-                  value: v,
-                  label: EXPERIENCE_LABELS[v],
-                }))}
-                value={form.yearsExperience}
-                onChange={(v) => set('yearsExperience', v as ProviderExperience)}
-              />
-            </ProviderSection>
-
-            {/* Section 3 — Show us your work */}
-            <ProviderSection eyebrow="SECTION 3" title="Show us your work">
-              <div className="provider-links">
-                <TextField
-                  label="Instagram"
-                  type="url"
-                  placeholder="https://instagram.com/yourhandle"
-                  value={form.instagramUrl}
-                  onChange={(v) => set('instagramUrl', v)}
-                />
-                <TextField
-                  label="Preply"
-                  type="url"
-                  placeholder="https://preply.com/…"
-                  value={form.preplyUrl}
-                  onChange={(v) => set('preplyUrl', v)}
-                />
-                <TextField
-                  label="UrbanPro"
-                  type="url"
-                  placeholder="https://urbanpro.com/…"
-                  value={form.urbanproUrl}
-                  onChange={(v) => set('urbanproUrl', v)}
-                />
-                <TextField
-                  label="TeacherOn"
-                  type="url"
-                  placeholder="https://teacheron.com/…"
-                  value={form.teacheronUrl}
-                  onChange={(v) => set('teacheronUrl', v)}
-                />
-              </div>
-              <TextArea
-                label="Other portfolio / work links"
-                hint="YouTube, website, Google Drive portfolio, performances, workshops, artwork, projects or anything else that helps us understand your work."
-                value={form.portfolio}
-                onChange={(v) => set('portfolio', v)}
-              />
-              <div className="provider-label">
-                <span>Upload your portfolio (PDF)</span>
-                <small className="provider-hint">
-                  {verificationStatus === null
-                    ? 'Save your provider profile first, then attach a PDF portfolio or resume.'
-                    : 'Attach a PDF portfolio or resume. Uploaded straight to secure storage.'}
-                </small>
-                {documents.length > 0 && (
-                  <ul className="provider-docs">
-                    {documents.map((doc) => (
-                      <li key={doc.id}>
-                        <Icon name="check" size={13} /> {doc.fileName}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <label className="provider-upload">
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    onChange={uploadPortfolio}
-                    disabled={uploading || verificationStatus === null}
+                {activeSubcategories.length > 0 && (
+                  <CheckGroup
+                    label="Subcategory you can teach"
+                    options={activeSubcategories.map((s) => ({ value: s, label: s }))}
+                    values={form.subcategories}
+                    onToggle={(v) => set('subcategories', toggle(form.subcategories, v))}
                   />
-                  <span>
-                    {uploading
-                      ? 'Uploading…'
-                      : verificationStatus === null
-                        ? 'Save profile to enable upload'
-                        : 'Choose PDF file'}
-                  </span>
-                </label>
-                {uploadError && <p className="form-error">{uploadError}</p>}
-              </div>
-              <ChoiceGroup
-                label="Have you taught or worked with children before?"
-                options={Object.values(ChildrenExperience).map((v) => ({
-                  value: v,
-                  label: CHILDREN_EXPERIENCE_LABELS[v],
-                }))}
-                value={form.childrenExperience}
-                onChange={(v) => set('childrenExperience', v as ChildrenExperience)}
-              />
-              <TextArea
-                label="If yes, tell us briefly about your experience with children"
-                value={form.childrenExperienceDetail}
-                onChange={(v) => set('childrenExperienceDetail', v)}
-              />
-            </ProviderSection>
+                )}
+                <CheckGroup
+                  label="What skills would you like to teach/share with children?"
+                  required
+                  options={SKILL_OPTIONS.map((s) => ({ value: s, label: s }))}
+                  values={form.skills}
+                  onToggle={(v) => set('skills', toggle(form.skills, v))}
+                />
+                <TextArea
+                  label="Tell us about your skill in your own words"
+                  required
+                  hint="What do you love about it? How long have you been practising it? What would you enjoy sharing with children?"
+                  value={form.skillDescription}
+                  onChange={(v) => set('skillDescription', v)}
+                />
+                <ChoiceGroup
+                  label="How many years have you been practising this skill?"
+                  options={Object.values(ProviderExperience).map((v) => ({
+                    value: v,
+                    label: EXPERIENCE_LABELS[v],
+                  }))}
+                  value={form.yearsExperience}
+                  onChange={(v) => set('yearsExperience', v as ProviderExperience)}
+                />
+              </ProviderSection>
 
-            {/* Section 4 — What would you like to teach? */}
-            <ProviderSection eyebrow="SECTION 4" title="What would you like to teach?">
-              <CheckGroup
-                label="Which child age groups would you be comfortable working with?"
-                options={Object.values(ChildAgeGroup).map((v) => ({
-                  value: v,
-                  label: CHILD_AGE_GROUP_LABELS[v],
-                }))}
-                values={form.childAgeGroups}
-                onToggle={(v) =>
-                  set('childAgeGroups', toggle(form.childAgeGroups, v as ChildAgeGroup))
-                }
-              />
-              <CheckGroup
-                label="How would you prefer to teach?"
-                options={Object.values(TeachingFormat).map((v) => ({
-                  value: v,
-                  label: TEACHING_FORMAT_LABELS[v],
-                }))}
-                values={form.teachingFormats}
-                onToggle={(v) =>
-                  set('teachingFormats', toggle(form.teachingFormats, v as TeachingFormat))
-                }
-              />
-              <CheckGroup
-                label="Where would you be comfortable conducting a class?"
-                options={Object.values(ClassVenuePreference).map((v) => ({
-                  value: v,
-                  label: VENUE_LABELS[v],
-                }))}
-                values={form.venuePreferences}
-                onToggle={(v) =>
-                  set('venuePreferences', toggle(form.venuePreferences, v as ClassVenuePreference))
-                }
-              />
-              <HomeLocationField
-                address={form.homeAddress}
-                lat={form.homeLat}
-                lng={form.homeLng}
-                onResolve={(address, lat, lng) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    homeAddress: address,
-                    homeLat: lat,
-                    homeLng: lng,
-                  }))
-                }
-              />
-              <ChoiceGroup
-                label="How far are you comfortable travelling to conduct a class?"
-                options={Object.values(TravelRadius).map((v) => ({
-                  value: v,
-                  label: TRAVEL_LABELS[v],
-                }))}
-                value={form.travelRadius}
-                onChange={(v) => set('travelRadius', v as TravelRadius)}
-              />
-            </ProviderSection>
+              {/* Section 3 — Show us your work */}
+              <ProviderSection eyebrow="SECTION 3" title="Show us your work">
+                <div className="provider-links">
+                  <TextField
+                    label="Instagram"
+                    type="url"
+                    placeholder="https://instagram.com/yourhandle"
+                    value={form.instagramUrl}
+                    onChange={(v) => set('instagramUrl', v)}
+                  />
+                  <TextField
+                    label="Preply"
+                    type="url"
+                    placeholder="https://preply.com/…"
+                    value={form.preplyUrl}
+                    onChange={(v) => set('preplyUrl', v)}
+                  />
+                  <TextField
+                    label="UrbanPro"
+                    type="url"
+                    placeholder="https://urbanpro.com/…"
+                    value={form.urbanproUrl}
+                    onChange={(v) => set('urbanproUrl', v)}
+                  />
+                  <TextField
+                    label="TeacherOn"
+                    type="url"
+                    placeholder="https://teacheron.com/…"
+                    value={form.teacheronUrl}
+                    onChange={(v) => set('teacheronUrl', v)}
+                  />
+                </div>
+                <TextArea
+                  label="Other portfolio / work links"
+                  hint="YouTube, website, Google Drive portfolio, performances, workshops, artwork, projects or anything else that helps us understand your work."
+                  value={form.portfolio}
+                  onChange={(v) => set('portfolio', v)}
+                />
+                <div className="provider-label">
+                  <span>Upload your portfolio (PDF)</span>
+                  <small className="provider-hint">
+                    {verificationStatus === null
+                      ? 'Save your provider profile first, then attach a PDF portfolio or resume.'
+                      : 'Attach a PDF portfolio or resume. Uploaded straight to secure storage.'}
+                  </small>
+                  {documents.length > 0 && (
+                    <ul className="provider-docs">
+                      {documents.map((doc) => (
+                        <li key={doc.id}>
+                          <Icon name="check" size={13} /> {doc.fileName}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <label className="provider-upload">
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      onChange={uploadPortfolio}
+                      disabled={uploading || verificationStatus === null}
+                    />
+                    <span>
+                      {uploading
+                        ? 'Uploading…'
+                        : verificationStatus === null
+                          ? 'Save profile to enable upload'
+                          : 'Choose PDF file'}
+                    </span>
+                  </label>
+                  {uploadError && <p className="form-error">{uploadError}</p>}
+                </div>
+                <ChoiceGroup
+                  label="Have you taught or worked with children before?"
+                  options={Object.values(ChildrenExperience).map((v) => ({
+                    value: v,
+                    label: CHILDREN_EXPERIENCE_LABELS[v],
+                  }))}
+                  value={form.childrenExperience}
+                  onChange={(v) => set('childrenExperience', v as ChildrenExperience)}
+                />
+                <TextArea
+                  label="If yes, tell us briefly about your experience with children"
+                  value={form.childrenExperienceDetail}
+                  onChange={(v) => set('childrenExperienceDetail', v)}
+                />
+              </ProviderSection>
 
-            {/* Section 5 — Your availability */}
-            <ProviderSection eyebrow="SECTION 5" title="Your availability">
-              <CheckGroup
-                label="Which days are you generally available?"
-                options={Object.values(AvailabilityDay).map((v) => ({
-                  value: v,
-                  label: DAY_LABELS[v],
-                }))}
-                values={form.availableDays}
-                onToggle={(v) =>
-                  set('availableDays', toggle(form.availableDays, v as AvailabilityDay))
-                }
-              />
-              <CheckGroup
-                label="What time slots usually work for you?"
-                options={Object.values(TimeSlot).map((v) => ({ value: v, label: SLOT_LABELS[v] }))}
-                values={form.timeSlots}
-                onToggle={(v) => set('timeSlots', toggle(form.timeSlots, v as TimeSlot))}
-              />
-              <DateSlotPicker
-                value={form.availabilityDates}
-                onChange={(next) => set('availabilityDates', next)}
-              />
-              <TextArea
-                label="Tell us your preferred availability more specifically"
-                hint="Example: Saturday 10 AM–1 PM, Sunday 4–7 PM, weekday evenings after 5 PM."
-                value={form.preferredAvailability}
-                onChange={(v) => set('preferredAvailability', v)}
-              />
-              <ChoiceGroup
-                label="How often would you ideally like to conduct sessions?"
-                options={Object.values(SessionFrequency).map((v) => ({
-                  value: v,
-                  label: FREQUENCY_LABELS[v],
-                }))}
-                value={form.sessionFrequency}
-                onChange={(v) => set('sessionFrequency', v as SessionFrequency)}
-              />
-            </ProviderSection>
+              {/* Section 4 — What would you like to teach? */}
+              <ProviderSection eyebrow="SECTION 4" title="What would you like to teach?">
+                <CheckGroup
+                  label="Which child age groups would you be comfortable working with?"
+                  options={Object.values(ChildAgeGroup).map((v) => ({
+                    value: v,
+                    label: CHILD_AGE_GROUP_LABELS[v],
+                  }))}
+                  values={form.childAgeGroups}
+                  onToggle={(v) =>
+                    set('childAgeGroups', toggle(form.childAgeGroups, v as ChildAgeGroup))
+                  }
+                />
+                <CheckGroup
+                  label="How would you prefer to teach?"
+                  options={Object.values(TeachingFormat).map((v) => ({
+                    value: v,
+                    label: TEACHING_FORMAT_LABELS[v],
+                  }))}
+                  values={form.teachingFormats}
+                  onToggle={(v) =>
+                    set('teachingFormats', toggle(form.teachingFormats, v as TeachingFormat))
+                  }
+                />
+                <CheckGroup
+                  label="Where would you be comfortable conducting a class?"
+                  options={Object.values(ClassVenuePreference).map((v) => ({
+                    value: v,
+                    label: VENUE_LABELS[v],
+                  }))}
+                  values={form.venuePreferences}
+                  onToggle={(v) =>
+                    set(
+                      'venuePreferences',
+                      toggle(form.venuePreferences, v as ClassVenuePreference),
+                    )
+                  }
+                />
+                <HomeLocationField
+                  address={form.homeAddress}
+                  lat={form.homeLat}
+                  lng={form.homeLng}
+                  onResolve={(address, lat, lng) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      homeAddress: address,
+                      homeLat: lat,
+                      homeLng: lng,
+                    }))
+                  }
+                />
+                <ChoiceGroup
+                  label="How far are you comfortable travelling to conduct a class?"
+                  options={Object.values(TravelRadius).map((v) => ({
+                    value: v,
+                    label: TRAVEL_LABELS[v],
+                  }))}
+                  value={form.travelRadius}
+                  onChange={(v) => set('travelRadius', v as TravelRadius)}
+                />
+              </ProviderSection>
 
-            {/* Final */}
-            <ProviderSection
-              eyebrow="ONE LAST THING"
-              title="Why would you like to be part of Learn & Build? 🌱"
-            >
-              <TextArea
-                label="Share what draws you to teaching with us"
-                required
-                value={form.whyJoin}
-                onChange={(v) => set('whyJoin', v)}
-              />
-            </ProviderSection>
+              {/* Section 5 — Your availability */}
+              <ProviderSection eyebrow="SECTION 5" title="Your availability">
+                <CheckGroup
+                  label="Which days are you generally available?"
+                  options={Object.values(AvailabilityDay).map((v) => ({
+                    value: v,
+                    label: DAY_LABELS[v],
+                  }))}
+                  values={form.availableDays}
+                  onToggle={(v) =>
+                    set('availableDays', toggle(form.availableDays, v as AvailabilityDay))
+                  }
+                />
+                <CheckGroup
+                  label="What time slots usually work for you?"
+                  options={Object.values(TimeSlot).map((v) => ({
+                    value: v,
+                    label: SLOT_LABELS[v],
+                  }))}
+                  values={form.timeSlots}
+                  onToggle={(v) => set('timeSlots', toggle(form.timeSlots, v as TimeSlot))}
+                />
+                <DateSlotPicker
+                  value={form.availabilityDates}
+                  onChange={(next) => set('availabilityDates', next)}
+                />
+                <TextArea
+                  label="Tell us your preferred availability more specifically"
+                  hint="Example: Saturday 10 AM–1 PM, Sunday 4–7 PM, weekday evenings after 5 PM."
+                  value={form.preferredAvailability}
+                  onChange={(v) => set('preferredAvailability', v)}
+                />
+                <ChoiceGroup
+                  label="How often would you ideally like to conduct sessions?"
+                  options={Object.values(SessionFrequency).map((v) => ({
+                    value: v,
+                    label: FREQUENCY_LABELS[v],
+                  }))}
+                  value={form.sessionFrequency}
+                  onChange={(v) => set('sessionFrequency', v as SessionFrequency)}
+                />
+              </ProviderSection>
 
-            {saveError && <p className="form-error">{saveError}</p>}
-            {verificationStatus && (
-              <p className="provider-status-line">
-                Verification status: <strong>{verificationStatus.replaceAll('_', ' ')}</strong>
-              </p>
-            )}
-            {verificationStatus === VerificationStatus.REJECTED && rejectionReason && (
-              <p className="form-error">Moderator note: {rejectionReason}</p>
-            )}
-            {saved && (
-              <p className="provider-saved">
-                <Icon name="check" size={14} /> Profile changes saved.
-              </p>
-            )}
-            <button className="primary-wide" type="submit" disabled={saving}>
-              {saving ? 'Saving…' : 'Save provider profile'}
-            </button>
-            {verificationStatus && (
-              <Link className="primary-wide provider-studio-link" href="/provider/classes">
-                Open class studio
-              </Link>
-            )}
-            {(verificationStatus === VerificationStatus.PENDING ||
-              verificationStatus === VerificationStatus.REJECTED) &&
-              documents.length === 0 && (
-                <p className="section-hint">
-                  Save your profile and upload a PDF document above — your profile is submitted
-                  for review automatically once a document is added.
+              {/* Final */}
+              <ProviderSection
+                eyebrow="ONE LAST THING"
+                title="Why would you like to be part of Learn & Build? 🌱"
+              >
+                <TextArea
+                  label="Share what draws you to teaching with us"
+                  required
+                  value={form.whyJoin}
+                  onChange={(v) => set('whyJoin', v)}
+                />
+              </ProviderSection>
+
+              {saveError && <p className="form-error">{saveError}</p>}
+              {verificationStatus && (
+                <p className="provider-status-line">
+                  Verification status: <strong>{verificationStatus.replaceAll('_', ' ')}</strong>
                 </p>
               )}
-            {(verificationStatus === VerificationStatus.PENDING ||
-              verificationStatus === VerificationStatus.REJECTED) &&
-              documents.length > 0 && (
-                <button
-                  className="secondary-wide"
-                  type="button"
-                  onClick={submitForReview}
-                  disabled={submittingReview}
-                >
-                  {submittingReview ? 'Submitting…' : 'Submit profile for review now'}
-                </button>
+              {verificationStatus === VerificationStatus.REJECTED && rejectionReason && (
+                <p className="form-error">Moderator note: {rejectionReason}</p>
               )}
-            <button className="secondary-wide" type="button" onClick={signOut}>
-              Sign out of provider account
-            </button>
+              {saved && (
+                <p className="provider-saved">
+                  <Icon name="check" size={14} /> Profile changes saved.
+                </p>
+              )}
+              <button className="primary-wide" type="submit" disabled={saving}>
+                {saving ? 'Saving…' : 'Save provider profile'}
+              </button>
+              {verificationStatus && (
+                <Link className="primary-wide provider-studio-link" href="/provider/classes">
+                  Open class studio
+                </Link>
+              )}
+              {(verificationStatus === VerificationStatus.PENDING ||
+                verificationStatus === VerificationStatus.REJECTED) &&
+                documents.length === 0 && (
+                  <p className="section-hint">
+                    Save your profile and upload a PDF document above — your profile is submitted
+                    for review automatically once a document is added.
+                  </p>
+                )}
+              {(verificationStatus === VerificationStatus.PENDING ||
+                verificationStatus === VerificationStatus.REJECTED) &&
+                documents.length > 0 && (
+                  <button
+                    className="secondary-wide"
+                    type="button"
+                    onClick={submitForReview}
+                    disabled={submittingReview}
+                  >
+                    {submittingReview ? 'Submitting…' : 'Submit profile for review now'}
+                  </button>
+                )}
+              <button className="secondary-wide" type="button" onClick={signOut}>
+                Sign out of provider account
+              </button>
             </form>
           </>
         )}
@@ -1250,9 +1276,7 @@ function DateSlotPicker({
       if (openDate === date) setOpenDate(null);
       return;
     }
-    onChange(
-      value.map((e) => (e.date === date ? { ...e, slots: [...ALL_DAY_SLOTS] } : e)),
-    );
+    onChange(value.map((e) => (e.date === date ? { ...e, slots: [...ALL_DAY_SLOTS] } : e)));
   }
 
   const selected = [...value].sort((a, b) => a.date.localeCompare(b.date));
@@ -1261,8 +1285,8 @@ function DateSlotPicker({
     <div className="provider-label">
       <span>Pick the dates and times you can teach</span>
       <small className="provider-hint">
-        Choose dates in the next two months, then tap a selected date to fine-tune its
-        9am–9pm slots.
+        Choose dates in the next two months, then tap a selected date to fine-tune its 9am–9pm
+        slots.
       </small>
 
       <div className="avail-calendar" role="group" aria-label="Available dates">
@@ -1324,9 +1348,7 @@ function DateSlotPicker({
 
       {selected.length > 0 && (
         <div className="avail-summary">
-          <span className="avail-summary-title">
-            Selected days ({selected.length})
-          </span>
+          <span className="avail-summary-title">Selected days ({selected.length})</span>
           <ul>
             {selected.map((e) => (
               <li key={e.date}>
@@ -1437,8 +1459,8 @@ function HomeLocationField({
     <div className="provider-label">
       <span>Home location</span>
       <small className="provider-hint">
-        Use your current location or search an address. This sets the map point we
-        measure commute distance from.
+        Use your current location or search an address. This sets the map point we measure commute
+        distance from.
       </small>
       <div className="home-loc-row">
         <input
@@ -1453,7 +1475,12 @@ function HomeLocationField({
             }
           }}
         />
-        <button type="button" className="home-loc-btn" onClick={() => void searchAddress()} disabled={searching}>
+        <button
+          type="button"
+          className="home-loc-btn"
+          onClick={() => void searchAddress()}
+          disabled={searching}
+        >
           {searching ? '…' : 'Search'}
         </button>
         <button type="button" className="home-loc-btn gps" onClick={useGps} disabled={geoBusy}>

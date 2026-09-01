@@ -61,6 +61,7 @@ test.describe.serial('live production journeys', () => {
     await page.getByLabel('Your name').fill(`Smoke Customer ${runId}`);
     await page.getByLabel('Email').fill(customerEmail);
     await page.getByLabel('Password').fill(password);
+    await page.getByRole('checkbox', { name: /I agree to the Terms/ }).check();
     await page.getByRole('button', { name: 'Create account & sync' }).click();
     await expect(page.getByText('API CONNECTED')).toBeVisible();
     expect(
@@ -132,7 +133,10 @@ test.describe.serial('live production journeys', () => {
     await bookedDialog.getByRole('link', { name: 'View my bookings' }).click();
     await expect(page.getByText('CONFIRMED')).toBeVisible();
     await page.getByRole('button', { name: 'Cancel booking' }).click();
-    await page.getByRole('dialog', { name: 'Cancel booking' }).getByRole('button', { name: 'Yes, cancel booking' }).click();
+    await page
+      .getByRole('dialog', { name: 'Cancel booking' })
+      .getByRole('button', { name: 'Yes, cancel booking' })
+      .click();
     await expect(page.getByRole('heading', { name: 'No bookings yet' })).toBeVisible();
 
     const released = await discoverClass(request, 'build-a-car');
@@ -188,7 +192,7 @@ test.describe.serial('live production journeys', () => {
     await expect(page.getByText(/Verification status: submitted/i)).toBeVisible();
     await page.screenshot({ path: `${screenshotDir}/provider-profile.png`, fullPage: true });
 
-    await page.getByRole('link', { name: 'Open Provider Studio' }).click();
+    await page.getByRole('link', { name: 'Open class studio' }).click();
     await expect(page.getByRole('heading', { name: 'Class details' })).toBeVisible();
     await page.getByLabel('Class name').fill(className);
     await page
@@ -216,7 +220,7 @@ test.describe.serial('live production journeys', () => {
     await expect(page.getByLabel(/Phone \/ WhatsApp number/)).toHaveValue('9000000000');
     await expect(page.getByText(`smoke-portfolio-${runId}.pdf`)).toBeVisible();
 
-    await page.goto('/teacher');
+    await page.goto('/provider/classes');
     await expect(page.getByRole('heading', { name: 'Class details' })).toBeVisible();
     await expect(page.getByText(className, { exact: true })).toBeVisible();
     expect(pageErrors).toEqual([]);
@@ -248,7 +252,8 @@ test.describe.serial('live production journeys', () => {
       '/children',
       '/profile',
       '/provider',
-      '/teacher',
+      '/provider/classes',
+      '/provider/earnings',
       '/admin',
     ]) {
       await page.goto(route);

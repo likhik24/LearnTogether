@@ -151,7 +151,13 @@ services:
       auth:
         condition: service_healthy
     healthcheck:
-      test: [CMD, node, -e, "fetch('http://localhost:3007/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://localhost:3007/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -172,6 +178,7 @@ services:
       APP_URL: ${PUBLIC_ORIGIN:-https://www.learnandbuild.org}
       AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM:-}
       AWS_REGION: ${AWS_REGION:-ap-southeast-2}
+      DOCUMENTS_BUCKET: ${DOCUMENTS_BUCKET:?Set DOCUMENTS_BUCKET}
       SCHEDULING_API_URL: http://scheduling:3004
       PAYMENTS_API_URL: http://payments:3007
       INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?Set INTERNAL_SERVICE_SECRET}
