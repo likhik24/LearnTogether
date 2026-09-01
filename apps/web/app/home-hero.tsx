@@ -7,7 +7,11 @@ import { toClassCard } from '../lib/class-data';
 import { getPrimaryChild } from '../lib/customer-session';
 import type { ClassCardData } from './data';
 import { ClassCard, Icon } from './ui';
-import { readCustomerLocation, subscribeCustomerLocation } from '../lib/customer-location';
+import {
+  customerDiscoveryCoordinates,
+  readCustomerLocation,
+  subscribeCustomerLocation,
+} from '../lib/customer-location';
 
 export function HomeHero() {
   const [origin, setOrigin] = useState(readCustomerLocation);
@@ -23,7 +27,10 @@ export function HomeHero() {
     let active = true;
     void Promise.all([
       getPrimaryChild(),
-      createSchedulingClient().discoverClasses({ ...origin, radiusMeters: 5_000, days: 21 }),
+      createSchedulingClient().discoverClasses({
+        ...customerDiscoveryCoordinates(origin),
+        days: 21,
+      }),
     ])
       .then(([child, offerings]) => {
         if (!active) return;
@@ -51,7 +58,7 @@ export function HomeHero() {
     return () => {
       active = false;
     };
-  }, [origin.lat, origin.lng]);
+  }, [origin?.lat, origin?.lng]);
 
   const displayName = name ?? 'your child';
   const initial = name?.charAt(0).toUpperCase();
@@ -85,7 +92,7 @@ export function HomeHero() {
             <p>
               {interests.length
                 ? `Because ${displayName} loves ${interestText}, ${featured.category.toLowerCase()} feels like a lovely match.`
-                : `A nearby ${featured.category.toLowerCase()} class we think ${displayName} will enjoy.`}
+                : `A ${origin ? 'nearby ' : ''}${featured.category.toLowerCase()} class we think ${displayName} will enjoy.`}
             </p>
             <Link className="light-button" href={`/classes/${featured.slug}`}>
               See why we picked this <span>→</span>

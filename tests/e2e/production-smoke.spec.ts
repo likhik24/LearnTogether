@@ -31,6 +31,10 @@ async function discoverClass(request: APIRequestContext, slug: string) {
 }
 
 test.describe.serial('live production journeys', () => {
+  test.skip(
+    process.env.RUN_PRODUCTION_E2E !== 'true',
+    'Set RUN_PRODUCTION_E2E=true with E2E_BASE_URL for live production checks.',
+  );
   test('customer account, child, discovery, saved class, booking and notifications', async ({
     page,
     request,

@@ -11,7 +11,11 @@ import {
 } from '../../lib/customer-session';
 import type { ClassCardData } from '../data';
 import { AppHeader, BottomNav, Icon } from '../ui';
-import { readCustomerLocation, subscribeCustomerLocation } from '../../lib/customer-location';
+import {
+  customerDiscoveryCoordinates,
+  readCustomerLocation,
+  subscribeCustomerLocation,
+} from '../../lib/customer-location';
 
 const tabs = ['For You', 'Today', 'Weekend', 'Saved'] as const;
 type TimelineTab = (typeof tabs)[number];
@@ -37,7 +41,10 @@ export default function RecommendationsPage() {
         setSignedIn(Boolean(user));
         const customer = user ? getCustomerClient() : null;
         return Promise.all([
-          createSchedulingClient().discoverClasses({ ...origin, radiusMeters: 5_000, days: 21 }),
+          createSchedulingClient().discoverClasses({
+            ...customerDiscoveryCoordinates(origin),
+            days: 21,
+          }),
           getPrimaryChild(),
           customer ? customer.listSavedClasses().catch(() => []) : Promise.resolve([]),
         ]);
@@ -73,7 +80,7 @@ export default function RecommendationsPage() {
     return () => {
       active = false;
     };
-  }, [origin.lat, origin.lng]);
+  }, [origin?.lat, origin?.lng]);
 
   const events = useMemo(() => {
     if (activeTab === 'For You') return items.slice(0, 6);

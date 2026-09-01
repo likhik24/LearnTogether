@@ -10,6 +10,7 @@ import {
   subscribeCustomerSession,
 } from '../lib/customer-session';
 import {
+  clearCustomerLocation,
   customerLocations,
   readCustomerLocation,
   saveCustomerLocation,
@@ -129,7 +130,7 @@ export function Icon({
 }
 
 export function AppHeader({ greeting = true }: { greeting?: boolean }) {
-  const [location, setLocation] = useState('Hitech City, Hyderabad');
+  const [location, setLocation] = useState<string | null>(null);
   const [locationOpen, setLocationOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [user, setUser] = useState<PublicUser | null>(null);
@@ -141,7 +142,7 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
   const [notificationActionError, setNotificationActionError] = useState(false);
 
   useEffect(() => {
-    setLocation(readCustomerLocation().label);
+    setLocation(readCustomerLocation()?.label ?? null);
     const hour = new Date().getHours();
     setGreetingText(hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening');
     let active = true;
@@ -177,6 +178,12 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
   }, []);
 
   function chooseLocation(nextLocation: string) {
+    if (nextLocation === '') {
+      setLocation(null);
+      clearCustomerLocation();
+      setLocationOpen(false);
+      return;
+    }
     setLocation(nextLocation);
     const selected = customerLocations.find((item) => item.label === nextLocation);
     if (selected) saveCustomerLocation(selected);
@@ -217,7 +224,7 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
             onClick={() => setLocationOpen(true)}
           >
             <Icon name="location" size={16} />
-            <span>{location}</span>
+            <span>{location ?? 'All locations'}</span>
             <Icon className="location-chevron" name="chevronDown" size={14} />
           </button>
         </div>
@@ -330,6 +337,20 @@ export function AppHeader({ greeting = true }: { greeting?: boolean }) {
               </button>
             </div>
             <p>We’ll use this to show nearby classes and travel times.</p>
+            <button
+              type="button"
+              className={location === null ? 'location-option active' : 'location-option'}
+              onClick={() => chooseLocation('')}
+            >
+              <Icon name="search" size={18} />
+              <span>
+                All locations
+                <small>
+                  {location === null ? 'Showing every available class' : 'Browse all classes'}
+                </small>
+              </span>
+              {location === null && <Icon name="check" size={18} />}
+            </button>
             {customerLocations.map((item) => (
               <button
                 className={item.label === location ? 'location-option active' : 'location-option'}

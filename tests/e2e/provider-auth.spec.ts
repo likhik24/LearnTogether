@@ -241,8 +241,7 @@ test('provider entry, password sign-in, studio session, logout and re-login work
 
   await page.goto('/');
   await page.getByRole('link', { name: 'Provider sign in or apply' }).click();
-  await expect(page).toHaveURL(/\/teacher$/);
-  await page.goto('/provider');
+  await expect(page).toHaveURL(/\/provider$/);
   await expect(page.getByRole('button', { name: 'Provider sign in' })).toHaveAttribute(
     'class',
     /active/,
@@ -259,26 +258,42 @@ test('provider entry, password sign-in, studio session, logout and re-login work
   await page.getByRole('button', { name: 'Sign in to Provider Studio' }).click();
   await expect(page.getByRole('heading', { name: 'Welcome, Meera Shah.' })).toBeVisible();
 
-  await page.getByRole('link', { name: 'Provider studio', exact: true }).click();
+  await page
+    .getByRole('link', { name: '3. Studio Create and manage classes.', exact: true })
+    .click();
   await expect(page.getByRole('heading', { name: 'Class details' })).toBeVisible();
   await expect(page.getByText('Existing Robotics Club', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Sessions, families & earnings' })).toBeVisible();
-  await page.getByRole('button', { name: 'Request payout' }).click();
-  await expect(page.getByText(/Payout requested/)).toBeVisible();
-  expect(payoutRequested).toBe(true);
-
-  await page.getByText('Recent Robotics Lab', { exact: true }).locator('..').locator('..').getByRole('button', { name: 'Open roster' }).click();
-  await expect(page.getByText('family@example.com')).toBeVisible();
-  await page.getByRole('button', { name: 'Present' }).click();
-  expect(attendanceMarked).toBe(true);
-  await page.getByRole('button', { name: 'Close session manager' }).click();
-
-  await page.getByText('Upcoming Robotics Lab', { exact: true }).locator('..').locator('..').getByRole('button', { name: 'Manage session' }).click();
+  await page.getByRole('button', { name: 'Manage session' }).click();
   await page.getByLabel('Replacement date and time').fill('2031-05-24T10:30');
   await page.getByLabel('Message to families').fill('Venue maintenance');
   await page.getByRole('button', { name: 'Reschedule session' }).click();
   await expect(page.getByText(/Session rescheduled and families notified/)).toBeVisible();
   expect(occurrenceChanged).toBe(true);
+
+  await page
+    .getByRole('navigation', { name: 'Provider studio tabs' })
+    .getByRole('link', { name: 'Earnings', exact: true })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Earnings & finished sessions.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Request payout' }).click();
+  await expect(page.getByText(/Payout requested/)).toBeVisible();
+  expect(payoutRequested).toBe(true);
+
+  await page
+    .getByText('Recent Robotics Lab', { exact: true })
+    .locator('..')
+    .locator('..')
+    .getByRole('button', { name: 'Open roster' })
+    .click();
+  await expect(page.getByText('family@example.com')).toBeVisible();
+  await page.getByRole('button', { name: 'Present' }).click();
+  expect(attendanceMarked).toBe(true);
+  await page.getByRole('button', { name: 'Close session manager' }).click();
+
+  await page
+    .getByRole('navigation', { name: 'Provider studio tabs' })
+    .getByRole('link', { name: 'Classes', exact: true })
+    .click();
   await page.getByRole('button', { name: 'Sign out of Provider Studio' }).click();
   await expect(page.getByRole('button', { name: 'Open provider studio' })).toBeVisible();
   await page.getByLabel('Email').fill(provider.email);
@@ -287,7 +302,7 @@ test('provider entry, password sign-in, studio session, logout and re-login work
   await expect(page.getByText('Existing Robotics Club', { exact: true })).toBeVisible();
 
   await page.setViewportSize({ width: 1440, height: 1000 });
-  for (const route of ['/teacher', '/provider']) {
+  for (const route of ['/provider/classes', '/provider']) {
     await page.goto(route);
     await expect(page.locator('body')).toBeVisible();
     const overflow = await page.evaluate(
@@ -406,6 +421,15 @@ test('a family account can complete provider onboarding, review submission, and 
     }
     return route.fulfill({ status: 404, body: '{}' });
   });
+  await page.route('**/api/geocode?**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        results: [{ label: 'Hitech City Studio, Hyderabad', lat: '17.4485', lng: '78.3915' }],
+      }),
+    }),
+  );
 
   await page.goto('/provider');
   await expect(page.getByRole('heading', { name: 'Ananya Rao, become a provider?' })).toBeVisible();
@@ -440,10 +464,12 @@ test('a family account can complete provider onboarding, review submission, and 
   await expect(page.getByText(/Verification status: submitted/i)).toBeVisible();
   expect(submitted).toBe(true);
 
-  await page.getByRole('link', { name: 'Open Provider Studio' }).click();
+  await page.getByRole('link', { name: 'Open class studio' }).click();
   await expect(page.getByText(/Profile review: submitted/i)).toBeVisible();
   await page.getByLabel('Class name').fill('Saturday Robotics Lab');
-  await page.getByLabel('Venue name').fill('Hitech City Studio');
+  await page.getByPlaceholder('Search a studio, address or landmark').fill('Hitech City Studio');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await page.getByRole('button', { name: 'Hitech City Studio, Hyderabad' }).click();
   await page.getByRole('button', { name: 'Submit class for approval' }).click();
   await expect(
     page.getByText('Class submitted. It will appear in discovery after moderation.'),
