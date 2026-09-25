@@ -169,14 +169,19 @@ describe('PaymentsService', () => {
     });
     payments.find.mockResolvedValue([payment]);
     const manager = { save: jest.fn(async (value) => value), query: jest.fn() };
+    manager.query
+      .mockResolvedValueOnce([{ reservation_id: 'reservation-1' }])
+      .mockResolvedValueOnce([]);
     db.transaction.mockImplementation(async (work: (value: typeof manager) => unknown) =>
       work(manager),
     );
     await expect(service.expirePending()).resolves.toBe(1);
     expect(payment.status).toBe(PaymentStatus.FAILED);
-    expect(manager.query).toHaveBeenCalledWith(expect.stringContaining('class_reservations'), [
-      'booking-1',
-    ]);
+    expect(manager.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('class_reservations'),
+      ['reservation-1'],
+    );
   });
 
   it('prevents overlapping payout requests for the same provider', async () => {
