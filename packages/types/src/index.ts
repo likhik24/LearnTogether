@@ -658,6 +658,7 @@ export interface BookingDto {
   scheduledStart: string;
   amountMinor: number;
   currency: string;
+  paymentRequired: boolean;
   status: BookingStatus;
   attendanceStatus: AttendanceStatus | null;
   attendanceNotes: string | null;

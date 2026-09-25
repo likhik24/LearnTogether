@@ -224,6 +224,7 @@ export class ProviderOperationsService {
     const affected = await this.db.query<Array<{ id: string }>>(
       `SELECT id FROM bookings
        WHERE class_ref = $1 AND scheduled_start = $2
+         AND payment_required = true
          AND status IN ('pending_payment', 'confirmed')`,
       [classId, original],
     );

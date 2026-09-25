@@ -28,6 +28,7 @@ interface BookingRow {
   class_ref: string;
   amount_minor: number;
   currency: string;
+  payment_required: boolean;
   status: BookingStatus;
 }
 interface WebhookPayload {
@@ -67,6 +68,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     const booking = await this.bookingForUser(userId, bookingId);
     if (booking.status === BookingStatus.CANCELLED)
       throw new BadRequestException('Cancelled bookings cannot be paid');
+    if (!booking.payment_required)
+      throw new BadRequestException('This booking does not require payment');
     let payment = await this.payments.findOne({ where: { bookingId, userId } });
     if (!payment) {
       payment = this.payments.create({
@@ -111,6 +114,9 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     input: { providerOrderId: string; providerPaymentId: string; signature: string },
   ): Promise<Payment> {
     const payment = await this.ownedPayment(userId, id);
+    const booking = await this.bookingForUser(userId, payment.bookingId);
+    if (!booking.payment_required)
+      throw new BadRequestException('This booking does not require payment');
     if (payment.status === PaymentStatus.SUCCEEDED) return payment;
     if (payment.status === PaymentStatus.REFUNDED)
       throw new BadRequestException('This payment was refunded');
@@ -359,13 +365,25 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
     if (orderId) {
       const payment = await this.payments.findOne({ where: { providerOrderId: orderId } });
       if (payment) {
-        if (event === 'payment.captured' || event === 'order.paid') {
+        if (
+          (event === 'payment.captured' || event === 'order.paid') &&
+          payment.status !== PaymentStatus.REFUNDED
+        ) {
           const captured = await this.gateway.capturedPaymentForOrder(
             orderId,
             payment.amountMinor,
             payment.currency,
           );
-          await this.markSucceeded(payment, captured.id);
+          const booking = await this.bookingForUser(payment.userId, payment.bookingId);
+          if (!booking.payment_required) {
+            await this.gateway.refund(captured.id, payment.amountMinor);
+            payment.status = PaymentStatus.REFUNDED;
+            payment.providerRef = captured.id;
+            payment.failureReason = 'Payment returned because this booking does not require payment';
+            await this.payments.save(payment);
+          } else {
+            await this.markSucceeded(payment, captured.id);
+          }
         }
         if (event === 'payment.failed' && payment.status === PaymentStatus.PENDING) {
           payment.status = PaymentStatus.FAILED;
@@ -387,14 +405,20 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
         payment.status = PaymentStatus.FAILED;
         payment.failureReason = 'Payment window expired';
         await manager.save(payment);
-        await manager.query(
-          `UPDATE bookings SET status = $1, updated_at = now() WHERE id = $2 AND status = $3`,
+        const cancelledBookings = await manager.query<Array<{ reservation_id: string | null }>>(
+          `UPDATE bookings SET status = $1, updated_at = now()
+           WHERE id = $2 AND status = $3 AND payment_required = true
+           RETURNING reservation_id`,
           [BookingStatus.CANCELLED, payment.bookingId, BookingStatus.PENDING_PAYMENT],
         );
-        await manager.query(
-          `UPDATE class_reservations SET status = 'cancelled', updated_at = now() WHERE id = (SELECT reservation_id::uuid FROM bookings WHERE id = $1) AND status = 'reserved'`,
-          [payment.bookingId],
-        );
+        for (const booking of cancelledBookings) {
+          if (!booking.reservation_id) continue;
+          await manager.query(
+            `UPDATE class_reservations SET status = 'cancelled', updated_at = now()
+             WHERE id::text = $1 AND status = 'reserved'`,
+            [booking.reservation_id],
+          );
+        }
       });
     }
     return due.length;
@@ -402,7 +426,8 @@ export class PaymentsService implements OnModuleInit, OnModuleDestroy {
 
   private async bookingForUser(userId: string, bookingId: string): Promise<BookingRow> {
     const rows = await this.db.query<BookingRow[]>(
-      `SELECT id, user_id, class_ref, amount_minor, currency, status FROM bookings WHERE id = $1 AND user_id = $2`,
+      `SELECT id, user_id, class_ref, amount_minor, currency, payment_required, status
+       FROM bookings WHERE id = $1 AND user_id = $2`,
       [bookingId, userId],
     );
     if (!rows[0]) throw new NotFoundException('Booking not found');

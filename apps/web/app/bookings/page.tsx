@@ -273,10 +273,11 @@ export default function BookingsPage() {
                       }).format(start)}
                     </p>
                     <small>
-                      {booking.childName ? `For ${booking.childName} • ` : ''}₹
-                      {booking.amountMinor / 100}{' '}
-                      {booking.status === BookingStatus.PENDING_PAYMENT ? 'due online' : 'paid'} •
-                      Synced with your account
+                      {booking.childName ? `For ${booking.childName} • ` : ''}
+                      {booking.paymentRequired
+                        ? `₹${booking.amountMinor / 100} ${booking.status === BookingStatus.PENDING_PAYMENT ? 'due online' : 'paid'}`
+                        : 'No payment required'}
+                      {' • Synced with your account'}
                     </small>
                   </div>
                   <div className="booking-actions">

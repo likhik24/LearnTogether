@@ -48,6 +48,9 @@ export class Booking {
   @Column({ default: 'INR' })
   currency!: string;
 
+  @Column({ name: 'payment_required', type: 'boolean', default: true })
+  paymentRequired!: boolean;
+
   @Column({ type: 'enum', enum: BookingStatus, default: BookingStatus.PENDING_PAYMENT })
   status!: BookingStatus;
 
@@ -77,6 +80,7 @@ export class Booking {
       scheduledStart: this.scheduledStart?.toISOString() ?? new Date().toISOString(),
       amountMinor: this.amountMinor,
       currency: this.currency,
+      paymentRequired: this.paymentRequired,
       status: this.status,
       attendanceStatus: this.attendanceStatus ?? null,
       attendanceNotes: this.attendanceNotes ?? null,

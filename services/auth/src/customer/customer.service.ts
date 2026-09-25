@@ -12,7 +12,6 @@ import { SavedClass } from './entities/saved-class.entity';
 import { Booking } from './entities/booking.entity';
 import { CustomerNotification } from './entities/customer-notification.entity';
 import { SchedulingGateway } from './scheduling.gateway';
-import { PaymentsGateway } from './payments.gateway';
 import { ClassWaitlist } from './entities/class-waitlist.entity';
 import { BookingRescheduleRequest } from './entities/booking-reschedule-request.entity';
 
@@ -34,7 +33,6 @@ export class CustomerService {
     @InjectRepository(BookingRescheduleRequest)
     private readonly reschedules: Repository<BookingRescheduleRequest>,
     private readonly scheduling: SchedulingGateway,
-    private readonly payments: PaymentsGateway,
     private readonly db: DataSource,
   ) {}
 
@@ -131,7 +129,6 @@ export class CustomerService {
       currency?: string;
     },
   ): Promise<Booking> {
-    await this.payments.assertReady();
     const requestedIds = [...new Set(input.childIds?.length ? input.childIds : [input.childId])];
     const selectedChildren = await this.children.find({ where: { id: In(requestedIds), userId } });
     if (selectedChildren.length !== requestedIds.length)
@@ -164,6 +161,18 @@ export class CustomerService {
     });
     if (existing) {
       if (existing.childId === child.id && existing.seatCount === selectedChildren.length) {
+        if (existing.status === BookingStatus.PENDING_PAYMENT) {
+          existing.status = BookingStatus.CONFIRMED;
+          existing.paymentRequired = false;
+          const confirmed = await this.bookings.save(existing);
+          await this.notify(
+            userId,
+            'booking',
+            `${confirmed.title} is confirmed`,
+            'Your class reservation is confirmed. No payment is required.',
+          );
+          return confirmed;
+        }
         return existing;
       }
       throw new ConflictException(
@@ -193,7 +202,8 @@ export class CustomerService {
             scheduledStart,
             amountMinor: offering.priceMinor * selectedChildren.length,
             currency: offering.currency,
-            status: BookingStatus.PENDING_PAYMENT,
+            paymentRequired: false,
+            status: BookingStatus.CONFIRMED,
           }),
         );
         await manager.query(
@@ -213,8 +223,18 @@ export class CustomerService {
     await this.notify(
       userId,
       'booking',
-      `${booking.title} is awaiting payment`,
-      'Complete payment within 20 minutes to confirm this trial-class spot.',
+      `${booking.title} is confirmed`,
+      'Your class reservation is confirmed. No payment is required.',
+    );
+    await this.db.query(
+      `INSERT INTO customer_notifications (user_id, kind, title, body, read_at)
+       SELECT teacher_id, 'booking', $2, $3, NULL::timestamptz
+       FROM class_offerings WHERE id::text = $1`,
+      [
+        offering.id,
+        'New class reservation',
+        `${booking.childName ?? 'A learner'} reserved ${booking.title}. No payment was collected.`,
+      ],
     );
     return booking;
   }
@@ -236,14 +256,16 @@ export class CustomerService {
       }
       booking.status = BookingStatus.CANCELLED;
       const cancelled = await manager.save(booking);
-      await manager.query(
-        `INSERT INTO operation_jobs
+      if (booking.paymentRequired !== false) {
+        await manager.query(
+          `INSERT INTO operation_jobs
            (type, payload, status, attempts, max_attempts, next_attempt_at, idempotency_key)
          VALUES ('refund_booking', jsonb_build_object('bookingId', $1::text),
                  'pending', 0, 8, now(), 'refund-booking:' || $1::text)
          ON CONFLICT (idempotency_key) DO NOTHING`,
-        [booking.id],
-      );
+          [booking.id],
+        );
+      }
       await manager.query(
         `INSERT INTO operation_jobs
            (type, payload, status, attempts, max_attempts, next_attempt_at, idempotency_key)
@@ -258,7 +280,7 @@ export class CustomerService {
         [
           userId,
           `${booking.title} cancelled`,
-          'The booking was removed and any captured payment has been queued for refund.',
+          'The booking was removed. Any captured payment will be refunded.',
         ],
       );
       await manager.query(

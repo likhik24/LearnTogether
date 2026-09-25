@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   scheduled_start   timestamptz NOT NULL,
   amount_minor      integer NOT NULL DEFAULT 0,
   currency          varchar NOT NULL DEFAULT 'INR',
+  payment_required  boolean NOT NULL DEFAULT true,
   status            public.bookings_status_enum NOT NULL DEFAULT 'pending_payment',
   attendance_status varchar,
   attendance_notes  text,

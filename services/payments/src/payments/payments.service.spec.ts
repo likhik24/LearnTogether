@@ -64,6 +64,7 @@ describe('PaymentsService', () => {
         class_ref: 'class-1',
         amount_minor: 49900,
         currency: 'INR',
+        payment_required: true,
         status: BookingStatus.PENDING_PAYMENT,
       },
     ]);
@@ -89,6 +90,17 @@ describe('PaymentsService', () => {
       providerOrderId: 'order-1',
     });
     payments.findOne.mockResolvedValue(payment);
+    db.query.mockResolvedValueOnce([
+      {
+        id: 'booking-1',
+        user_id: 'user-1',
+        class_ref: 'class-1',
+        amount_minor: 49900,
+        currency: 'INR',
+        payment_required: true,
+        status: BookingStatus.PENDING_PAYMENT,
+      },
+    ]);
     await service.verify('user-1', 'payment-1', {
       providerOrderId: 'order-1',
       providerPaymentId: 'pay-1',
@@ -119,6 +131,7 @@ describe('PaymentsService', () => {
 
   it('recovers a captured checkout from a signed order webhook', async () => {
     const payment = Object.assign(new Payment(), {
+      userId: 'user-1',
       bookingId: 'booking-1',
       amountMinor: 49900,
       currency: 'INR',
@@ -127,6 +140,17 @@ describe('PaymentsService', () => {
     });
     events.findOne.mockResolvedValue(null);
     payments.findOne.mockResolvedValue(payment);
+    db.query.mockResolvedValueOnce([
+      {
+        id: 'booking-1',
+        user_id: 'user-1',
+        class_ref: 'class-1',
+        amount_minor: 49900,
+        currency: 'INR',
+        payment_required: true,
+        status: BookingStatus.PENDING_PAYMENT,
+      },
+    ]);
     gateway.capturedPaymentForOrder.mockResolvedValue({ id: 'pay-1' });
     await service.webhook('event-1', {
       event: 'order.paid',

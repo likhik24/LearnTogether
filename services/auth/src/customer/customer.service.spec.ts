@@ -7,7 +7,6 @@ import { ChildProfile } from './entities/child-profile.entity';
 import { CustomerNotification } from './entities/customer-notification.entity';
 import { SavedClass } from './entities/saved-class.entity';
 import { SchedulingGateway } from './scheduling.gateway';
-import { PaymentsGateway } from './payments.gateway';
 import { ClassWaitlist } from './entities/class-waitlist.entity';
 import { BookingRescheduleRequest } from './entities/booking-reschedule-request.entity';
 
@@ -34,7 +33,6 @@ describe('CustomerService', () => {
   let waitlists: Repo<ClassWaitlist>;
   let reschedules: Repo<BookingRescheduleRequest>;
   let scheduling: jest.Mocked<Pick<SchedulingGateway, 'getClass' | 'reserve' | 'release'>>;
-  let payments: jest.Mocked<Pick<PaymentsGateway, 'assertReady'>>;
   let service: CustomerService;
   const manager = {
     query: jest.fn().mockResolvedValue([]),
@@ -54,7 +52,6 @@ describe('CustomerService', () => {
     waitlists = repository();
     reschedules = repository();
     scheduling = { getClass: jest.fn(), reserve: jest.fn(), release: jest.fn() };
-    payments = { assertReady: jest.fn().mockResolvedValue(undefined) };
     service = new CustomerService(
       children as unknown as Repository<ChildProfile>,
       saved as unknown as Repository<SavedClass>,
@@ -63,7 +60,6 @@ describe('CustomerService', () => {
       waitlists as unknown as Repository<ClassWaitlist>,
       reschedules as unknown as Repository<BookingRescheduleRequest>,
       scheduling as unknown as SchedulingGateway,
-      payments as unknown as PaymentsGateway,
       db as unknown as DataSource,
     );
   });

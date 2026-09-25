@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import { ApiError } from '@learn-and-build/api-client';
 import { getCustomerClient, hydrateCustomerSession } from '../lib/customer-session';
 import { createSchedulingClient } from '../lib/api';
-import { runPaymentCheckout } from '../lib/payment-checkout';
 import { Icon } from './ui';
 import type { ClassCardData } from './data';
 import type {
@@ -254,7 +253,7 @@ export function BookingBar({
         setStep('booked');
         return;
       }
-      const booking = await customerClient.createBooking({
+      await customerClient.createBooking({
         childId: selectedChild.id,
         childIds: selectedChildIds,
         classRef: inventory.classId,
@@ -264,7 +263,6 @@ export function BookingBar({
         amountMinor: price * 100,
         currency: 'INR',
       });
-      await runPaymentCheckout(booking);
       setStep('booked');
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) {
@@ -278,7 +276,7 @@ export function BookingBar({
             ? 'That class has just sold out. Please choose another time.'
             : caught instanceof Error
               ? caught.message
-              : 'We could not complete payment. Please try again.',
+              : 'We could not complete the reservation. Please try again.',
         );
       }
     } finally {
@@ -315,7 +313,7 @@ export function BookingBar({
       <aside className="booking-bar">
         <div>
           <span>
-            <strong>₹{price}</strong> trial class
+            <strong>₹{price}</strong> class price
           </span>
           <small>
             {inventoryLoading ? (
@@ -442,10 +440,10 @@ export function BookingBar({
                   {bookingPending
                     ? isWaitlist
                       ? 'Joining waitlist…'
-                      : 'Opening secure payment…'
+                      : 'Reserving…'
                     : isWaitlist
                       ? `Join waitlist for ${selectedChild?.name ?? 'child'}`
-                      : `Pay ₹${price * selectedChildIds.length} & reserve ${selectedChildIds.length} ${selectedChildIds.length === 1 ? 'seat' : 'seats'}`}
+                      : `Reserve ${selectedChildIds.length} ${selectedChildIds.length === 1 ? 'seat' : 'seats'}`}
                 </button>
                 {!isWaitlist &&
                   selectedOccurrence &&
@@ -459,7 +457,7 @@ export function BookingBar({
                 <small>
                   {isWaitlist
                     ? 'No charge now. We will notify you when a seat opens.'
-                    : 'Secure online checkout. Your seat is confirmed after payment succeeds.'}
+                    : 'No payment is required to reserve or attend this class.'}
                 </small>
               </>
             ) : (
@@ -471,7 +469,7 @@ export function BookingBar({
                 <p>
                   {isWaitlist
                     ? 'We will notify you when a place becomes available.'
-                    : 'Payment received and the workshop is in your bookings.'}
+                    : 'Your reservation is confirmed and is in your bookings. No payment is required.'}
                   <br />
                   {scheduleLabel}
                 </p>
