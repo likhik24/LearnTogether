@@ -3,6 +3,7 @@ import type { ClassCardData } from '../app/data';
 import { CLASS_TIME_ZONE } from './class-time';
 
 function parentVisibleDescription(description: string | null): string | undefined {
+  if (!description) return undefined;
   const visible = description.replace(/(?:^|\r?\n)[ \t]*keywords[ \t]*:[\s\S]*$/i, '').trim();
   return visible || undefined;
 }
