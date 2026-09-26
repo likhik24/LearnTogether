@@ -1,5 +1,11 @@
 import type { DiscoverClassDto } from '@learn-and-build/types';
 import type { ClassCardData } from '../app/data';
+import { CLASS_TIME_ZONE } from './class-time';
+
+function parentVisibleDescription(description: string | null): string | undefined {
+  const visible = description.replace(/(?:^|\r?\n)[ \t]*keywords[ \t]*:[\s\S]*$/i, '').trim();
+  return visible || undefined;
+}
 
 export function toClassCard(item: DiscoverClassDto): ClassCardData {
   const occurrence = item.nextOccurrence ? new Date(item.nextOccurrence.start) : null;
@@ -25,6 +31,7 @@ export function toClassCard(item: DiscoverClassDto): ClassCardData {
     age: `${item.ageMin}–${item.ageMax} years`,
     time: occurrence
       ? new Intl.DateTimeFormat('en-IN', {
+          timeZone: CLASS_TIME_ZONE,
           weekday: 'short',
           hour: 'numeric',
           minute: '2-digit',
@@ -46,7 +53,7 @@ export function toClassCard(item: DiscoverClassDto): ClassCardData {
     longitude: item.location?.lng,
     venueName: item.venueName ?? undefined,
     durationMinutes: item.durationMinutes,
-    description: item.description ?? undefined,
+    description: parentVisibleDescription(item.description),
   };
 }
 

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { createSchedulingClient } from '../../lib/api';
 import { toClassCard } from '../../lib/class-data';
+import { CLASS_TIME_ZONE } from '../../lib/class-time';
 import {
   getCustomerClient,
   getPrimaryChild,
@@ -131,9 +132,28 @@ export default function RecommendationsPage() {
         </div>
         <div className="timeline-date-row">
           <div>
-            <span>{leadDate.toLocaleDateString('en-IN', { weekday: 'short' }).toUpperCase()}</span>
-            <strong>{leadDate.getDate()}</strong>
-            <small>{leadDate.toLocaleDateString('en-IN', { month: 'short' }).toUpperCase()}</small>
+            <span>
+              {leadDate
+                .toLocaleDateString('en-IN', {
+                  timeZone: CLASS_TIME_ZONE,
+                  weekday: 'short',
+                })
+                .toUpperCase()}
+            </span>
+            <strong>
+              {new Intl.DateTimeFormat('en-IN', {
+                timeZone: CLASS_TIME_ZONE,
+                day: 'numeric',
+              }).format(leadDate)}
+            </strong>
+            <small>
+              {leadDate
+                .toLocaleDateString('en-IN', {
+                  timeZone: CLASS_TIME_ZONE,
+                  month: 'short',
+                })
+                .toUpperCase()}
+            </small>
           </div>
           <p>
             <strong>
@@ -172,7 +192,11 @@ export default function RecommendationsPage() {
                 >
                   <time>
                     {start
-                      ? start.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })
+                      ? start.toLocaleTimeString('en-IN', {
+                          timeZone: CLASS_TIME_ZONE,
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })
                       : 'TBA'}
                   </time>
                   <span className="timeline-node" />

@@ -12,6 +12,7 @@ import type {
 import { BookingStatus } from '@learn-and-build/types';
 import { getCustomerClient, hydrateCustomerSession } from '../../lib/customer-session';
 import { runPaymentCheckout } from '../../lib/payment-checkout';
+import { CLASS_TIME_ZONE } from '../../lib/class-time';
 import { AppHeader, BottomNav, Icon } from '../ui';
 import { ChildName } from '../child-name';
 import { createSchedulingClient } from '../../lib/api';
@@ -241,17 +242,28 @@ export default function BookingsPage() {
               const existingReview = reviews.find((item) => item.bookingId === booking.id);
               const canReview =
                 booking.status === BookingStatus.CONFIRMED && start.getTime() < Date.now();
-              const month = new Intl.DateTimeFormat('en-IN', { month: 'short' })
+              const month = new Intl.DateTimeFormat('en-IN', {
+                timeZone: CLASS_TIME_ZONE,
+                month: 'short',
+              })
                 .format(start)
                 .toUpperCase();
-              const weekday = new Intl.DateTimeFormat('en-IN', { weekday: 'short' })
+              const weekday = new Intl.DateTimeFormat('en-IN', {
+                timeZone: CLASS_TIME_ZONE,
+                weekday: 'short',
+              })
                 .format(start)
                 .toUpperCase();
               return (
                 <article className="booked-card" key={booking.id}>
                   <div className="booking-date">
                     <span>{month}</span>
-                    <strong>{start.getDate()}</strong>
+                    <strong>
+                      {new Intl.DateTimeFormat('en-IN', {
+                        timeZone: CLASS_TIME_ZONE,
+                        day: 'numeric',
+                      }).format(start)}
+                    </strong>
                     <small>{weekday}</small>
                   </div>
                   <div>
@@ -265,6 +277,7 @@ export default function BookingsPage() {
                     <h2>{booking.title}</h2>
                     <p>
                       {new Intl.DateTimeFormat('en-IN', {
+                        timeZone: CLASS_TIME_ZONE,
                         weekday: 'short',
                         day: 'numeric',
                         month: 'short',
@@ -347,13 +360,17 @@ export default function BookingsPage() {
                     <h2>{item.childName}</h2>
                     <p>
                       {new Intl.DateTimeFormat('en-IN', {
+                        timeZone: CLASS_TIME_ZONE,
                         dateStyle: 'medium',
                         timeStyle: 'short',
                       }).format(new Date(item.occurrenceStart))}
                     </p>
                     {item.offerExpiresAt && (
                       <small>
-                        Seat offer expires {new Date(item.offerExpiresAt).toLocaleString('en-IN')}
+                        Seat offer expires{' '}
+                        {new Date(item.offerExpiresAt).toLocaleString('en-IN', {
+                          timeZone: CLASS_TIME_ZONE,
+                        })}
                       </small>
                     )}
                   </div>
@@ -503,7 +520,10 @@ export default function BookingsPage() {
               >
                 {rescheduleOptions.map((item) => (
                   <option key={item.start} value={item.start}>
-                    {new Date(item.start).toLocaleString('en-IN')} · {item.seatsAvailable} seats
+                    {new Date(item.start).toLocaleString('en-IN', {
+                      timeZone: CLASS_TIME_ZONE,
+                    })}{' '}
+                    · {item.seatsAvailable} seats
                   </option>
                 ))}
               </select>

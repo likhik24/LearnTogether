@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ApiError } from '@learn-and-build/api-client';
 import { getCustomerClient, hydrateCustomerSession } from '../lib/customer-session';
 import { createSchedulingClient } from '../lib/api';
+import { CLASS_TIME_ZONE } from '../lib/class-time';
 import { Icon } from './ui';
 import type { ClassCardData } from './data';
 import type {
@@ -287,6 +288,7 @@ export function BookingBar({
   const selectedOccurrence = inventory?.occurrences.find((item) => item.start === selectedStart);
   const scheduleLabel = selectedOccurrence
     ? new Intl.DateTimeFormat('en-IN', {
+        timeZone: CLASS_TIME_ZONE,
         weekday: 'short',
         day: 'numeric',
         month: 'short',
@@ -488,6 +490,7 @@ export function BookingBar({
 
 function formatOccurrence(value: string): string {
   return new Intl.DateTimeFormat('en-IN', {
+    timeZone: CLASS_TIME_ZONE,
     weekday: 'short',
     day: 'numeric',
     month: 'short',

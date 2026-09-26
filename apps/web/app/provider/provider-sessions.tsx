@@ -9,8 +9,10 @@ import {
   type ProviderSessionDto,
 } from '@learn-and-build/types';
 import { createAuthClient } from '../../lib/api';
+import { CLASS_TIME_ZONE } from '../../lib/class-time';
 
 export const DATE_TIME = new Intl.DateTimeFormat('en-IN', {
+  timeZone: CLASS_TIME_ZONE,
   weekday: 'short',
   day: 'numeric',
   month: 'short',

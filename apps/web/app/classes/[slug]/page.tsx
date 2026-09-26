@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { DiscoverClassDto, PublicTeacherProfileDto } from '@learn-and-build/types';
 import { toClassCard } from '../../../lib/class-data';
+import { CLASS_TIME_ZONE } from '../../../lib/class-time';
 import {
   BookingBar,
   ClassLocationMap,
@@ -69,7 +70,7 @@ export default async function ClassDetailsPage({ params }: { params: Promise<{ s
             </span>
             <h1>{item.title}</h1>
             <p>
-              {offering.description ||
+              {item.description ||
                 `A playful, hands-on ${item.category.toLowerCase()} class led by a verified Learn & Build provider.`}
             </p>
             <div className="rating-line">
@@ -106,7 +107,12 @@ export default async function ClassDetailsPage({ params }: { params: Promise<{ s
                 <span>
                   Fits an upcoming{' '}
                   <strong>
-                    {start ? start.toLocaleDateString('en-IN', { weekday: 'long' }) : 'weekend'}
+                    {start
+                      ? start.toLocaleDateString('en-IN', {
+                          timeZone: CLASS_TIME_ZONE,
+                          weekday: 'long',
+                        })
+                      : 'weekend'}
                   </strong>{' '}
                   routine
                 </span>
@@ -126,20 +132,37 @@ export default async function ClassDetailsPage({ params }: { params: Promise<{ s
               <div className="date-tile">
                 <span>
                   {start
-                    ? start.toLocaleDateString('en-IN', { month: 'short' }).toUpperCase()
+                    ? start
+                        .toLocaleDateString('en-IN', {
+                          timeZone: CLASS_TIME_ZONE,
+                          month: 'short',
+                        })
+                        .toUpperCase()
                     : 'TBA'}
                 </span>
-                <strong>{start?.getDate() ?? '—'}</strong>
+                <strong>
+                  {start
+                    ? new Intl.DateTimeFormat('en-IN', {
+                        timeZone: CLASS_TIME_ZONE,
+                        day: 'numeric',
+                      }).format(start)
+                    : '—'}
+                </strong>
                 <small>
                   {start
-                    ? start.toLocaleDateString('en-IN', { weekday: 'short' }).toUpperCase()
+                    ? start
+                        .toLocaleDateString('en-IN', {
+                          timeZone: CLASS_TIME_ZONE,
+                          weekday: 'short',
+                        })
+                        .toUpperCase()
                     : ''}
                 </small>
               </div>
               <div>
                 <strong>
                   {start && end
-                    ? `${start.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} – ${end.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`
+                    ? `${start.toLocaleTimeString('en-IN', { timeZone: CLASS_TIME_ZONE, hour: 'numeric', minute: '2-digit' })} – ${end.toLocaleTimeString('en-IN', { timeZone: CLASS_TIME_ZONE, hour: 'numeric', minute: '2-digit' })}`
                     : 'Schedule coming soon'}
                 </strong>
                 <span>
