@@ -318,6 +318,14 @@ export default function TeacherPage() {
     await loadClasses();
   }
 
+  async function replacePoster(id: string, file: File) {
+    const client = getCustomerSchedulingClient();
+    if (!client) throw new Error('Sign in again to update this class.');
+    const imageUrl = await createTeacherClient().uploadClassImage(file);
+    await client.updateClass(id, { imageUrl });
+    await loadClasses();
+  }
+
   async function uploadImage(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -472,6 +480,7 @@ export default function TeacherPage() {
                 classes,
                 onChangeStatus: changeStatus,
                 onSaveTimings: saveTimings,
+                onReplacePoster: replacePoster,
               }}
             />
             <section className="provider-status-line">

@@ -13,6 +13,7 @@ export interface ProviderClassControls {
   classes: ClassOfferingDto[];
   onChangeStatus: (id: string, status: ClassOfferingStatus) => void;
   onSaveTimings: (id: string, timings: { weekday: number; startMinute: number }[]) => Promise<void>;
+  onReplacePoster: (id: string, file: File) => Promise<void>;
 }
 
 type TimingRow = { weekday: number; start: string };
@@ -42,7 +43,7 @@ function toMinutes(start: string): number {
  * finished sessions live on the /provider/earnings tab.
  */
 export function ProviderOperations({ classControls }: { classControls: ProviderClassControls }) {
-  const { classes, onChangeStatus, onSaveTimings } = classControls;
+  const { classes, onChangeStatus, onSaveTimings, onReplacePoster } = classControls;
   const state = useProviderSessions();
   const { firstUpcomingByClass, openRoster, message, error } = state;
 
@@ -60,6 +61,7 @@ export function ProviderOperations({ classControls }: { classControls: ProviderC
             next={firstUpcomingByClass.get(item.id)}
             onChangeStatus={onChangeStatus}
             onSaveTimings={onSaveTimings}
+            onReplacePoster={onReplacePoster}
             onManageSession={openRoster}
           />
         ))}
@@ -80,17 +82,22 @@ function ClassCard({
   next,
   onChangeStatus,
   onSaveTimings,
+  onReplacePoster,
   onManageSession,
 }: {
   item: ClassOfferingDto;
   next: ProviderSessionDto | undefined;
   onChangeStatus: (id: string, status: ClassOfferingStatus) => void;
   onSaveTimings: (id: string, timings: { weekday: number; startMinute: number }[]) => Promise<void>;
+  onReplacePoster: (id: string, file: File) => Promise<void>;
   onManageSession: (session: ProviderSessionDto) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [rows, setRows] = useState<TimingRow[]>([]);
   const [saving, setSaving] = useState(false);
+  const [posterSaving, setPosterSaving] = useState(false);
+  const [posterMessage, setPosterMessage] = useState<string | null>(null);
+  const [posterError, setPosterError] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
 
   function startEdit() {
@@ -125,6 +132,28 @@ function ClassCard({
     }
   }
 
+  async function replacePoster(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setPosterError('Choose a JPG, PNG, or WebP image.');
+      setPosterMessage(null);
+      return;
+    }
+    setPosterSaving(true);
+    setPosterError(null);
+    setPosterMessage(null);
+    try {
+      await onReplacePoster(item.id, file);
+      setPosterMessage('Poster updated. The class is awaiting moderation.');
+    } catch (caught) {
+      setPosterError(caught instanceof Error ? caught.message : 'Could not update the poster.');
+    } finally {
+      setPosterSaving(false);
+    }
+  }
+
   return (
     <article className="provider-class-block">
       <div className="provider-class-copy">
@@ -148,6 +177,16 @@ function ClassCard({
           <small className="moderation-reason">Moderator note: {item.moderationReason}</small>
         )}
         <div className="provider-class-actions">
+          <label className="provider-poster-change">
+            {posterSaving ? 'Uploading…' : 'Change poster'}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              aria-label={`Choose a new poster for ${item.activity}`}
+              disabled={posterSaving}
+              onChange={replacePoster}
+            />
+          </label>
           <button type="button" onClick={editing ? () => setEditing(false) : startEdit}>
             {editing ? 'Close' : 'Edit timings'}
           </button>
@@ -170,6 +209,8 @@ function ClassCard({
             </button>
           )}
         </div>
+        {posterMessage && <p className="form-success">{posterMessage}</p>}
+        {posterError && <p className="form-error">{posterError}</p>}
       </div>
 
       {editing && (

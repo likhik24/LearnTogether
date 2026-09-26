@@ -397,6 +397,8 @@ body > section input, body > section select, body > section button { padding: 9p
 .provider-statuses span[data-status="rejected"], .provider-statuses span[data-status="unpublished"] { color: #9a493b; background: #fcede9; }
 .provider-class-actions { justify-content: flex-end; }
 .provider-class-actions button { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--purple); background: white; font-size: 8px; font-weight: 800; cursor: pointer; }
+.provider-poster-change { position: relative; display: inline-flex; align-items: center; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--purple); background: white; font-size: 8px; font-weight: 800; cursor: pointer; }
+.provider-poster-change input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .provider-class-actions button.danger { color: #9a493b; }
 .moderation-reason { color: #9a493b !important; }
 

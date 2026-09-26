@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import type { DiscoverClassDto, PublicTeacherProfileDto } from '@learn-and-build/types';
+import {
+  ProviderExperience,
+  type DiscoverClassDto,
+  type PublicTeacherProfileDto,
+} from '@learn-and-build/types';
 import { toClassCard } from '../../../lib/class-data';
 import { CLASS_TIME_ZONE } from '../../../lib/class-time';
 import {
@@ -13,6 +17,20 @@ import { BottomNav, Icon } from '../../ui';
 import { ChildName, ChildInterests } from '../../child-name';
 
 export const dynamic = 'force-dynamic';
+
+const PROVIDER_EXPERIENCE_LABELS: Record<ProviderExperience, string> = {
+  [ProviderExperience.LT_1]: 'Less than 1 year of experience',
+  [ProviderExperience.Y_1_3]: '1–3 years of experience',
+  [ProviderExperience.Y_3_5]: '3–5 years of experience',
+  [ProviderExperience.Y_5_10]: '5–10 years of experience',
+  [ProviderExperience.Y_10_PLUS]: '10+ years of experience',
+};
+
+function formatProviderExperience(
+  experience: PublicTeacherProfileDto['yearsExperience'],
+): string | null {
+  return experience ? PROVIDER_EXPERIENCE_LABELS[experience] : null;
+}
 
 async function loadClass(slug: string): Promise<DiscoverClassDto | null> {
   const origin = process.env.SCHEDULING_SERVICE_ORIGIN ?? 'http://localhost:3004';
@@ -218,7 +236,11 @@ export default async function ClassDetailsPage({ params }: { params: Promise<{ s
               </p>
               <small>
                 {provider
-                  ? [provider.yearsExperience, provider.locality, provider.city]
+                  ? [
+                      formatProviderExperience(provider.yearsExperience),
+                      provider.locality,
+                      provider.city,
+                    ]
                       .filter(Boolean)
                       .join(' • ')
                   : 'Contact details are shared only with confirmed families.'}
