@@ -167,6 +167,62 @@ describe('ClassesService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('extends an existing family reservation when there is room for another child', async () => {
+    const now = new Date();
+    const isoDay = now.getUTCDay() || 7;
+    const daysUntilMonday = isoDay === 1 && now.getUTCHours() < 18 ? 0 : (8 - isoDay) % 7 || 7;
+    const occurrence = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilMonday, 18),
+    );
+    const offering = Object.assign(new ClassOffering(), {
+      id: 'c-1',
+      seats: 3,
+      durationMinutes: 60,
+      timings: [{ weekday: 1, startMinute: 18 * 60 }],
+      status: ClassOfferingStatus.ACTIVE,
+      moderationStatus: ClassModerationStatus.APPROVED,
+    });
+    const existing = Object.assign(new ClassReservation(), {
+      id: 'reservation-1',
+      userId: 'user-1',
+      classId: 'c-1',
+      occurrenceStart: occurrence,
+      seats: 1,
+      status: ReservationStatus.RESERVED,
+    });
+    const reservationRepo = {
+      findOne: jest.fn().mockResolvedValue(existing),
+      create: jest.fn(),
+      save: jest.fn(async (value) => value),
+      createQueryBuilder: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ reserved: '2' }),
+      }),
+    };
+    const manager = {
+      query: jest.fn().mockResolvedValue([]),
+      getRepository: jest.fn((entity) =>
+        entity === ClassOffering
+          ? { findOne: jest.fn().mockResolvedValue(offering) }
+          : reservationRepo,
+      ),
+    };
+    dataSource.transaction.mockImplementation(async (_isolation, callback) =>
+      callback(manager as never),
+    );
+
+    const result = await service.reserve('user-1', 'c-1', {
+      occurrenceStart: occurrence.toISOString(),
+      seats: 2,
+    });
+
+    expect(result.seats).toBe(2);
+    expect(reservationRepo.save).toHaveBeenCalledWith(existing);
+    expect(reservationRepo.create).not.toHaveBeenCalled();
+  });
+
   it('cancels an owned reservation idempotently', async () => {
     const reservation = Object.assign(new ClassReservation(), {
       status: ReservationStatus.CANCELLED,

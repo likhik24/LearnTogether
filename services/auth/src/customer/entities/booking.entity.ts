@@ -30,6 +30,9 @@ export class Booking {
   @Column({ name: 'child_id', type: 'uuid', nullable: true })
   childId!: string | null;
 
+  @Column({ name: 'child_ids', type: 'jsonb', default: () => "'[]'::jsonb" })
+  childIds!: string[];
+
   @Column({ name: 'child_name', type: 'varchar', nullable: true })
   childName!: string | null;
 

@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ApiError } from '@learn-and-build/api-client';
+import { BookingStatus } from '@learn-and-build/types';
 import { getCustomerClient, hydrateCustomerSession } from '../lib/customer-session';
 import { createSchedulingClient } from '../lib/api';
 import { CLASS_TIME_ZONE } from '../lib/class-time';
 import { Icon } from './ui';
 import type { ClassCardData } from './data';
 import type {
+  BookingDto,
   ChildProfileDto,
   ClassOccurrence,
   PublicClassReviewDto,
@@ -155,7 +157,7 @@ export function BookingBar({
   } | null>(null);
   const [selectedStart, setSelectedStart] = useState('');
   const [children, setChildren] = useState<ChildProfileDto[]>([]);
-  const [selectedChildId, setSelectedChildId] = useState('');
+  const [familyBookings, setFamilyBookings] = useState<BookingDto[]>([]);
   const [selectedChildIds, setSelectedChildIds] = useState<string[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(true);
 
@@ -205,13 +207,16 @@ export function BookingBar({
         setAccessReason('book');
         return;
       }
-      const children = await client.listChildren();
+      const [children, bookings] = await Promise.all([
+        client.listChildren(),
+        client.listBookings(),
+      ]);
       if (children.length === 0) {
         setAccessReason('child-required');
         return;
       }
       setChildren(children);
-      setSelectedChildId((current) => current || children[0].id);
+      setFamilyBookings(bookings);
       setSelectedChildIds((current) => (current.length ? current : [children[0].id]));
       setStep('held');
     } catch (caught) {
@@ -246,15 +251,19 @@ export function BookingBar({
     }
     try {
       if (occurrence.seatsAvailable < 1) {
-        await customerClient.joinWaitlist({
-          childId: selectedChild.id,
-          classId: inventory.classId,
-          occurrenceStart: occurrence.start,
-        });
+        await Promise.all(
+          selectedChildren.map((child) =>
+            customerClient.joinWaitlist({
+              childId: child.id,
+              classId: inventory.classId,
+              occurrenceStart: occurrence.start,
+            }),
+          ),
+        );
         setStep('booked');
         return;
       }
-      await customerClient.createBooking({
+      const booking = await customerClient.createBooking({
         childId: selectedChild.id,
         childIds: selectedChildIds,
         classRef: inventory.classId,
@@ -264,6 +273,10 @@ export function BookingBar({
         amountMinor: price * 100,
         currency: 'INR',
       });
+      setFamilyBookings((current) => [
+        booking,
+        ...current.filter((item) => item.id !== booking.id),
+      ]);
       setStep('booked');
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) {
@@ -286,6 +299,13 @@ export function BookingBar({
   }
 
   const selectedOccurrence = inventory?.occurrences.find((item) => item.start === selectedStart);
+  const existingSeatCount =
+    familyBookings.find(
+      (booking) =>
+        booking.classRef === inventory?.classId &&
+        booking.scheduledStart === selectedStart &&
+        booking.status !== BookingStatus.CANCELLED,
+    )?.seatCount ?? 0;
   const scheduleLabel = selectedOccurrence
     ? new Intl.DateTimeFormat('en-IN', {
         timeZone: CLASS_TIME_ZONE,
@@ -296,7 +316,6 @@ export function BookingBar({
         minute: '2-digit',
       }).format(new Date(selectedOccurrence.start))
     : 'Next Saturday • 10:30 AM';
-  const selectedChild = children.find((child) => child.id === selectedChildId);
   const selectedChildren = children.filter((child) => selectedChildIds.includes(child.id));
   const eligibility =
     selectedChildren.length && inventory
@@ -309,6 +328,15 @@ export function BookingBar({
   const availableOccurrences =
     inventory?.occurrences.filter((item) => item.seatsAvailable > 0) ?? [];
   const isWaitlist = Boolean(selectedOccurrence && selectedOccurrence.seatsAvailable < 1);
+  const bookingExceedsCapacity =
+    !isWaitlist &&
+    (selectedOccurrence?.seatsAvailable ?? 0) + existingSeatCount < selectedChildIds.length;
+  const waitlistLabel = `Join waitlist for ${selectedChildIds.length} ${
+    selectedChildIds.length === 1 ? 'child' : 'children'
+  }`;
+  const reservationLabel = `Reserve ${selectedChildIds.length} ${
+    selectedChildIds.length === 1 ? 'seat' : 'seats'
+  }`;
 
   return (
     <>
@@ -384,7 +412,7 @@ export function BookingBar({
                 <h2>Choose who and when.</h2>
                 <p>{title}</p>
                 <fieldset className="booking-options">
-                  <legend>Child</legend>
+                  <legend>Children attending</legend>
                   {children.map((child) => (
                     <button
                       type="button"
@@ -392,7 +420,6 @@ export function BookingBar({
                       aria-pressed={selectedChildIds.includes(child.id)}
                       className={selectedChildIds.includes(child.id) ? 'active' : ''}
                       onClick={() => {
-                        setSelectedChildId(child.id);
                         setSelectedChildIds((current) =>
                           current.includes(child.id)
                             ? current.length > 1
@@ -431,12 +458,7 @@ export function BookingBar({
                 )}
                 <button
                   className="primary-wide"
-                  disabled={
-                    bookingPending ||
-                    !eligibility?.eligible ||
-                    (!isWaitlist &&
-                      (selectedOccurrence?.seatsAvailable ?? 0) < selectedChildIds.length)
-                  }
+                  disabled={bookingPending || !eligibility?.eligible || bookingExceedsCapacity}
                   onClick={() => void confirmBooking()}
                 >
                   {bookingPending
@@ -444,17 +466,15 @@ export function BookingBar({
                       ? 'Joining waitlist…'
                       : 'Reserving…'
                     : isWaitlist
-                      ? `Join waitlist for ${selectedChild?.name ?? 'child'}`
-                      : `Reserve ${selectedChildIds.length} ${selectedChildIds.length === 1 ? 'seat' : 'seats'}`}
+                      ? waitlistLabel
+                      : reservationLabel}
                 </button>
-                {!isWaitlist &&
-                  selectedOccurrence &&
-                  selectedOccurrence.seatsAvailable < selectedChildIds.length && (
-                    <p className="booking-error">
-                      Only {selectedOccurrence.seatsAvailable} seats remain. Select fewer children
-                      or another session.
-                    </p>
-                  )}
+                {bookingExceedsCapacity && (
+                  <p className="booking-error">
+                    This session does not have enough seats for the selected children. Select fewer
+                    children or another session.
+                  </p>
+                )}
                 {bookingError && <small className="booking-error">{bookingError}</small>}
                 <small>
                   {isWaitlist

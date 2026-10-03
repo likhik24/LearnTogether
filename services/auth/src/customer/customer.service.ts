@@ -160,7 +160,35 @@ export class CustomerService {
       },
     });
     if (existing) {
-      if (existing.childId === child.id && existing.seatCount === selectedChildren.length) {
+      const storedChildIds = existing.childIds?.length
+        ? existing.childIds
+        : existing.childId
+          ? [existing.childId]
+          : [];
+      const ownedChildren = await this.children.find({ where: { userId } });
+      let existingChildIds = storedChildIds;
+      // Older multi-child bookings kept the names and seat count, but only the
+      // first child's id. Recover the siblings when their names still match.
+      if (existingChildIds.length < existing.seatCount && existing.childName) {
+        const priorNames = existing.childName.split(',').map((name) => name.trim());
+        const matchedChildren = ownedChildren.filter((item) => priorNames.includes(item.name));
+        if (matchedChildren.length === existing.seatCount) {
+          existingChildIds = matchedChildren.map((item) => item.id);
+        }
+      }
+      const combinedChildIds = [...new Set([...existingChildIds, ...requestedIds])];
+      const priorNames = existing.childName?.split(',').map((name) => name.trim()) ?? [];
+      const newlySelectedCount = selectedChildren.filter(
+        (item) => !existingChildIds.includes(item.id) && !priorNames.includes(item.name),
+      ).length;
+      const combinedSeatCount = Math.max(
+        existing.seatCount + newlySelectedCount,
+        combinedChildIds.length,
+      );
+      if (
+        combinedChildIds.length === existingChildIds.length &&
+        combinedSeatCount === existing.seatCount
+      ) {
         if (existing.status === BookingStatus.PENDING_PAYMENT) {
           existing.status = BookingStatus.CONFIRMED;
           existing.paymentRequired = false;
@@ -175,9 +203,81 @@ export class CustomerService {
         }
         return existing;
       }
-      throw new ConflictException(
-        'This class time is already reserved. Cancel the existing booking before changing children.',
+
+      const previousReservationId = existing.reservationId;
+      const previousSeatCount = existing.seatCount;
+      const reservation = await this.scheduling.reserve(
+        authorization,
+        offering.id,
+        input.scheduledStart,
+        combinedSeatCount,
       );
+      const knownNames = new Map(ownedChildren.map((item) => [item.id, item.name]));
+      for (const item of selectedChildren) knownNames.set(item.id, item.name);
+      const mergedNames = combinedChildIds
+        .map((id) => knownNames.get(id))
+        .filter((name): name is string => Boolean(name));
+      const childName =
+        mergedNames.length === combinedSeatCount
+          ? mergedNames.join(', ')
+          : [
+              ...priorNames,
+              ...selectedChildren
+                .filter((item) => !priorNames.includes(item.name))
+                .map((item) => item.name),
+            ].join(', ');
+      existing.childId = existing.childId ?? child.id;
+      existing.childIds = combinedChildIds;
+      existing.childName = childName;
+      existing.seatCount = combinedSeatCount;
+      existing.reservationId = reservation.id;
+      existing.amountMinor = offering.priceMinor * combinedSeatCount;
+      existing.currency = offering.currency;
+      existing.paymentRequired = false;
+      existing.status = BookingStatus.CONFIRMED;
+      existing.classSlug = offering.slug ?? input.classSlug ?? existing.classSlug;
+      existing.title = offering.activity;
+
+      try {
+        await this.db.transaction(async (manager) => {
+          await manager.save(existing);
+          await manager.query(
+            `UPDATE class_waitlists SET status = 'joined', offer_expires_at = NULL, updated_at = now()
+             WHERE user_id = $1 AND class_id = $2 AND occurrence_start = $3
+               AND child_id = ANY($4::uuid[]) AND status IN ('waiting', 'offered')`,
+            [userId, offering.id, scheduledStart, requestedIds],
+          );
+        });
+      } catch (error) {
+        if (previousReservationId) {
+          await this.scheduling
+            .reserve(authorization, offering.id, input.scheduledStart, previousSeatCount)
+            .catch(() => undefined);
+        } else {
+          await this.scheduling
+            .release(authorization, offering.id, reservation.id)
+            .catch(() => undefined);
+        }
+        throw error;
+      }
+
+      await this.notify(
+        userId,
+        'booking',
+        `${existing.title} reservation updated`,
+        `Your reservation now includes ${childName}. No payment is required.`,
+      );
+      await this.db.query(
+        `INSERT INTO customer_notifications (user_id, kind, title, body, read_at)
+         SELECT teacher_id, 'booking', $2, $3, NULL::timestamptz
+         FROM class_offerings WHERE id::text = $1`,
+        [
+          offering.id,
+          'Booking updated',
+          `${childName} reserved ${existing.title}. No payment was collected.`,
+        ],
+      );
+      return existing;
     }
 
     const reservation = await this.scheduling.reserve(
@@ -196,6 +296,7 @@ export class CustomerService {
             classSlug: offering.slug ?? input.classSlug ?? null,
             reservationId: reservation.id,
             childId: child.id,
+            childIds: requestedIds,
             childName: selectedChildren.map((item) => item.name).join(', '),
             seatCount: selectedChildren.length,
             title: offering.activity,

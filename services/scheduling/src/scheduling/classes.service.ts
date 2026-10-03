@@ -343,7 +343,6 @@ export class ClassesService {
       const existing = await reservations.findOne({
         where: { userId, classId, occurrenceStart, status: ReservationStatus.RESERVED },
       });
-      if (existing) return existing;
 
       const raw = await reservations
         .createQueryBuilder('reservation')
@@ -353,8 +352,15 @@ export class ClassesService {
         .andWhere('reservation.status = :status', { status: ReservationStatus.RESERVED })
         .getRawOne<{ reserved: string }>();
       const reserved = Number(raw?.reserved ?? 0);
-      if (reserved + dto.seats > offering.seats) {
+      const seatsBeingReplaced = existing?.seats ?? 0;
+      if (reserved - seatsBeingReplaced + dto.seats > offering.seats) {
         throw new ConflictException('Not enough seats remain for this class');
+      }
+
+      if (existing) {
+        if (existing.seats === dto.seats) return existing;
+        existing.seats = dto.seats;
+        return reservations.save(existing);
       }
 
       return reservations.save(

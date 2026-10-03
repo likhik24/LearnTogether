@@ -231,6 +231,67 @@ describe('CustomerService', () => {
     );
   });
 
+  it('adds a second child to the parent’s existing class booking', async () => {
+    const siblings = [
+      Object.assign(new ChildProfile(), {
+        id: '11111111-1111-4111-8111-111111111111',
+        name: 'Asha',
+        birthDate: '2022-06-10',
+      }),
+      Object.assign(new ChildProfile(), {
+        id: '22222222-2222-4222-8222-222222222222',
+        name: 'Arun',
+        birthDate: '2022-02-10',
+      }),
+    ];
+    const scheduledStart = '2031-08-29T05:00:00.000Z';
+    const existing = Object.assign(new Booking(), {
+      id: 'booking-1',
+      userId: 'user-1',
+      classRef: 'class-1',
+      reservationId: 'reservation-1',
+      childId: siblings[0].id,
+      childIds: [siblings[0].id],
+      childName: 'Asha',
+      seatCount: 1,
+      scheduledStart: new Date(scheduledStart),
+      status: BookingStatus.CONFIRMED,
+    });
+    children.find.mockResolvedValueOnce([siblings[1]]).mockResolvedValueOnce(siblings);
+    bookings.findOne.mockResolvedValue(existing);
+    scheduling.getClass.mockResolvedValue({
+      id: 'class-1',
+      slug: 'robotics',
+      activity: 'Robotics',
+      priceMinor: 50000,
+      currency: 'INR',
+      ageMin: 4,
+      ageMax: 10,
+    } as never);
+    scheduling.reserve.mockResolvedValue({ id: 'reservation-1' } as never);
+    notifications.create.mockImplementation((value) => value as CustomerNotification);
+    notifications.save.mockImplementation(async (value) => value as CustomerNotification);
+
+    const booking = await service.createBooking('user-1', 'Bearer token', {
+      childId: siblings[1].id,
+      classRef: 'class-1',
+      title: 'Ignored',
+      scheduledStart,
+    });
+
+    expect(scheduling.reserve).toHaveBeenCalledWith('Bearer token', 'class-1', scheduledStart, 2);
+    expect(manager.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'booking-1',
+        childIds: siblings.map((item) => item.id),
+        childName: 'Asha, Arun',
+        seatCount: 2,
+        amountMinor: 100000,
+      }),
+    );
+    expect(booking).toEqual(expect.objectContaining({ seatCount: 2, childName: 'Asha, Arun' }));
+  });
+
   it('rejects a booking when the selected child is outside the class age range', async () => {
     children.find.mockResolvedValue([
       Object.assign(new ChildProfile(), {
